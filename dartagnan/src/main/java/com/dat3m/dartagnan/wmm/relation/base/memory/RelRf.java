@@ -165,7 +165,7 @@ public class RelRf extends Relation {
     }
 
     @Override
-    protected BooleanFormula encodeApprox(SolverContext ctx) {
+    public BooleanFormula encode(SolverContext ctx) {
     	FormulaManager fmgr = ctx.getFormulaManager();
 		BooleanFormulaManager bmgr = fmgr.getBooleanFormulaManager();
 
@@ -178,7 +178,7 @@ public class RelRf extends Relation {
             BooleanFormula edge = this.getSMTVar(tuple, ctx);
 
             // The boogie file might have a different type (Ints vs BVs) that the imposed by ARCH_PRECISION
-            // In such cases we perform the transformation 
+            // In such cases we perform the transformation
             Formula a1 = w.getMemAddressExpr();
             Formula a2 = r.getMemAddressExpr();
             BooleanFormula sameAddress = generalEqual(a1, a2, ctx);

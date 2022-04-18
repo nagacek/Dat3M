@@ -16,7 +16,6 @@ import com.dat3m.dartagnan.verification.VerificationTask;
 import com.dat3m.dartagnan.wmm.relation.base.stat.StaticRelation;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
-import com.google.common.collect.Sets;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.sosy_lab.java_smt.api.BooleanFormula;
@@ -122,15 +121,15 @@ public class RelRMW extends StaticRelation {
     }
 
     @Override
-    protected BooleanFormula encodeApprox(SolverContext ctx) {
+    public BooleanFormula encode(SolverContext ctx) {
         FormulaManager fmgr = ctx.getFormulaManager();
 		BooleanFormulaManager bmgr = fmgr.getBooleanFormulaManager();
 
         // Encode base (not exclusive pairs) RMW
-        TupleSet origEncodeTupleSet = encodeTupleSet;
-        encodeTupleSet = new TupleSet(Sets.intersection(encodeTupleSet, baseMaxTupleSet));
-        BooleanFormula enc = super.encodeApprox(ctx);
-        encodeTupleSet = origEncodeTupleSet;
+        BooleanFormula enc = bmgr.and(encodeTupleSet.stream()
+            .filter(baseMaxTupleSet::contains)
+            .map(t -> bmgr.equivalence(getSMTVar(t, ctx), getExecPair(t, ctx)))
+            .toArray(BooleanFormula[]::new));
 
         // Encode RMW for exclusive pairs
         ExclusiveAccesses excl = analysisContext.requires(ExclusiveAccesses.class);
