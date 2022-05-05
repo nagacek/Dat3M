@@ -83,7 +83,7 @@ public class RelTrans extends UnaryRelation {
 
     @Override
     public void addEncodeTupleSet(TupleSet tuples){
-        TupleSet activeSet = new TupleSet(Sets.intersection(Sets.difference(tuples, encodeTupleSet), maxTupleSet));
+        TupleSet activeSet = truncated(tuples);
         encodeTupleSet.addAll(activeSet);
 
         TupleSet fullActiveSet = getFullEncodeTupleSet(activeSet);
@@ -101,14 +101,6 @@ public class RelTrans extends UnaryRelation {
         TupleSet minSet = getMinTupleSet();
         TupleSet r1Max = r1.getMaxTupleSet();
         for(Tuple tuple : fullEncodeTupleSet){
-            if (minSet.contains(tuple)) {
-                if(Relation.PostFixApprox) {
-                    enc = bmgr.and(enc, bmgr.implication(getExecPair(tuple, ctx), this.getSMTVar(tuple, ctx)));
-                } else {
-                    enc = bmgr.and(enc, bmgr.equivalence(this.getSMTVar(tuple, ctx), getExecPair(tuple, ctx)));
-                }
-                continue;
-            }
 
             BooleanFormula orClause = bmgr.makeFalse();
             Event e1 = tuple.getFirst();
@@ -121,9 +113,14 @@ public class RelTrans extends UnaryRelation {
 
             for(Tuple t : r1Max.getByFirst(e1)){
                 Event e3 = t.getSecond();
-                if(e3.getCId() != e1.getCId() && e3.getCId() != e2.getCId() && transitiveReachabilityMap.get(e3).contains(e2)){
-                    BooleanFormula tVar = minSet.contains(t) ? this.getSMTVar(t, ctx) : r1.getSMTVar(t, ctx);
-                    orClause = bmgr.or(orClause, bmgr.and(tVar, this.getSMTVar(e3, e2, ctx)));
+                Tuple t2 = new Tuple(e3, e2);
+                if(e3.getCId() != e1.getCId() && e3.getCId() != e2.getCId() && maxTupleSet.contains(t2)){
+                    boolean b1 = minSet.contains(t);
+                    boolean b2 = minSet.contains(t2);
+                    BooleanFormula f1 = b1 ? e1.exec() : r1.getSMTVar(t, ctx);
+                    BooleanFormula f2 = b2 ? e2.exec() : getSMTVar(t2, ctx);
+                    BooleanFormula f3 = b1 && b2 ? e3.exec() : bmgr.makeTrue();
+                    orClause = bmgr.or(orClause, bmgr.and(f1, f2, f3));
                 }
             }
 

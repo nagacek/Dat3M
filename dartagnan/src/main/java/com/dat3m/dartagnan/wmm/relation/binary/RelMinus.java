@@ -76,15 +76,11 @@ public class RelMinus extends BinaryRelation {
     	BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
 		BooleanFormula enc = bmgr.makeTrue();
 
-        TupleSet min = getMinTupleSet();
+        TupleSet max2 = r2.getMaxTupleSet();
+        TupleSet min1 = r1.getMinTupleSet();
         for(Tuple tuple : encodeTupleSet){
-            if (min.contains(tuple)) {
-                enc = bmgr.and(enc, bmgr.equivalence(this.getSMTVar(tuple, ctx), getExecPair(tuple, ctx)));
-                continue;
-            }
-
-            BooleanFormula opt1 = r1.getSMTVar(tuple, ctx);
-            BooleanFormula opt2 = bmgr.not(r2.getSMTVar(tuple, ctx));
+            BooleanFormula opt1 = min1.contains(tuple) ? getExecPair(tuple, ctx) : r1.getSMTVar(tuple, ctx);
+            BooleanFormula opt2 = max2.contains(tuple) ? bmgr.not(r2.getSMTVar(tuple, ctx)) : bmgr.makeTrue();
             if (Relation.PostFixApprox) {
                 enc = bmgr.and(enc, bmgr.implication(bmgr.and(opt1, opt2), this.getSMTVar(tuple, ctx)));
             } else {

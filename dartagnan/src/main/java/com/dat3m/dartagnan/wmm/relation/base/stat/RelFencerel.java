@@ -102,13 +102,9 @@ public class RelFencerel extends StaticRelation {
             Event e2 = tuple.getSecond();
 
             BooleanFormula orClause;
-            if(minTupleSet.contains(tuple)) {
-                orClause = bmgr.makeTrue();
-            } else {
-                orClause = fences.stream()
-                        .filter(f -> e1.getCId() < f.getCId() && f.getCId() < e2.getCId())
-                        .map(Event::exec).reduce(bmgr.makeFalse(), bmgr::or);
-            }
+            orClause = fences.stream()
+                .filter(f -> e1.getCId() < f.getCId() && f.getCId() < e2.getCId())
+                .map(Event::exec).reduce(bmgr.makeFalse(), bmgr::or);
 
             BooleanFormula rel = this.getSMTVar(tuple, ctx);
             enc = bmgr.and(enc, bmgr.equivalence(rel, bmgr.and(getExecPair(tuple, ctx), orClause)));

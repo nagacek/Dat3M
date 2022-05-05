@@ -68,14 +68,11 @@ public class RelUnion extends BinaryRelation {
     	BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
 		BooleanFormula enc = bmgr.makeTrue();
 
-        TupleSet min = getMinTupleSet();
+        TupleSet max1 = r1.getMaxTupleSet();
+        TupleSet max2 = r2.getMaxTupleSet();
         for(Tuple tuple : encodeTupleSet){
-            if (min.contains(tuple)) {
-                enc = bmgr.and(enc, bmgr.equivalence(this.getSMTVar(tuple, ctx), getExecPair(tuple, ctx)));
-                continue;
-            }
-            BooleanFormula opt1 = r1.getSMTVar(tuple, ctx);
-            BooleanFormula opt2 = r2.getSMTVar(tuple, ctx);
+            BooleanFormula opt1 = max1.contains(tuple) ? r1.getSMTVar(tuple, ctx) : bmgr.makeFalse();
+            BooleanFormula opt2 = max2.contains(tuple) ? r2.getSMTVar(tuple, ctx) : bmgr.makeFalse();
             if (Relation.PostFixApprox) {
                 enc = bmgr.and(enc, bmgr.implication(bmgr.or(opt1, opt2), this.getSMTVar(tuple, ctx)));
             } else {

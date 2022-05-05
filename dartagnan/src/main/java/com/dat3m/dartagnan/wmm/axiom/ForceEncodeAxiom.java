@@ -6,6 +6,8 @@ import org.sosy_lab.java_smt.api.BooleanFormula;
 import org.sosy_lab.java_smt.api.BooleanFormulaManager;
 import org.sosy_lab.java_smt.api.SolverContext;
 
+import static com.google.common.collect.Sets.difference;
+
 /*
     This is a fake axiom that forces a relation to get encoded!
  */
@@ -20,7 +22,7 @@ public class ForceEncodeAxiom extends Axiom {
 
     @Override
     public TupleSet getEncodeTupleSet(){
-        return rel.getMaxTupleSet();
+        return new TupleSet(difference(rel.getMaxTupleSet(),rel.getMinTupleSet()));
     }
 
     @Override

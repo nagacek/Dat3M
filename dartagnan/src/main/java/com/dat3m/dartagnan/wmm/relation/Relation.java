@@ -107,8 +107,19 @@ public abstract class Relation implements Encoder, Dependent<Relation> {
         return encodeTupleSet;
     }
 
+    /**
+     * Tries to mark a set of event pairs as relevant to the consistency property.
+     * Also propagates active sets to its children.
+     * @param tuples
+     * May contain tuples whose truth value in memory-consistent executions of the program are trivial.
+     * In this case, they are not marked and do not propagate.
+     */
     public void addEncodeTupleSet(TupleSet tuples){
-        encodeTupleSet.addAll(Sets.intersection(tuples, maxTupleSet));
+        encodeTupleSet.addAll(Sets.difference(Sets.intersection(tuples, maxTupleSet),minTupleSet));
+    }
+
+    protected TupleSet truncated(TupleSet tuples) {
+        return new TupleSet(Sets.difference(Sets.intersection(Sets.difference(tuples, encodeTupleSet), maxTupleSet),minTupleSet));
     }
 
     public String getName() {
@@ -157,9 +168,11 @@ public abstract class Relation implements Encoder, Dependent<Relation> {
     }
 
     public BooleanFormula getSMTVar(Tuple edge, SolverContext ctx) {
-        return !getMaxTupleSet().contains(edge) ?
-        		ctx.getFormulaManager().getBooleanFormulaManager().makeFalse() :
-                edge(getName(), edge.getFirst(), edge.getSecond(), ctx);
+        return getMinTupleSet().contains(edge)
+            ? execution(edge.getFirst(), edge.getSecond(), analysisContext.get(ExecutionAnalysis.class), ctx)
+            : getMaxTupleSet().contains(edge)
+            ? edge(getName(), edge.getFirst(), edge.getSecond(), ctx)
+            : ctx.getFormulaManager().getBooleanFormulaManager().makeFalse();
     }
 
     public final BooleanFormula getSMTVar(Event e1, Event e2, SolverContext ctx) {

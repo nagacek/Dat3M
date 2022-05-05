@@ -5,10 +5,11 @@ import com.dat3m.dartagnan.program.event.core.Event;
 import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
-import com.google.common.collect.Sets;
 import org.sosy_lab.java_smt.api.BooleanFormula;
 import org.sosy_lab.java_smt.api.BooleanFormulaManager;
 import org.sosy_lab.java_smt.api.SolverContext;
+
+import static com.dat3m.dartagnan.encoding.ProgramEncoder.execution;
 
 public class RelRangeIdentity extends UnaryRelation {
 
@@ -49,31 +50,33 @@ public class RelRangeIdentity extends UnaryRelation {
 
     @Override
     public void addEncodeTupleSet(TupleSet tuples){
-        TupleSet activeSet = new TupleSet(Sets.intersection(Sets.difference(tuples, encodeTupleSet), maxTupleSet));
+        TupleSet activeSet = truncated(tuples);
         encodeTupleSet.addAll(activeSet);
-        activeSet.removeAll(getMinTupleSet());
 
-        //TODO: Optimize using minSets (but no CAT uses this anyway)
-        if(!activeSet.isEmpty()){
-            TupleSet r1Set = new TupleSet();
-            for(Tuple tuple : activeSet){
-                r1Set.addAll(r1.getMaxTupleSet().getBySecond(tuple.getFirst()));
-            }
+        TupleSet max = r1.getMaxTupleSet();
+        TupleSet min = r1.getMinTupleSet();
+        TupleSet r1Set = new TupleSet();
+        for(Tuple tuple : activeSet){
+            r1Set.addAll(max.getBySecond(tuple.getFirst()));
+        }
+        r1Set.removeAll(min);
+        if(!r1Set.isEmpty()){
             r1.addEncodeTupleSet(r1Set);
         }
     }
 
     @Override
     public BooleanFormula encode(SolverContext ctx) {
+        ExecutionAnalysis exec = analysisContext.get(ExecutionAnalysis.class);
     	BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
 		BooleanFormula enc = bmgr.makeTrue();
-		
-        //TODO: Optimize using minSets (but no CAT uses this anyway)
+        TupleSet max1 = r1.getMaxTupleSet();
+        TupleSet min1 = r1.getMinTupleSet();
         for(Tuple tuple1 : encodeTupleSet){
             Event e = tuple1.getFirst();
             BooleanFormula opt = bmgr.makeFalse();
-            for(Tuple tuple2 : r1.getMaxTupleSet().getBySecond(e)){
-                opt = bmgr.or(r1.getSMTVar(tuple2.getFirst(), e, ctx));
+            for(Tuple tuple2 : max1.getBySecond(e)){
+                opt = bmgr.or(min1.contains(tuple2) ? execution(tuple2.getFirst(), e, exec, ctx) : r1.getSMTVar(tuple2.getFirst(), e, ctx));
             }
             enc = bmgr.and(enc, bmgr.equivalence(this.getSMTVar(e, e, ctx), opt));
         }

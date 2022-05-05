@@ -24,7 +24,9 @@ public class Irreflexive extends Axiom {
     @Override
     public TupleSet getEncodeTupleSet(){
         TupleSet set = new TupleSet();
-        rel.getMaxTupleSet().stream().filter(Tuple::isLoop).forEach(set::add);
+        TupleSet max = rel.getMaxTupleSet();
+        TupleSet min = rel.getMinTupleSet();
+        max.stream().filter(Tuple::isLoop).filter(t -> !min.contains(t)).forEach(set::add);
         return set;
     }
 

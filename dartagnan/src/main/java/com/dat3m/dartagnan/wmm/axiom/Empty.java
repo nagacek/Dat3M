@@ -7,6 +7,8 @@ import org.sosy_lab.java_smt.api.BooleanFormula;
 import org.sosy_lab.java_smt.api.BooleanFormulaManager;
 import org.sosy_lab.java_smt.api.SolverContext;
 
+import static com.google.common.collect.Sets.difference;
+
 public class Empty extends Axiom {
 
     public Empty(Relation rel, boolean negated, boolean flag) {
@@ -19,7 +21,7 @@ public class Empty extends Axiom {
 
     @Override
     public TupleSet getEncodeTupleSet(){
-        return rel.getMaxTupleSet();
+        return new TupleSet(difference(rel.getMaxTupleSet(),rel.getMinTupleSet()));
     }
 
     @Override

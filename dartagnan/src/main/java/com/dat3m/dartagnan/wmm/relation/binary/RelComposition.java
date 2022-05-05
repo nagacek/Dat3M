@@ -5,13 +5,9 @@ import com.dat3m.dartagnan.program.event.core.Event;
 import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
-import com.google.common.collect.Sets;
 import org.sosy_lab.java_smt.api.BooleanFormula;
 import org.sosy_lab.java_smt.api.BooleanFormulaManager;
 import org.sosy_lab.java_smt.api.SolverContext;
-
-import java.util.HashSet;
-import java.util.Set;
 
 /**
  *
@@ -80,9 +76,8 @@ public class RelComposition extends BinaryRelation {
 
     @Override
     public void addEncodeTupleSet(TupleSet tuples){
-        Set<Tuple> activeSet = new HashSet<>(Sets.intersection(Sets.difference(tuples, encodeTupleSet), maxTupleSet));
+        TupleSet activeSet = truncated(tuples);
         encodeTupleSet.addAll(activeSet);
-        activeSet.removeAll(getMinTupleSet());
 
         if(!activeSet.isEmpty()){
             TupleSet r1Set = new TupleSet();
@@ -113,20 +108,25 @@ public class RelComposition extends BinaryRelation {
     	BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
 		BooleanFormula enc = bmgr.makeTrue();
 
-        TupleSet r1Set = r1.getEncodeTupleSet();
-        TupleSet r2Set = r2.getEncodeTupleSet();
-        TupleSet minSet = getMinTupleSet();
+        TupleSet max1 = r1.getMaxTupleSet();
+        TupleSet max2 = r2.getMaxTupleSet();
+        TupleSet min1 = r1.getMinTupleSet();
+        TupleSet min2 = r2.getMinTupleSet();
 
         for(Tuple tuple : encodeTupleSet) {
+            Event x = tuple.getFirst();
+            Event z = tuple.getSecond();
             BooleanFormula expr = bmgr.makeFalse();
-            if (minSet.contains(tuple)) {
-                expr = getExecPair(tuple, ctx);
-            } else {
-                for (Tuple t1 : r1Set.getByFirst(tuple.getFirst())) {
-                    Tuple t2 = new Tuple(t1.getSecond(), tuple.getSecond());
-                    if (r2Set.contains(t2)) {
-                        expr = bmgr.or(expr, bmgr.and(r1.getSMTVar(t1, ctx), r2.getSMTVar(t2, ctx)));
-                    }
+            for(Tuple t1 : max1.getByFirst(x)) {
+                Event y = t1.getSecond();
+                Tuple t2 = new Tuple(y, z);
+                if(max2.contains(t2)) {
+                    boolean b1 = min1.contains(t1);
+                    boolean b2 = min2.contains(t2);
+                    BooleanFormula f1 = b1 ? x.exec() : r1.getSMTVar(t1, ctx);
+                    BooleanFormula f2 = b2 ? z.exec() : r2.getSMTVar(t2, ctx);
+                    BooleanFormula f3 = b1 && b2 ? y.exec() : bmgr.makeTrue();
+                    expr = bmgr.or(expr, bmgr.and(f1, f2, f3));
                 }
             }
 
