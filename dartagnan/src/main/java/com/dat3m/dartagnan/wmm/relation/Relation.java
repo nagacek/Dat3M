@@ -46,13 +46,6 @@ public abstract class Relation implements Encoder, Dependent<Relation> {
     protected boolean forceUpdateRecursiveGroupId = false;
     protected boolean forceDoEncode = false;
 
-    public Relation() { }
-
-    public Relation(String name) {
-        this();
-        this.name = name;
-    }
-
     @Override
     public List<Relation> getDependencies() {
         return Collections.emptyList();
