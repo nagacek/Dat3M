@@ -18,10 +18,8 @@ import com.dat3m.dartagnan.verification.model.EventData;
 import com.dat3m.dartagnan.verification.model.ExecutionModel;
 import com.dat3m.dartagnan.wmm.Wmm;
 import com.dat3m.dartagnan.wmm.axiom.ForceEncodeAxiom;
-import com.dat3m.dartagnan.wmm.relation.RecursiveRelation;
 import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.relation.base.stat.RelCartesian;
-import com.dat3m.dartagnan.wmm.relation.base.stat.RelFencerel;
 import com.dat3m.dartagnan.wmm.relation.base.stat.RelSetIdentity;
 import com.dat3m.dartagnan.wmm.relation.binary.RelMinus;
 import com.dat3m.dartagnan.wmm.utils.RelationRepository;
@@ -250,7 +248,7 @@ public class RefinementSolver {
                     // in our Wmm but for CAAT they are derived from unary predicates!
                     logger.info("Found difference {}. Cutting rhs relation {}", rel, sec);
                     cutRelations.add(sec);
-                    baselineWmm.addAxiom(new ForceEncodeAxiom(getCopyOfRelation(sec, repo)));
+                    baselineWmm.addAxiom(new ForceEncodeAxiom(repo.copy(sec)));
                 }
             }
         }
@@ -261,42 +259,6 @@ public class RefinementSolver {
         if (collected.add(root)) {
             root.getDependencies().forEach(dep -> collectDependencies(dep, collected));
         }
-    }
-
-    private static Relation getCopyOfRelation(Relation rel, RelationRepository repo) {
-        if (repo.containsRelation(rel.getName())) {
-            return repo.getRelation(rel.getName());
-        }
-
-        if (rel instanceof RecursiveRelation) {
-            throw new IllegalArgumentException(
-                    String.format("Cannot cut recursively defined relation %s from memory model. ", rel));
-        }
-
-        Relation copy = repo.getRelation(rel.getName());
-        if (copy == null) {
-            List<Object> deps = new ArrayList<>(rel.getDependencies().size());
-            if (rel instanceof RelSetIdentity) {
-                deps.add(((RelSetIdentity)rel).getFilter());
-            } else if (rel instanceof RelCartesian) {
-                deps.add(((RelCartesian) rel).getFirstFilter());
-                deps.add(((RelCartesian) rel).getSecondFilter());
-            } else if (rel instanceof RelFencerel) {
-                deps.add(((RelFencerel)rel).getFenceName());
-            } else {
-                for (Relation dep : rel.getDependencies()) {
-                    deps.add(getCopyOfRelation(dep, repo));
-                }
-            }
-
-            copy = repo.getRelation(rel.getClass(), deps.toArray());
-            if (rel.getIsNamed()) {
-                copy.setName(rel.getName());
-                repo.updateRelation(copy);
-            }
-        }
-
-        return copy;
     }
 
     // -------------------- Printing -----------------------------

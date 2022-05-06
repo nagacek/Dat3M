@@ -46,12 +46,6 @@ public class WmmEncoder implements Encoder {
             memoryModel.getRelationRepository().getRelation(relName);
         }
 
-        for(Set<RecursiveRelation> recursiveGroup : memoryModel.getRecursiveGroups()) {
-            for(RecursiveRelation relation : recursiveGroup) {
-                relation.setDoRecurse();
-            }
-        }
-
         for(Relation relation : memoryModel.getRelationRepository().getRelations()){
             relation.initializeEncoding(ctx);
         }

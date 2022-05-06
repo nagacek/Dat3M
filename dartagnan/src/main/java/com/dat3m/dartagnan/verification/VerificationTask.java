@@ -30,9 +30,9 @@ import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.common.configuration.Options;
 import org.sosy_lab.java_smt.api.SolverContext;
 
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Set;
 
 import static com.dat3m.dartagnan.configuration.OptionNames.*;
 import static com.dat3m.dartagnan.program.event.Tag.ASSERTION;
@@ -89,7 +89,7 @@ public class VerificationTask {
 
     public Context getAnalysisContext() { return analysisContext; }
 
-    public Set<Relation> getRelations() {
+    public Collection<Relation> getRelations() {
     	return memoryModel.getRelationRepository().getRelations();
     }
     public List<Axiom> getAxioms() {

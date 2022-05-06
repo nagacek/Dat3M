@@ -41,11 +41,6 @@ public class RelationAnalysis {
         for (Axiom ax : memoryModel.getAxioms()) {
             ax.getRelation().updateRecursiveGroupId(ax.getRelation().getRecursiveGroupId());
         }
-        for(Set<RecursiveRelation> recursiveGroup : memoryModel.getRecursiveGroups()) {
-            for(RecursiveRelation relation : recursiveGroup) {
-                relation.setDoRecurse();
-            }
-        }
 
         // ------------------------------------------------
         for(String relName : Wmm.BASE_RELATIONS){

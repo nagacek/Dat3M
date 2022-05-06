@@ -132,30 +132,6 @@ public abstract class Relation implements Encoder, Dependent<Relation> {
         return name != null;
     }
 
-    @Override
-    public String toString(){
-        if(name != null){
-            return name + " := " + term;
-        }
-        return term;
-    }
-
-    @Override
-    public int hashCode(){
-        return getName().hashCode();
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        } else if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        return getName().equals(((Relation)obj).getName());
-    }
-
     public BooleanFormula encode(SolverContext ctx) {
         return ctx.getFormulaManager().getBooleanFormulaManager().makeTrue();
     }
@@ -214,5 +190,10 @@ public abstract class Relation implements Encoder, Dependent<Relation> {
     
     public Relation getSecond() {
     	return isBinaryRelation() ? getDependencies().get(1) : null;
+    }
+
+    @Override
+    public String toString() {
+        return name == null ? term : name + " := " + term;
     }
 }

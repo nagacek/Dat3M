@@ -9,27 +9,11 @@ mcm
     ;
 
 definition
-    :   axiomDefinition
-    |   letDefinition
-    |   letRecDefinition
-    ;
-
-axiomDefinition locals [Class<?> cls]
-    :   (flag = FLAG)? (negate = NOT)? ACYCLIC { $cls = Acyclic.class; } e = expression (AS NAME)?
-    |   (flag = FLAG)? (negate = NOT)? IRREFLEXIVE { $cls = Irreflexive.class; } e = expression (AS NAME)?
-    |   (flag = FLAG)? (negate = NOT)? EMPTY { $cls = Empty.class; } e = expression (AS NAME)?
-    ;
-
-letDefinition
-    :   LET n = NAME EQ e = expression
-    ;
-
-letRecDefinition
-    :   LET REC n = NAME EQ e = expression letRecAndDefinition*
-    ;
-
-letRecAndDefinition
-    :   AND n = NAME EQ e = expression
+    :   (flag = FLAG)? (negate = NOT)? ACYCLIC e = expression (AS NAME)?     #acyclicDefinition
+    |   (flag = FLAG)? (negate = NOT)? IRREFLEXIVE e = expression (AS NAME)? #irreflexiveDefinition
+    |   (flag = FLAG)? (negate = NOT)? EMPTY e = expression (AS NAME)?       #emptyDefinition
+    |   LET n = NAME EQ e = expression                                       #letDefinition
+    |   LET REC NAME EQ expression (AND NAME EQ expression)*                 #letRecDefinition
     ;
 
 expression
