@@ -120,7 +120,6 @@ public class RelCo extends Relation {
                 }
             }
 
-            removeMutuallyExclusiveTuples(maxTupleSet);
             if (wmmAnalysis.isLocallyConsistent()) {
                 applyLocalConsistencyMaxSet();
             }

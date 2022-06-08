@@ -27,11 +27,11 @@ public class RelComposition extends BinaryRelation {
     @Override
     public TupleSet getMinTupleSet(){
         if(minTupleSet == null){
-            ExecutionAnalysis exec = analysisContext.get(ExecutionAnalysis.class);
+            ExecutionAnalysis exec = analysisContext.requires(ExecutionAnalysis.class);
             minTupleSet = r1.getMinTupleSet().postComposition(r2.getMinTupleSet(),
-                    (t1, t2) -> exec.isImplied(t1.getFirst(), t1.getSecond())
-                            || exec.isImplied(t2.getSecond(), t1.getSecond()));
-            removeMutuallyExclusiveTuples(minTupleSet);
+                    (t1, t2) -> (exec.isImplied(t1.getFirst(), t1.getSecond())
+                            || exec.isImplied(t2.getSecond(), t1.getSecond()))
+                        && !exec.areMutuallyExclusive(t1.getFirst(), t2.getSecond()));
         }
         return minTupleSet;
     }
@@ -39,8 +39,9 @@ public class RelComposition extends BinaryRelation {
     @Override
     public TupleSet getMaxTupleSet(){
         if(maxTupleSet == null){
-            maxTupleSet = r1.getMaxTupleSet().postComposition(r2.getMaxTupleSet());
-            removeMutuallyExclusiveTuples(maxTupleSet);
+            ExecutionAnalysis exec = analysisContext.requires(ExecutionAnalysis.class);
+            maxTupleSet = r1.getMaxTupleSet().postComposition(r2.getMaxTupleSet(),
+                    (t1, t2) -> !exec.areMutuallyExclusive(t1.getFirst(), t2.getSecond()));
         }
         return maxTupleSet;
     }
@@ -48,11 +49,11 @@ public class RelComposition extends BinaryRelation {
     @Override
     public TupleSet getMinTupleSetRecursive(){
         if(recursiveGroupId > 0 && maxTupleSet != null){
-            ExecutionAnalysis exec = analysisContext.get(ExecutionAnalysis.class);
+            ExecutionAnalysis exec = analysisContext.requires(ExecutionAnalysis.class);
             minTupleSet = r1.getMinTupleSetRecursive().postComposition(r2.getMinTupleSetRecursive(),
-                    (t1, t2) -> exec.isImplied(t1.getFirst(), t1.getSecond())
-                            || exec.isImplied(t2.getSecond(), t1.getSecond()));
-            removeMutuallyExclusiveTuples(minTupleSet);
+                    (t1, t2) -> (exec.isImplied(t1.getFirst(), t1.getSecond())
+                            || exec.isImplied(t2.getSecond(), t1.getSecond()))
+                        && !exec.areMutuallyExclusive(t1.getFirst(), t2.getFirst()));
             return minTupleSet;
         }
         return getMinTupleSet();

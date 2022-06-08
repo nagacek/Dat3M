@@ -62,7 +62,6 @@ public class RelRf extends Relation {
                     }
                 }
             }
-            removeMutuallyExclusiveTuples(maxTupleSet);
             if (wmmAnalysis.isLocallyConsistent()) {
                 applyLocalConsistency();
             }

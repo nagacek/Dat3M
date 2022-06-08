@@ -55,6 +55,7 @@ public class RelRMW extends StaticRelation {
     @Override
     public TupleSet getMaxTupleSet(){
         if(maxTupleSet == null){
+            ExecutionAnalysis exec = analysisContext.requires(ExecutionAnalysis.class);
         	logger.info("Computing maxTupleSet for " + getName());
             minTupleSet = new TupleSet();
 
@@ -72,7 +73,7 @@ public class RelRMW extends StaticRelation {
             filter = FilterIntersection.get(FilterBasic.get(Tag.RMW), locks);
             for(Event e : task.getProgram().getCache().getEvents(filter)){
 
-            	    // Connect Load to Store
+                    // Connect Load to Store
                     minTupleSet.add(new Tuple(e, e.getSuccessor().getSuccessor()));
             }
 
@@ -81,13 +82,15 @@ public class RelRMW extends StaticRelation {
             for(Event end : task.getProgram().getCache().getEvents(filter)){
                 List<Event> block = ((EndAtomic)end).getBlock().stream().filter(x -> x.is(Tag.VISIBLE)).collect(Collectors.toList());
                 for (int i = 0; i < block.size(); i++) {
-                    for (int j = i + 1; j < block.size(); j++) {
-                        minTupleSet.add(new Tuple(block.get(i), block.get(j)));
+                    Event e1 = block.get(i);
+                    for(Event e2 : block.subList(i + 1, block.size())) {
+                        if(!exec.areMutuallyExclusive(e1, e2)) {
+                            minTupleSet.add(new Tuple(e1, e2));
+                        }
                     }
 
                 }
             }
-            removeMutuallyExclusiveTuples(minTupleSet);
 
             maxTupleSet = new TupleSet();
             maxTupleSet.addAll(minTupleSet);

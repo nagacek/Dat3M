@@ -18,7 +18,6 @@ import org.sosy_lab.java_smt.api.SolverContext;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 
 import static com.dat3m.dartagnan.encoding.ProgramEncoder.execution;
 import static com.dat3m.dartagnan.wmm.utils.Utils.edge;
@@ -146,11 +145,6 @@ public abstract class Relation implements Encoder, Dependent<Relation> {
 
     public final BooleanFormula getSMTVar(Event e1, Event e2, SolverContext ctx) {
         return getSMTVar(new Tuple(e1, e2), ctx);
-    }
-
-    protected void removeMutuallyExclusiveTuples(Set<Tuple> tupleSet) {
-        ExecutionAnalysis exec = analysisContext.requires(ExecutionAnalysis.class);
-        tupleSet.removeIf(t -> exec.areMutuallyExclusive(t.getFirst(), t.getSecond()));
     }
 
     // ========================== Utility methods =========================
