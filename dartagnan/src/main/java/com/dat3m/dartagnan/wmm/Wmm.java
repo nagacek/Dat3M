@@ -6,7 +6,6 @@ import com.dat3m.dartagnan.utils.dependable.DependencyGraph;
 import com.dat3m.dartagnan.wmm.axiom.Axiom;
 import com.dat3m.dartagnan.wmm.relation.RecursiveRelation;
 import com.dat3m.dartagnan.wmm.relation.Relation;
-import com.dat3m.dartagnan.wmm.utils.RecursiveGroup;
 import com.dat3m.dartagnan.wmm.utils.RelationRepository;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
@@ -27,7 +26,7 @@ public class Wmm {
     private final List<Axiom> axioms = new ArrayList<>();
     private final Map<String, FilterAbstract> filters = new HashMap<>();
     private final RelationRepository relationRepository;
-    private final List<RecursiveGroup> recursiveGroups = new ArrayList<>();
+    private final List<Set<RecursiveRelation>> recursiveGroups = new ArrayList<>();
 
     public Wmm() {
         relationRepository = new RelationRepository();
@@ -41,7 +40,7 @@ public class Wmm {
         return axioms;
     }
 
-    public List<RecursiveGroup> getRecursiveGroups() { return recursiveGroups; }
+    public List<Set<RecursiveRelation>> getRecursiveGroups() { return recursiveGroups; }
 
     public void addFilter(FilterAbstract filter) {
         filters.put(filter.getName(), filter);
@@ -58,7 +57,11 @@ public class Wmm {
     public void addRecursiveGroup(Set<RecursiveRelation> recursiveGroup){
         int id = 1 << recursiveGroups.size();
         Preconditions.checkArgument(id >= 0, "Exceeded maximum number of recursive relations.");
-        recursiveGroups.add(new RecursiveGroup(id, recursiveGroup));
+        for(RecursiveRelation relation : recursiveGroup) {
+            relation.setDoRecurse();
+            relation.setRecursiveGroupId(id);
+        }
+        recursiveGroups.add(recursiveGroup);
     }
 
 

@@ -7,10 +7,12 @@ import com.dat3m.dartagnan.verification.VerificationTask;
 import com.dat3m.dartagnan.wmm.Wmm;
 import com.dat3m.dartagnan.wmm.axiom.Axiom;
 import com.dat3m.dartagnan.wmm.relation.Relation;
-import com.dat3m.dartagnan.wmm.utils.RecursiveGroup;
+import com.dat3m.dartagnan.wmm.relation.RecursiveRelation;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
 import org.sosy_lab.common.configuration.Configuration;
 import org.sosy_lab.common.configuration.InvalidConfigurationException;
+
+import java.util.Set;
 
 public class RelationAnalysis {
 
@@ -39,8 +41,10 @@ public class RelationAnalysis {
         for (Axiom ax : memoryModel.getAxioms()) {
             ax.getRelation().updateRecursiveGroupId(ax.getRelation().getRecursiveGroupId());
         }
-        for(RecursiveGroup recursiveGroup : memoryModel.getRecursiveGroups()){
-            recursiveGroup.setDoRecurse();
+        for(Set<RecursiveRelation> recursiveGroup : memoryModel.getRecursiveGroups()) {
+            for(RecursiveRelation relation : recursiveGroup) {
+                relation.setDoRecurse();
+            }
         }
 
         // ------------------------------------------------
@@ -60,9 +64,31 @@ public class RelationAnalysis {
             baseRel.getMaxTupleSet();
             baseRel.getMinTupleSet();
         }
-        for (RecursiveGroup recursiveGroup : memoryModel.getRecursiveGroups()) {
-            recursiveGroup.initMaxTupleSets();
-            recursiveGroup.initMinTupleSets();
+        for(Set<RecursiveRelation> recursiveGroup : memoryModel.getRecursiveGroups()) {
+            boolean changed1 = true;
+
+            while(changed1) {
+                changed1 = false;
+                for(RecursiveRelation relation1 : recursiveGroup) {
+                    relation1.setDoRecurse();
+                    int oldSize1 = relation1.getMaxTupleSet().size();
+                    if(oldSize1 != relation1.getMaxTupleSetRecursive().size()) {
+                        changed1 = true;
+                    }
+                }
+            }
+            boolean changed = true;
+
+            while(changed) {
+                changed = false;
+                for(RecursiveRelation relation : recursiveGroup) {
+                    relation.setDoRecurse();
+                    int oldSize = relation.getMinTupleSet().size();
+                    if(oldSize != relation.getMinTupleSetRecursive().size()) {
+                        changed = true;
+                    }
+                }
+            }
         }
         for (Axiom ax : memoryModel.getAxioms()) {
             ax.getRelation().getMaxTupleSet();

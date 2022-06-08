@@ -5,7 +5,7 @@ import com.dat3m.dartagnan.wmm.Wmm;
 import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import com.dat3m.dartagnan.wmm.axiom.Axiom;
 import com.dat3m.dartagnan.wmm.relation.Relation;
-import com.dat3m.dartagnan.wmm.utils.RecursiveGroup;
+import com.dat3m.dartagnan.wmm.relation.RecursiveRelation;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 
@@ -16,6 +16,10 @@ import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.java_smt.api.BooleanFormula;
 import org.sosy_lab.java_smt.api.BooleanFormulaManager;
 import org.sosy_lab.java_smt.api.SolverContext;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 
 
 public class WmmEncoder implements Encoder {
@@ -42,8 +46,10 @@ public class WmmEncoder implements Encoder {
             memoryModel.getRelationRepository().getRelation(relName);
         }
 
-        for(RecursiveGroup recursiveGroup : memoryModel.getRecursiveGroups()){
-            recursiveGroup.setDoRecurse();
+        for(Set<RecursiveRelation> recursiveGroup : memoryModel.getRecursiveGroups()) {
+            for(RecursiveRelation relation : recursiveGroup) {
+                relation.setDoRecurse();
+            }
         }
 
         for(Relation relation : memoryModel.getRelationRepository().getRelations()){
@@ -59,8 +65,24 @@ public class WmmEncoder implements Encoder {
             ax.getRelation().addEncodeTupleSet(ax.getEncodeTupleSet());
         }
 
-        for (RecursiveGroup recursiveGroup : Lists.reverse(memoryModel.getRecursiveGroups())) {
-            recursiveGroup.updateEncodeTupleSets();
+        for (Set<RecursiveRelation> recursiveGroup : Lists.reverse(memoryModel.getRecursiveGroups())) {
+            Map<Relation, Integer> encodeSetSizes = new HashMap<>();
+            for(Relation relation : recursiveGroup) {
+                encodeSetSizes.put(relation, 0);
+            }
+            boolean changed = true;
+            while(changed) {
+                changed = false;
+                for(RecursiveRelation relation : recursiveGroup) {
+                    relation.setDoRecurse();
+                    relation.addEncodeTupleSet(relation.getEncodeTupleSet());
+                    int newSize = relation.getEncodeTupleSet().size();
+                    if(newSize != encodeSetSizes.get(relation)) {
+                        encodeSetSizes.put(relation, newSize);
+                        changed = true;
+                    }
+                }
+            }
         }
 
         isInitialized = true;
