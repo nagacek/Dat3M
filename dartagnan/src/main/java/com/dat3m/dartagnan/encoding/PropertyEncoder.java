@@ -13,6 +13,7 @@ import com.dat3m.dartagnan.program.filter.FilterBasic;
 import com.dat3m.dartagnan.program.filter.FilterMinus;
 import com.dat3m.dartagnan.verification.Context;
 import com.dat3m.dartagnan.wmm.Wmm;
+import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import com.dat3m.dartagnan.wmm.axiom.Axiom;
 import com.dat3m.dartagnan.wmm.relation.RelationNameRepository;
 import com.dat3m.dartagnan.wmm.relation.base.memory.RelCo;
@@ -52,6 +53,7 @@ public class PropertyEncoder implements Encoder {
     private final Program program;
     private final Wmm memoryModel;
     private final AliasAnalysis alias;
+    private final RelationAnalysis relationAnalysis;
 
     // =====================================================================
 
@@ -61,6 +63,7 @@ public class PropertyEncoder implements Encoder {
         this.program = checkNotNull(program);
         this.memoryModel = checkNotNull(wmm);
         this.alias = context.requires(AliasAnalysis.class);
+        this.relationAnalysis = context.requires(RelationAnalysis.class);
         config.inject(this);
     }
 
@@ -176,7 +179,7 @@ public class PropertyEncoder implements Encoder {
                 BooleanFormula allCoMaximalLoad = bmgr.makeTrue();
                 for (Load load : pair.loads) {
                     BooleanFormula coMaximalLoad = bmgr.makeFalse();
-                    for (Tuple rfEdge : rf.getMaxTupleSet().getBySecond(load)) {
+                    for (Tuple rfEdge : relationAnalysis.getMaxTupleSet(rf).getBySecond(load)) {
                         coMaximalLoad = bmgr.or(coMaximalLoad, bmgr.and(rf.getSMTVar(rfEdge, ctx), co.getLastCoVar(rfEdge.getFirst(), ctx)));
                     }
                     allCoMaximalLoad = bmgr.and(allCoMaximalLoad, coMaximalLoad);

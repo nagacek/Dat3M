@@ -8,6 +8,7 @@ import com.dat3m.dartagnan.wmm.Wmm;
 import com.dat3m.dartagnan.wmm.axiom.Axiom;
 import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.utils.RecursiveGroup;
+import com.dat3m.dartagnan.wmm.utils.TupleSet;
 import org.sosy_lab.common.configuration.Configuration;
 import org.sosy_lab.common.configuration.InvalidConfigurationException;
 
@@ -22,6 +23,14 @@ public class RelationAnalysis {
 
     public static RelationAnalysis fromConfig(VerificationTask task, Context context, Configuration config) throws InvalidConfigurationException {
         return new RelationAnalysis(task, context, config);
+    }
+
+    public TupleSet getMaxTupleSet(Relation relation) {
+        return relation.getMaxTupleSet();
+    }
+
+    public TupleSet getMinTupleSet(Relation relation) {
+        return relation.getMinTupleSet();
     }
 
     private void run(VerificationTask task, Context context) {
