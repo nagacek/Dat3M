@@ -42,6 +42,7 @@ public class Acyclic extends Axiom {
         // ====== Construct [Event -> Successor] mapping ======
         Map<Event, Collection<Event>> succMap = new HashMap<>();
         TupleSet relMaxTuple = rel.getMaxTupleSet();
+        TupleSet min = rel.getMinTupleSet();
         for (Tuple t : relMaxTuple) {
             succMap.computeIfAbsent(t.getFirst(), key -> new ArrayList<>()).add(t.getSecond());
         }
@@ -53,7 +54,7 @@ public class Acyclic extends Axiom {
             for (DependencyGraph<Event>.Node node1 : scc) {
                 for (DependencyGraph<Event>.Node node2 : scc) {
                     Tuple t = new Tuple(node1.getContent(), node2.getContent());
-                    if (relMaxTuple.contains(t)) {
+                    if (relMaxTuple.contains(t) && !min.contains(t)) {
                         result.add(t);
                     }
                 }

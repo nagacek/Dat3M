@@ -7,9 +7,6 @@ import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
 
-import java.util.Map;
-import java.util.Set;
-
 /**
  *
  * @author Florian Furbach
@@ -40,9 +37,6 @@ public class RelTransRef extends RelTrans {
     public TupleSet getMaxTupleSet(){
         if(maxTupleSet == null){
             super.getMaxTupleSet();
-            for (Map.Entry<Event, Set<Event>> entry : transitiveReachabilityMap.entrySet()) {
-                entry.getValue().remove(entry.getKey());
-            }
             for(Event e : task.getProgram().getCache().getEvents(FilterBasic.get(Tag.VISIBLE))){
                 maxTupleSet.add(new Tuple(e, e));
             }

@@ -9,6 +9,11 @@ import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
 
+import java.util.Map;
+import java.util.Set;
+
+import static com.google.common.collect.Sets.intersection;
+
 /**
  *
  * @author Florian Furbach
@@ -56,6 +61,13 @@ public class RelUnion extends BinaryRelation {
             return maxTupleSet;
         }
         return getMaxTupleSet();
+    }
+
+    @Override
+    public Map<Relation, Set<Tuple>> activate(Set<Tuple> news) {
+        return Map.of(
+            r1, intersection(news, r1.getMaxTupleSet()),
+            r2, intersection(news, r2.getMaxTupleSet()));
     }
 
     @Override

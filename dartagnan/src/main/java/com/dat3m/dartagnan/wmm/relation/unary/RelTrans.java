@@ -2,27 +2,24 @@ package com.dat3m.dartagnan.wmm.relation.unary;
 
 import com.dat3m.dartagnan.program.analysis.ExecutionAnalysis;
 import com.dat3m.dartagnan.program.event.core.Event;
-import com.dat3m.dartagnan.verification.Context;
-import com.dat3m.dartagnan.verification.VerificationTask;
 import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
-import com.google.common.collect.Sets;
 import org.sosy_lab.java_smt.api.BooleanFormula;
 import org.sosy_lab.java_smt.api.BooleanFormulaManager;
 import org.sosy_lab.java_smt.api.SolverContext;
 
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+
+import static com.google.common.collect.Sets.intersection;
 
 /**
  *
  * @author Florian Furbach
  */
 public class RelTrans extends UnaryRelation {
-
-    Map<Event, Set<Event>> transitiveReachabilityMap;
-    private TupleSet fullEncodeTupleSet;
 
     public static String makeTerm(Relation r1){
         return r1.getName() + "^+";
@@ -31,13 +28,6 @@ public class RelTrans extends UnaryRelation {
     public RelTrans(Relation r1) {
         super(r1);
         term = makeTerm(r1);
-    }
-
-    @Override
-    public void initializeRelationAnalysis(VerificationTask task, Context context) {
-        super.initializeRelationAnalysis(task, context);
-        fullEncodeTupleSet = new TupleSet();
-        transitiveReachabilityMap = null;
     }
 
     @Override
@@ -64,30 +54,47 @@ public class RelTrans extends UnaryRelation {
     @Override
     public TupleSet getMaxTupleSet(){
         if(maxTupleSet == null){
-            transitiveReachabilityMap = r1.getMaxTupleSet().transMap();
             maxTupleSet = new TupleSet();
             ExecutionAnalysis exec = analysisContext.requires(ExecutionAnalysis.class);
-            for(Event e1 : transitiveReachabilityMap.keySet()){
-                for(Event e2 : transitiveReachabilityMap.get(e1)){
-                    if(!exec.areMutuallyExclusive(e1, e2)) {
-                        maxTupleSet.add(new Tuple(e1, e2));
+            TupleSet child = r1.getMaxTupleSet();
+            Set<Tuple> update = child;
+            while(!update.isEmpty()) {
+                maxTupleSet.addAll(update);
+                Set<Tuple> next = new HashSet<>();
+                for(Tuple t1 : update) {
+                    Event e1 = t1.getFirst();
+                    Event e2 = t1.getSecond();
+                    for(Tuple t2 : child.getByFirst(e2)) {
+                        Event e3 = t2.getSecond();
+                        if(!exec.areMutuallyExclusive(e1, e3)) {
+                            next.add(new Tuple(e1, e3));
+                        }
                     }
                 }
+                next.removeAll(maxTupleSet);
+                update = next;
             }
         }
         return maxTupleSet;
     }
 
     @Override
-    public void addEncodeTupleSet(TupleSet tuples){
-        TupleSet activeSet = truncated(tuples);
-        encodeTupleSet.addAll(activeSet);
-
-        TupleSet fullActiveSet = getFullEncodeTupleSet(activeSet);
-        if(fullEncodeTupleSet.addAll(fullActiveSet)){
-            fullActiveSet.removeAll(getMinTupleSet());
-            r1.addEncodeTupleSet(fullActiveSet);
+    public Map<Relation, Set<Tuple>> activate(Set<Tuple> news) {
+        HashSet<Tuple> factors = new HashSet<>();
+        for(Tuple t : news) {
+            for(Tuple t1 : maxTupleSet.getByFirst(t.getFirst())) {
+                Tuple t2 = new Tuple(t1.getSecond(), t.getSecond());
+                if(maxTupleSet.contains(t2)) {
+                    if(!minTupleSet.contains(t1)) {
+                        factors.add(t1);
+                    }
+                    if(!minTupleSet.contains(t2)) {
+                        factors.add(t2);
+                    }
+                }
+            }
         }
+        return Map.of(this, factors, r1, intersection(news, r1.getMaxTupleSet()));
     }
 
     @Override
@@ -97,7 +104,7 @@ public class RelTrans extends UnaryRelation {
 
         TupleSet minSet = getMinTupleSet();
         TupleSet r1Max = r1.getMaxTupleSet();
-        for(Tuple tuple : fullEncodeTupleSet){
+        for(Tuple tuple : encodeTupleSet){
 
             BooleanFormula orClause = bmgr.makeFalse();
             Event e1 = tuple.getFirst();
@@ -129,33 +136,5 @@ public class RelTrans extends UnaryRelation {
         }
 
         return enc;
-    }
-
-    private TupleSet getFullEncodeTupleSet(TupleSet tuples){
-        TupleSet processNow = new TupleSet(Sets.intersection(tuples, getMaxTupleSet()));
-        TupleSet result = new TupleSet();
-
-        while(!processNow.isEmpty()) {
-            TupleSet processNext = new TupleSet();
-            result.addAll(processNow);
-
-            for (Tuple tuple : processNow) {
-                Event e1 = tuple.getFirst();
-                Event e2 = tuple.getSecond();
-                for (Tuple t : r1.getMaxTupleSet().getByFirst(e1)) {
-                    Event e3 = t.getSecond();
-                    if (e3.getCId() != e1.getCId() && e3.getCId() != e2.getCId() &&
-                            transitiveReachabilityMap.get(e3).contains(e2)) {
-                        result.add(new Tuple(e1, e3));
-                        processNext.add(new Tuple(e3, e2));
-                    }
-                }
-
-            }
-            processNext.removeAll(result);
-            processNow = processNext;
-        }
-
-        return result;
     }
 }

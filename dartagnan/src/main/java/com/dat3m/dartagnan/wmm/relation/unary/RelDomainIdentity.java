@@ -9,7 +9,11 @@ import org.sosy_lab.java_smt.api.BooleanFormula;
 import org.sosy_lab.java_smt.api.BooleanFormulaManager;
 import org.sosy_lab.java_smt.api.SolverContext;
 
+import java.util.Map;
+import java.util.Set;
+
 import static com.dat3m.dartagnan.encoding.ProgramEncoder.execution;
+import static java.util.stream.Collectors.toSet;
 
 public class RelDomainIdentity extends UnaryRelation {
 
@@ -44,20 +48,13 @@ public class RelDomainIdentity extends UnaryRelation {
     }
 
     @Override
-    public void addEncodeTupleSet(TupleSet tuples){
-        TupleSet activeSet = truncated(tuples);
-        encodeTupleSet.addAll(activeSet);
-
+    public Map<Relation, Set<Tuple>> activate(Set<Tuple> news) {
         TupleSet max = r1.getMaxTupleSet();
         TupleSet min = r1.getMinTupleSet();
-        TupleSet r1Set = new TupleSet();
-        for(Tuple tuple : activeSet){
-            r1Set.addAll(max.getByFirst(tuple.getFirst()));
-        }
-        r1Set.removeAll(min);
-        if(!r1Set.isEmpty()){
-            r1.addEncodeTupleSet(r1Set);
-        }
+        return Map.of(r1, news.stream()
+            .flatMap(t -> max.getByFirst(t.getFirst()).stream())
+            .filter(t -> !min.contains(t))
+            .collect(toSet()));
     }
 
     @Override

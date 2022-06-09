@@ -5,9 +5,10 @@ import com.dat3m.dartagnan.wmm.Wmm;
 import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import com.dat3m.dartagnan.wmm.axiom.Axiom;
 import com.dat3m.dartagnan.wmm.relation.Relation;
-import com.dat3m.dartagnan.wmm.relation.RecursiveRelation;
+import com.dat3m.dartagnan.wmm.utils.Tuple;
+import com.dat3m.dartagnan.wmm.utils.TupleSet;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -55,26 +56,24 @@ public class WmmEncoder implements Encoder {
         }
 
         // ====================== Compute encoding information =================
+        Map<Relation, Set<Tuple>> queue = new HashMap<>();
         for (Axiom ax : memoryModel.getAxioms()) {
-            ax.getRelation().addEncodeTupleSet(ax.getEncodeTupleSet());
+            Set<Tuple> set = ax.getEncodeTupleSet();
+            if(!set.isEmpty()) {
+                queue.merge(ax.getRelation(), set, Sets::union);
+            }
         }
 
-        for (Set<RecursiveRelation> recursiveGroup : Lists.reverse(memoryModel.getRecursiveGroups())) {
-            Map<Relation, Integer> encodeSetSizes = new HashMap<>();
-            for(Relation relation : recursiveGroup) {
-                encodeSetSizes.put(relation, 0);
-            }
-            boolean changed = true;
-            while(changed) {
-                changed = false;
-                for(RecursiveRelation relation : recursiveGroup) {
-                    relation.setDoRecurse();
-                    relation.addEncodeTupleSet(relation.getEncodeTupleSet());
-                    int newSize = relation.getEncodeTupleSet().size();
-                    if(newSize != encodeSetSizes.get(relation)) {
-                        encodeSetSizes.put(relation, newSize);
-                        changed = true;
-                    }
+        while(!queue.isEmpty()) {
+            Map.Entry<Relation, Set<Tuple>> entry = queue.entrySet().iterator().next();
+            Relation r = entry.getKey();
+            queue.remove(r);
+            TupleSet set = new TupleSet(entry.getValue());
+            set.removeAll(r.getEncodeTupleSet());
+            r.addEncodeTupleSet(set);
+            for(Map.Entry<Relation, Set<Tuple>> e : r.activate(set).entrySet()) {
+                if(!e.getValue().isEmpty()) {
+                    queue.merge(e.getKey(), e.getValue(), Sets::union);
                 }
             }
         }

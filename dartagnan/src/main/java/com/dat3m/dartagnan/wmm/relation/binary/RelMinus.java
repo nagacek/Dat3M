@@ -4,12 +4,16 @@ import com.dat3m.dartagnan.program.analysis.ExecutionAnalysis;
 import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
-import com.google.common.collect.Sets;
 import org.sosy_lab.java_smt.api.BooleanFormula;
 import org.sosy_lab.java_smt.api.BooleanFormulaManager;
 import org.sosy_lab.java_smt.api.SolverContext;
 
+import java.util.Map;
+import java.util.Set;
+
 import static com.dat3m.dartagnan.encoding.ProgramEncoder.execution;
+import static com.google.common.collect.Sets.difference;
+import static com.google.common.collect.Sets.intersection;
 
 /**
  *
@@ -37,7 +41,7 @@ public class RelMinus extends BinaryRelation {
     @Override
     public TupleSet getMinTupleSet(){
         if(minTupleSet == null){
-            minTupleSet = new TupleSet(Sets.difference(r1.getMinTupleSet(), r2.getMaxTupleSet()));
+            minTupleSet = new TupleSet(difference(r1.getMinTupleSet(), r2.getMaxTupleSet()));
         }
         return minTupleSet;
     }
@@ -45,7 +49,7 @@ public class RelMinus extends BinaryRelation {
     @Override
     public TupleSet getMaxTupleSet(){
         if(maxTupleSet == null){
-            maxTupleSet = new TupleSet(Sets.difference(r1.getMaxTupleSet(), r2.getMinTupleSet()));
+            maxTupleSet = new TupleSet(difference(r1.getMaxTupleSet(), r2.getMinTupleSet()));
             r2.getMaxTupleSet();
         }
         return maxTupleSet;
@@ -54,7 +58,7 @@ public class RelMinus extends BinaryRelation {
     @Override
     public TupleSet getMinTupleSetRecursive(){
         if(recursiveGroupId > 0 && minTupleSet != null){
-            minTupleSet.addAll(Sets.difference(r1.getMinTupleSetRecursive(), r2.getMaxTupleSetRecursive()));
+            minTupleSet.addAll(difference(r1.getMinTupleSetRecursive(), r2.getMaxTupleSetRecursive()));
             return minTupleSet;
         }
         return getMinTupleSet();
@@ -63,10 +67,17 @@ public class RelMinus extends BinaryRelation {
     @Override
     public TupleSet getMaxTupleSetRecursive(){
         if(recursiveGroupId > 0 && maxTupleSet != null){
-            maxTupleSet.addAll(Sets.difference(r1.getMaxTupleSetRecursive(), r2.getMinTupleSetRecursive()));
+            maxTupleSet.addAll(difference(r1.getMaxTupleSetRecursive(), r2.getMinTupleSetRecursive()));
             return maxTupleSet;
         }
         return getMaxTupleSet();
+    }
+
+    @Override
+    public Map<Relation, Set<Tuple>> activate(Set<Tuple> news) {
+        return Map.of(
+            r1, difference(news, r1.getMinTupleSet()),
+            r2, intersection(news, r2.getMaxTupleSet()));
     }
 
     @Override

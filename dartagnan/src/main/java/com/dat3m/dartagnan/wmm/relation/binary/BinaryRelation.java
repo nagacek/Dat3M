@@ -1,7 +1,6 @@
 package com.dat3m.dartagnan.wmm.relation.binary;
 
 import com.dat3m.dartagnan.wmm.relation.Relation;
-import com.dat3m.dartagnan.wmm.utils.TupleSet;
 
 import java.util.Arrays;
 import java.util.List;
@@ -42,16 +41,5 @@ public abstract class BinaryRelation extends Relation {
             recursiveGroupId |= (r1Id | r2Id) & parentId;
         }
         return recursiveGroupId;
-    }
-
-    @Override
-    public void addEncodeTupleSet(TupleSet tuples){ // Not valid for composition
-        TupleSet activeSet = truncated(tuples);
-        encodeTupleSet.addAll(activeSet);
-
-        if(!activeSet.isEmpty()){
-            r1.addEncodeTupleSet(activeSet);
-            r2.addEncodeTupleSet(activeSet);
-        }
     }
 }

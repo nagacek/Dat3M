@@ -12,12 +12,13 @@ import com.dat3m.dartagnan.wmm.relation.unary.UnaryRelation;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Sets;
 import org.sosy_lab.java_smt.api.BooleanFormula;
 import org.sosy_lab.java_smt.api.SolverContext;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static com.dat3m.dartagnan.encoding.ProgramEncoder.execution;
 import static com.dat3m.dartagnan.wmm.utils.Utils.edge;
@@ -95,23 +96,24 @@ public abstract class Relation implements Encoder, Dependent<Relation> {
         return getMaxTupleSet();
     }
 
+    /**
+     * Marks more relationships as relevant to the consistency property.
+     * Non-maximal tuples and minimal tuples should not be marked.
+     * @param news
+     * Pairs in this relation recently marked as relevant.
+     * @return
+     * Relationships required to be represented by a variable to properly constrain all of {@code news}.
+     */
+    public Map<Relation, Set<Tuple>> activate(Set<Tuple> news) {
+        return Map.of();
+    }
+
     public TupleSet getEncodeTupleSet(){
         return encodeTupleSet;
     }
 
-    /**
-     * Tries to mark a set of event pairs as relevant to the consistency property.
-     * Also propagates active sets to its children.
-     * @param tuples
-     * May contain tuples whose truth value in memory-consistent executions of the program are trivial.
-     * In this case, they are not marked and do not propagate.
-     */
     public void addEncodeTupleSet(TupleSet tuples){
-        encodeTupleSet.addAll(Sets.difference(Sets.intersection(tuples, maxTupleSet),minTupleSet));
-    }
-
-    protected TupleSet truncated(TupleSet tuples) {
-        return new TupleSet(Sets.difference(Sets.intersection(Sets.difference(tuples, encodeTupleSet), maxTupleSet),minTupleSet));
+        encodeTupleSet.addAll(tuples);
     }
 
     public String getName() {

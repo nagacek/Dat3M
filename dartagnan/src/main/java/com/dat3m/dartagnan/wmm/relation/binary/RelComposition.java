@@ -9,6 +9,10 @@ import org.sosy_lab.java_smt.api.BooleanFormula;
 import org.sosy_lab.java_smt.api.BooleanFormulaManager;
 import org.sosy_lab.java_smt.api.SolverContext;
 
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
 /**
  *
  * @author Florian Furbach
@@ -71,32 +75,32 @@ public class RelComposition extends BinaryRelation {
     }
 
     @Override
-    public void addEncodeTupleSet(TupleSet tuples){
-        TupleSet activeSet = truncated(tuples);
-        encodeTupleSet.addAll(activeSet);
+    public Map<Relation, Set<Tuple>> activate(Set<Tuple> activeSet) {
+        HashSet<Tuple> r1Set = new HashSet<>();
+        HashSet<Tuple> r2Set = new HashSet<>();
 
-        if(!activeSet.isEmpty()){
-            TupleSet r1Set = new TupleSet();
-            TupleSet r2Set = new TupleSet();
-
-            TupleSet r1Max = r1.getMaxTupleSet();
-            TupleSet r2Max = r2.getMaxTupleSet();
-            for (Tuple t : activeSet) {
-                Event e1 = t.getFirst();
-                Event e3 = t.getSecond();
-                for (Tuple t1 : r1Max.getByFirst(e1)) {
-                    Event e2 = t1.getSecond();
-                    Tuple t2 = new Tuple(e2, e3);
-                    if (r2Max.contains(t2)) {
+        TupleSet r1Max = r1.getMaxTupleSet();
+        TupleSet r2Max = r2.getMaxTupleSet();
+        TupleSet r1Min = r1.getMinTupleSet();
+        TupleSet r2Min = r2.getMinTupleSet();
+        for(Tuple t : activeSet) {
+            Event e1 = t.getFirst();
+            Event e3 = t.getSecond();
+            for(Tuple t1 : r1Max.getByFirst(e1)) {
+                Event e2 = t1.getSecond();
+                Tuple t2 = new Tuple(e2, e3);
+                if(r2Max.contains(t2)) {
+                    if(!r1Min.contains(t1)) {
                         r1Set.add(t1);
+                    }
+                    if(!r2Min.contains(t2)) {
                         r2Set.add(t2);
                     }
                 }
             }
-
-            r1.addEncodeTupleSet(r1Set);
-            r2.addEncodeTupleSet(r2Set);
         }
+
+        return Map.of(r1, r1Set, r2, r2Set);
     }
 
     @Override

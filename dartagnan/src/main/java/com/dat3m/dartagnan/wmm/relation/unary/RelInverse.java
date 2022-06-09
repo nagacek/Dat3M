@@ -7,6 +7,11 @@ import org.sosy_lab.java_smt.api.BooleanFormula;
 import org.sosy_lab.java_smt.api.BooleanFormulaManager;
 import org.sosy_lab.java_smt.api.SolverContext;
 
+import java.util.Map;
+import java.util.Set;
+
+import static java.util.stream.Collectors.toSet;
+
 /**
  *
  * @author Florian Furbach
@@ -41,13 +46,8 @@ public class RelInverse extends UnaryRelation {
     }
 
     @Override
-    public void addEncodeTupleSet(TupleSet tuples){
-        TupleSet activeSet = truncated(tuples);
-        encodeTupleSet.addAll(activeSet);
-
-        if(!activeSet.isEmpty()){
-            r1.addEncodeTupleSet(activeSet.inverse());
-        }
+    public Map<Relation, Set<Tuple>> activate(Set<Tuple> news) {
+        return Map.of(r1, news.stream().map(Tuple::getInverse).collect(toSet()));
     }
 
     @Override
