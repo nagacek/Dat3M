@@ -1,5 +1,6 @@
 package com.dat3m.dartagnan.miscellaneous;
 
+import com.dat3m.dartagnan.configuration.Property;
 import com.dat3m.dartagnan.expression.BNonDet;
 import com.dat3m.dartagnan.expression.IValue;
 import com.dat3m.dartagnan.program.Program;
@@ -33,6 +34,7 @@ import org.sosy_lab.java_smt.api.BooleanFormula;
 import org.sosy_lab.java_smt.api.SolverContext;
 
 import java.math.BigInteger;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
@@ -49,14 +51,14 @@ public class KnowledgeTest {
         MemoryObject x = memory.allocate(1);
         MemoryObject y = memory.allocate(1);
 
-        Program p = new Program("composition",memory);
+        Program p = new Program("composition",memory, Program.SourceLanguage.LITMUS);
         p.add(new Thread(10,newInit(x,0)));
         p.add(new Thread(11,newInit(y,0)));
 
         // r=x; if(*) x=1; else x=2; s=y; t=x; y=1;
         {
             Thread t0 = new Thread(0, newSkip());
-            t0.append(newLoad(t0.addRegister("r",-1),x,null));
+            t0.append(newLoad(t0.newRegister("r",-1),x,null));
             Label label = newLabel("else");
             t0.append(newJump(new BNonDet(1), label));
             t0.append(newStore(x,new IValue(BigInteger.ONE,-1),null));
@@ -65,8 +67,8 @@ public class KnowledgeTest {
             t0.append(label);
             t0.append(newStore(x,new IValue(BigInteger.TWO,-1),null));
             t0.append(join);
-            t0.append(newLoad(t0.addRegister("s",-1),y,null));
-            t0.append(newLoad(t0.addRegister("t",-1),x,null));
+            t0.append(newLoad(t0.newRegister("s",-1),y,null));
+            t0.append(newLoad(t0.newRegister("t",-1),x,null));
             t0.append(newStore(y,new IValue(BigInteger.ONE,-1),null));
             p.add(t0);
         }
@@ -75,8 +77,8 @@ public class KnowledgeTest {
         {
             Thread t1 = new Thread(1,newSkip());
             t1.append(newStore(y,new IValue(BigInteger.TWO,-1),null));
-            t1.append(newLoad(t1.addRegister("r",-1),y,null));
-            t1.append(newLoad(t1.addRegister("s",-1),x,null));
+            t1.append(newLoad(t1.newRegister("r",-1),y,null));
+            t1.append(newLoad(t1.newRegister("s",-1),x,null));
             p.add(t1);
         }
 
@@ -93,7 +95,7 @@ public class KnowledgeTest {
         m.addDefinition(new Union(hb,po,rf,co,fr));
         m.addAxiom(new Acyclic(hb));
 
-        VerificationTask task = VerificationTask.builder().build(p,new Wmm());
+        VerificationTask task = VerificationTask.builder().build(p,new Wmm(),EnumSet.noneOf(Property.class));
         task.preprocessProgram();
         task.performStaticProgramAnalyses();
         task.performStaticWmmAnalyses();
