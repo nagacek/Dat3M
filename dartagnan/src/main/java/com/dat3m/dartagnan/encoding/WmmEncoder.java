@@ -1,18 +1,16 @@
 package com.dat3m.dartagnan.encoding;
 
-import com.dat3m.dartagnan.verification.Context;
+import com.dat3m.dartagnan.verification.VerificationTask;
 import com.dat3m.dartagnan.wmm.Wmm;
 import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import com.dat3m.dartagnan.wmm.axiom.Axiom;
 import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.sosy_lab.common.configuration.Configuration;
 import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.java_smt.api.BooleanFormula;
 import org.sosy_lab.java_smt.api.BooleanFormulaManager;
@@ -22,27 +20,31 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import static com.google.common.base.Preconditions.checkNotNull;
+
 
 public class WmmEncoder implements Encoder {
 
     private static final Logger logger = LogManager.getLogger(WmmEncoder.class);
 
     private final Wmm memoryModel;
-    private boolean isInitialized = false;
+    private final SolverContext ctx;
 
     // =====================================================================
 
-    private WmmEncoder(Wmm memoryModel, Context context) {
-        this.memoryModel = Preconditions.checkNotNull(memoryModel);
-        context.requires(RelationAnalysis.class);
+    private WmmEncoder(VerificationTask task, SolverContext ctx) {
+        this.memoryModel = task.getMemoryModel();
+        task.getAnalysisContext().requires(RelationAnalysis.class);
+        this.ctx = ctx;
     }
 
-    public static WmmEncoder fromConfig(Wmm memoryModel, Context context, Configuration config) throws InvalidConfigurationException {
-        return new WmmEncoder(memoryModel, context);
+    public static WmmEncoder create(VerificationTask task, SolverContext ctx) throws InvalidConfigurationException {
+        WmmEncoder encoder = new WmmEncoder(checkNotNull(task), checkNotNull(ctx));
+        encoder.initializeEncoding();
+        return encoder;
     }
 
-    @Override
-    public void initializeEncoding(SolverContext ctx) {
+    private void initializeEncoding() {
         for(String relName : Wmm.BASE_RELATIONS) {
             memoryModel.getRelationRepository().getRelation(relName);
         }
@@ -77,12 +79,6 @@ public class WmmEncoder implements Encoder {
                 }
             }
         }
-
-        isInitialized = true;
-    }
-
-    private void checkInitialized() {
-        Preconditions.checkState(isInitialized, "initializeEncoding must get called before encoding.");
     }
 
     public BooleanFormula encodeFullMemoryModel(SolverContext ctx) {
@@ -94,7 +90,6 @@ public class WmmEncoder implements Encoder {
     // This methods initializes all relations and encodes all base relations
     // It does NOT encode the axioms nor any non-base relation yet!
     public BooleanFormula encodeAnarchicSemantics(SolverContext ctx) {
-        checkInitialized();
         logger.info("Encoding anarchic semantics");
         BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
         BooleanFormula enc = bmgr.makeTrue();
@@ -109,7 +104,6 @@ public class WmmEncoder implements Encoder {
     // relations that are needed for the axioms (but does NOT encode the axioms themselves yet)
     // NOTE: It avoids encoding relations that do NOT affect the axioms, i.e. unused relations
     public BooleanFormula encodeRelations(SolverContext ctx) {
-        checkInitialized();
         logger.info("Encoding relations");
         BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
         BooleanFormula enc = encodeAnarchicSemantics(ctx);
@@ -123,7 +117,6 @@ public class WmmEncoder implements Encoder {
 
     // Encodes all axioms. This should be called after <encodeRelations>
     public BooleanFormula encodeConsistency(SolverContext ctx) {
-        checkInitialized();
         logger.info("Encoding consistency");
         BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
         BooleanFormula expr = bmgr.makeTrue();
@@ -135,5 +128,10 @@ public class WmmEncoder implements Encoder {
             expr = bmgr.and(expr, ax.consistent(ctx));
         }
         return expr;
+    }
+
+    @Override
+    public SolverContext getSolverContext() {
+        return ctx;
     }
 }

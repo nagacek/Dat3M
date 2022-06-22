@@ -42,8 +42,8 @@ public class RefinementTask extends VerificationTask {
 	private static final Logger logger = LogManager.getLogger(RefinementTask.class);
 
     private final Wmm baselineModel;
-    private Context baselineContext;
     private WmmEncoder baselineWmmEncoder;
+    private final VerificationTask baselineTask;
 
 
     // =========================== Configurables ===========================
@@ -59,9 +59,10 @@ public class RefinementTask extends VerificationTask {
     private RefinementTask(Program program, Wmm targetMemoryModel, Wmm baselineModel,
     		EnumSet<Property> property, WitnessGraph witness, Configuration config)
     throws InvalidConfigurationException {
-        super(program, targetMemoryModel, property, witness, config);
+        super(program, targetMemoryModel, property, witness, config, Context.create());
         config.inject(this);
         this.baselineModel = baselineModel != null ? baselineModel : createDefaultWmm();
+        this.baselineTask = new VerificationTask(program, this.baselineModel, property, witness, config, Context.create(getAnalysisContext()));
     }
 
     public Wmm getBaselineModel() {
@@ -73,26 +74,19 @@ public class RefinementTask extends VerificationTask {
     @Override
     public void performStaticWmmAnalyses() throws InvalidConfigurationException {
         super.performStaticWmmAnalyses();
-        VerificationTask newTask = new VerificationTask(getProgram(), baselineModel, getProperty(), getWitness(), getConfig());
-        baselineContext = Context.createCopyFrom(getAnalysisContext());
-        baselineContext.invalidate(WmmAnalysis.class);
+        Context baselineContext = baselineTask.getAnalysisContext();
         baselineContext.register(WmmAnalysis.class, WmmAnalysis.fromConfig(baselineModel, getConfig()));
-        baselineContext.register(RelationAnalysis.class, RelationAnalysis.fromConfig(newTask, baselineContext, getConfig()));
+        baselineContext.register(RelationAnalysis.class, RelationAnalysis.fromConfig(baselineTask, baselineContext, getConfig()));
     }
 
     @Override
     public void initializeEncoders(SolverContext ctx) throws InvalidConfigurationException {
-        progEncoder = ProgramEncoder.fromConfig(getProgram(), getAnalysisContext(), getConfig());
-        propertyEncoder = PropertyEncoder.fromConfig(getProgram(), baselineModel, getAnalysisContext(), getConfig());
-        //wmmEncoder = WmmEncoder.fromConfig(getMemoryModel(), getAnalysisContext(), getConfig());
-        symmetryEncoder = SymmetryEncoder.fromConfig(baselineModel, getAnalysisContext(), getConfig());
-        baselineWmmEncoder = WmmEncoder.fromConfig(baselineModel, baselineContext, getConfig());
+        progEncoder = ProgramEncoder.create(this,ctx);
+        propertyEncoder = PropertyEncoder.create(baselineTask,ctx);
+        //wmmEncoder = WmmEncoder.fromConfig(this,ctx);
+        symmetryEncoder = SymmetryEncoder.create(baselineTask,ctx);
+        baselineWmmEncoder = WmmEncoder.create(baselineTask,ctx);
 
-        progEncoder.initializeEncoding(ctx);
-        propertyEncoder.initializeEncoding(ctx);
-        //wmmEncoder.initializeEncoding(ctx);
-        symmetryEncoder.initializeEncoding(ctx);
-        baselineWmmEncoder.initializeEncoding(ctx);
 		logger.info("{}: {}", BASELINE, baselines);
     }
 

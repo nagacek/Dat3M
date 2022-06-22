@@ -19,7 +19,6 @@ import com.dat3m.dartagnan.program.processing.DeadCodeElimination;
 import com.dat3m.dartagnan.program.processing.LoopUnrolling;
 import com.dat3m.dartagnan.program.processing.compilation.Compilation;
 import com.dat3m.dartagnan.utils.ResourceHelper;
-import com.dat3m.dartagnan.verification.Context;
 import com.dat3m.dartagnan.verification.VerificationTask;
 import com.dat3m.dartagnan.wmm.Wmm;
 import org.junit.Test;
@@ -29,7 +28,6 @@ import org.sosy_lab.java_smt.api.SolverContext;
 import org.sosy_lab.java_smt.api.SolverContext.ProverOptions;
 
 import java.io.File;
-import java.util.EnumSet;
 
 import static com.dat3m.dartagnan.utils.TestHelper.createContext;
 
@@ -82,7 +80,9 @@ public class ExceptionsTest {
                 .withConfig(config)
                 .build(p, cat, Property.getDefault());
 		// The program must be compiled before being able to construct an Encoder for it
-    	ProgramEncoder.fromConfig(task.getProgram(), Context.create(), config);
+        try(SolverContext ctx = createContext()) {
+            ProgramEncoder.create(task,ctx);
+        }
     }
 
     @Test(expected = IllegalArgumentException.class)

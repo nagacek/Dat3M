@@ -5,20 +5,26 @@ import com.google.common.collect.ClassToInstanceMap;
 import com.google.common.collect.MutableClassToInstanceMap;
 
 public class Context {
+    private final Context prototype;
     private final ClassToInstanceMap<Object> metaDataMap;
 
-    private Context() {
+    private Context(Context p) {
+        prototype = p;
         metaDataMap = MutableClassToInstanceMap.create();
     }
 
     public static Context create() {
-        return new Context();
+        return new Context(null);
     }
 
     public static Context createCopyFrom(Context context) {
-        Context ctx = new Context();
+        Context ctx = new Context(null);
         ctx.metaDataMap.putAll(context.metaDataMap);
         return ctx;
+    }
+
+    public static Context create(Context prototype) {
+        return new Context(prototype);
     }
 
     // =============================================
@@ -28,7 +34,8 @@ public class Context {
     }
 
     public <T> T get(Class<T> c) {
-        return metaDataMap.getInstance(c);
+        T result = metaDataMap.getInstance(c);
+        return result != null || prototype == null ? result : prototype.get(c);
     }
 
     public <T> boolean invalidate(Class<T> c) {
@@ -36,7 +43,7 @@ public class Context {
     }
 
     public <T> boolean register(Class<T> c, T instance) {
-        if (has(c)) {
+        if(metaDataMap.containsKey(c)) {
             return false;
         }
         metaDataMap.putInstance(c, instance);

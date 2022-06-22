@@ -5,7 +5,7 @@ import com.dat3m.dartagnan.program.analysis.ThreadSymmetry;
 import com.dat3m.dartagnan.program.event.Tag;
 import com.dat3m.dartagnan.program.event.core.Event;
 import com.dat3m.dartagnan.utils.equivalence.EquivalenceClass;
-import com.dat3m.dartagnan.verification.Context;
+import com.dat3m.dartagnan.verification.VerificationTask;
 import com.dat3m.dartagnan.wmm.Wmm;
 import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import com.dat3m.dartagnan.wmm.axiom.Axiom;
@@ -17,7 +17,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.sosy_lab.common.configuration.Configuration;
 import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.common.configuration.Option;
 import org.sosy_lab.common.configuration.Options;
@@ -31,6 +30,7 @@ import java.util.stream.Collectors;
 
 import static com.dat3m.dartagnan.configuration.OptionNames.BREAK_SYMMETRY_BY_SYNC_DEGREE;
 import static com.dat3m.dartagnan.configuration.OptionNames.BREAK_SYMMETRY_ON_RELATION;
+import static com.google.common.base.Preconditions.checkNotNull;
 
 @Options
 public class SymmetryEncoder implements Encoder {
@@ -40,6 +40,7 @@ public class SymmetryEncoder implements Encoder {
     private final Wmm memoryModel;
     private final ThreadSymmetry symm;
     private final RelationAnalysis relationAnalysis;
+    private final SolverContext ctx;
     private final Relation rel;
 
     @Option(name = BREAK_SYMMETRY_ON_RELATION,
@@ -55,11 +56,12 @@ public class SymmetryEncoder implements Encoder {
 
     // =====================================================================
 
-    private SymmetryEncoder(Wmm memoryModel, Context context, Configuration config) throws InvalidConfigurationException {
-        this.memoryModel = Preconditions.checkNotNull(memoryModel);
-        this.symm = context.requires(ThreadSymmetry.class);
-        this.relationAnalysis = context.requires(RelationAnalysis.class);
-        config.inject(this);
+    private SymmetryEncoder(VerificationTask task, SolverContext ctx) throws InvalidConfigurationException {
+        this.memoryModel = task.getMemoryModel();
+        this.symm = task.getAnalysisContext().requires(ThreadSymmetry.class);
+        this.relationAnalysis = task.getAnalysisContext().requires(RelationAnalysis.class);
+        this.ctx = ctx;
+        task.getConfig().inject(this);
 
         RelationRepository repo = memoryModel.getRelationRepository();
         if (symmBreakRelName.isEmpty()) {
@@ -76,12 +78,9 @@ public class SymmetryEncoder implements Encoder {
         }
     }
 
-    public static SymmetryEncoder fromConfig(Wmm memoryModel, Context context, Configuration config) throws InvalidConfigurationException {
-        return new SymmetryEncoder(memoryModel, context, config);
+    public static SymmetryEncoder create(VerificationTask task, SolverContext ctx) throws InvalidConfigurationException {
+        return new SymmetryEncoder(checkNotNull(task), checkNotNull(ctx));
     }
-
-    @Override
-    public void initializeEncoding(SolverContext context) { }
 
     public BooleanFormula encodeFullSymmetry(SolverContext ctx) {
         BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
@@ -138,6 +137,11 @@ public class SymmetryEncoder implements Encoder {
         }
 
         return enc;
+    }
+
+    @Override
+    public SolverContext getSolverContext() {
+        return ctx;
     }
 
     private void sort(List<Tuple> row) {

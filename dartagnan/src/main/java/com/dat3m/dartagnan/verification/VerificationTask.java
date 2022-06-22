@@ -61,14 +61,14 @@ public class VerificationTask {
     protected WmmEncoder wmmEncoder;
     protected SymmetryEncoder symmetryEncoder;
 
-    protected VerificationTask(Program program, Wmm memoryModel, EnumSet<Property> property, WitnessGraph witness, Configuration config)
+    protected VerificationTask(Program program, Wmm memoryModel, EnumSet<Property> property, WitnessGraph witness, Configuration config, Context analysisContext)
     throws InvalidConfigurationException {
         this.program = checkNotNull(program);
         this.memoryModel = checkNotNull(memoryModel);
         this.property = checkNotNull(property);
         this.witness = checkNotNull(witness);
         this.config = checkNotNull(config);
-        this.analysisContext = Context.create();
+        this.analysisContext =checkNotNull(analysisContext);
 
         config.recursiveInject(this);
     }
@@ -139,15 +139,10 @@ public class VerificationTask {
     }
 
     public void initializeEncoders(SolverContext ctx) throws InvalidConfigurationException {
-        progEncoder = ProgramEncoder.fromConfig(program, analysisContext, config);
-        propertyEncoder = PropertyEncoder.fromConfig(program, memoryModel,analysisContext, config);
-        wmmEncoder = WmmEncoder.fromConfig(memoryModel, analysisContext, config);
-        symmetryEncoder = SymmetryEncoder.fromConfig(memoryModel, analysisContext, config);
-
-        progEncoder.initializeEncoding(ctx);
-        propertyEncoder.initializeEncoding(ctx);
-        wmmEncoder.initializeEncoding(ctx);
-        symmetryEncoder.initializeEncoding(ctx);
+        progEncoder = ProgramEncoder.create(this,ctx);
+        propertyEncoder = PropertyEncoder.create(this,ctx);
+        wmmEncoder = WmmEncoder.create(this,ctx);
+        symmetryEncoder = SymmetryEncoder.create(this,ctx);
     }
 
 
@@ -187,7 +182,7 @@ public class VerificationTask {
         }
 
         public VerificationTask build(Program program, Wmm memoryModel, EnumSet<Property> property) throws InvalidConfigurationException {
-            return new VerificationTask(program, memoryModel, property, witness, config.build());
+            return new VerificationTask(program, memoryModel, property, witness, config.build(), Context.create());
         }
     }
 
