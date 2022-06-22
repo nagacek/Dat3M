@@ -31,6 +31,7 @@ public class WmmEncoder implements Encoder {
     private final VerificationTask task;
     private final Wmm memoryModel;
     private final SolverContext ctx;
+    private final HashMap<Relation,TupleSet> activeMap = new HashMap<>();
 
     // =====================================================================
 
@@ -73,6 +74,7 @@ public class WmmEncoder implements Encoder {
 
         for(Relation relation : memoryModel.getRelationRepository().getRelations()){
             relation.initializeEncoding(ctx);
+            activeMap.put(relation, new TupleSet());
         }
 
         for (Axiom axiom : memoryModel.getAxioms()) {
@@ -90,11 +92,12 @@ public class WmmEncoder implements Encoder {
 
         while(!queue.isEmpty()) {
             Relation relation = queue.keySet().iterator().next();
-            TupleSet delta = new TupleSet(difference(queue.remove(relation),relation.getEncodeTupleSet()));
+            TupleSet active = activeMap.get(relation);
+            TupleSet delta = new TupleSet(difference(queue.remove(relation),active));
             if(delta.isEmpty()) {
                 continue;
             }
-            relation.addEncodeTupleSet(delta);
+            active.addAll(delta);
             relation.activate(delta, task, (rel, set) -> queue.merge(rel,set,Sets::union));
         }
     }
@@ -143,7 +146,7 @@ public class WmmEncoder implements Encoder {
         	if(ax.isFlagged()) {
         		continue;
         	}
-            expr = bmgr.and(expr, ax.consistent(ctx));
+            expr = bmgr.and(expr, ax.consistent(this));
         }
         return expr;
     }
@@ -152,12 +155,22 @@ public class WmmEncoder implements Encoder {
         return task;
     }
 
+    /**
+     * @param relation
+     * Element of the memory model.
+     * @return
+     * Read-only collection of tuples to be encoded.
+     */
+    public TupleSet getActiveSet(Relation relation) {
+        return activeMap.get(relation);
+    }
+
     @Override
     public SolverContext getSolverContext() {
         return ctx;
     }
 
     private BooleanFormula encode(Relation r) {
-        return r.encode(r.getEncodeTupleSet(), this);
+        return r.encode(activeMap.get(r), this);
     }
 }

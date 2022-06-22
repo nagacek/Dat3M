@@ -1,6 +1,7 @@
 package com.dat3m.dartagnan.wmm.axiom;
 
 import com.dat3m.dartagnan.GlobalSettings;
+import com.dat3m.dartagnan.encoding.WmmEncoder;
 import com.dat3m.dartagnan.program.analysis.ExecutionAnalysis;
 import com.dat3m.dartagnan.program.event.Tag;
 import com.dat3m.dartagnan.program.event.core.Event;
@@ -130,8 +131,9 @@ public class Acyclic extends Axiom {
     }
 
     @Override
-	public BooleanFormula consistent(SolverContext ctx) {
-    	FormulaManager fmgr = ctx.getFormulaManager();
+	public BooleanFormula consistent(WmmEncoder encoder) {
+        SolverContext ctx = encoder.getSolverContext();
+        FormulaManager fmgr = ctx.getFormulaManager();
 		BooleanFormulaManager bmgr = fmgr.getBooleanFormulaManager();
         IntegerFormulaManager imgr = fmgr.getIntegerFormulaManager();
 
@@ -139,25 +141,26 @@ public class Acyclic extends Axiom {
         BooleanFormula eventsInCycle = bmgr.makeFalse();
         //TODO only those that add to a cycle; consult the dependency graph from above
         TupleSet min = rel.getMinTupleSet();
+        TupleSet tuples = encoder.getActiveSet(rel);
         if(negated) {
         	// We use Boolean variables which guess the edges and nodes constituting the cycle. 
-            for(Event e : rel.getEncodeTupleSet().stream().map(Tuple::getFirst).collect(Collectors.toSet())){
+            for(Event e : tuples.stream().map(Tuple::getFirst).collect(Collectors.toSet())){
             	
             	eventsInCycle = bmgr.or(eventsInCycle, cycleVar(rel.getName(), e, ctx));
             	
             	BooleanFormula in = bmgr.makeFalse();
-            	for(Tuple pre : concat(rel.getEncodeTupleSet().getBySecond(e), min.getBySecond(e))) {
+            	for(Tuple pre : concat(tuples.getBySecond(e), min.getBySecond(e))) {
             		in = bmgr.or(in, getSMTCycleVar(pre, ctx));
             	}
             	BooleanFormula out = bmgr.makeFalse();
-            	for(Tuple post : concat(rel.getEncodeTupleSet().getByFirst(e), min.getByFirst(e))) {
+            	for(Tuple post : concat(tuples.getByFirst(e), min.getByFirst(e))) {
             		out = bmgr.or(out, getSMTCycleVar(post, ctx));
             	}
             	// We ensure that for every event in the cycle, there should be at least one incoming 
             	// edge and at least one outgoing edge that are also in the cycle.
             	enc = bmgr.and(enc, bmgr.implication(cycleVar(rel.getName(), e, ctx), bmgr.and(in , out)));
             	
-                for(Tuple tuple : concat(rel.getEncodeTupleSet(),min)){
+                for(Tuple tuple : concat(tuples,min)){
                     Event e1 = tuple.getFirst();
                     Event e2 = tuple.getSecond();
                     // If an edge is guessed to be in a cycle, the edge must belong to relation, 
@@ -169,7 +172,7 @@ public class Acyclic extends Axiom {
             // A cycle exists if there is an event in the cycle.
             enc = bmgr.and(enc, eventsInCycle);
         } else {
-            for(Tuple tuple : concat(rel.getEncodeTupleSet(),min)){
+            for(Tuple tuple : concat(tuples,min)){
                 Event e1 = tuple.getFirst();
                 Event e2 = tuple.getSecond();
     			enc = bmgr.and(enc, bmgr.implication(rel.getSMTVar(tuple, ctx),

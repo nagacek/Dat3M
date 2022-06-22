@@ -1,10 +1,10 @@
 package com.dat3m.dartagnan.wmm.axiom;
 
+import com.dat3m.dartagnan.encoding.WmmEncoder;
 import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
 import org.sosy_lab.java_smt.api.BooleanFormula;
 import org.sosy_lab.java_smt.api.BooleanFormulaManager;
-import org.sosy_lab.java_smt.api.SolverContext;
 
 import static com.google.common.collect.Sets.difference;
 
@@ -26,8 +26,8 @@ public class ForceEncodeAxiom extends Axiom {
     }
 
     @Override
-    public BooleanFormula consistent(SolverContext ctx) {
-        BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
+    public BooleanFormula consistent(WmmEncoder encoder) {
+        BooleanFormulaManager bmgr = encoder.getSolverContext().getFormulaManager().getBooleanFormulaManager();
 		return negated ? bmgr.makeFalse() : bmgr.makeTrue();
     }
 

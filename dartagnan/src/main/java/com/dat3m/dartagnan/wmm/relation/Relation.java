@@ -39,7 +39,6 @@ public abstract class Relation implements Dependent<Relation> {
 
     protected TupleSet minTupleSet = null;
     protected TupleSet maxTupleSet = null;
-    protected TupleSet encodeTupleSet = null;
 
     protected int recursiveGroupId = 0;
     protected boolean forceUpdateRecursiveGroupId = false;
@@ -71,7 +70,6 @@ public abstract class Relation implements Dependent<Relation> {
     public void initializeEncoding(SolverContext ctx) {
     	Preconditions.checkState(this.maxTupleSet != null && this.minTupleSet != null,
     			String.format("No available relation data to encode %s. Perform RelationAnalysis before encoding.", this));
-        this.encodeTupleSet = new TupleSet();
     }
 
     // TODO: We misuse <task> as data object and analysis information object.
@@ -106,14 +104,6 @@ public abstract class Relation implements Dependent<Relation> {
      * Receives relationships required to be represented by a variable to properly constrain all of {@code news}.
      */
     public void activate(Set<Tuple> news, VerificationTask task, WmmEncoder.Buffer buf) {
-    }
-
-    public TupleSet getEncodeTupleSet(){
-        return encodeTupleSet;
-    }
-
-    public void addEncodeTupleSet(TupleSet tuples){
-        encodeTupleSet.addAll(tuples);
     }
 
     public String getName() {

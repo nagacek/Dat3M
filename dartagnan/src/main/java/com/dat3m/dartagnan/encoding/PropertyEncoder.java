@@ -49,6 +49,7 @@ public class PropertyEncoder implements Encoder {
 
     private static final Logger logger = LogManager.getLogger(PropertyEncoder.class);
 
+    private final WmmEncoder wmmEncoder;
     private final Program program;
     private final Wmm memoryModel;
     private final AliasAnalysis alias;
@@ -57,19 +58,21 @@ public class PropertyEncoder implements Encoder {
 
     // =====================================================================
 
-    private PropertyEncoder(VerificationTask task, SolverContext ctx) throws InvalidConfigurationException {
+    private PropertyEncoder(WmmEncoder wmmEncoder) throws InvalidConfigurationException {
+        this.wmmEncoder = wmmEncoder;
+        VerificationTask task = wmmEncoder.getTask();
         checkArgument(task.getProgram().isCompiled(),
                 "The program must get compiled first before its properties can be encoded.");
         this.program = task.getProgram();
         this.memoryModel = task.getMemoryModel();
         this.alias = task.getAnalysisContext().requires(AliasAnalysis.class);
         this.relationAnalysis = task.getAnalysisContext().requires(RelationAnalysis.class);
-        this.ctx = ctx;
+        this.ctx = wmmEncoder.getSolverContext();
         task.getConfig().inject(this);
     }
 
-    public static PropertyEncoder create(VerificationTask task, SolverContext ctx) throws InvalidConfigurationException {
-        return new PropertyEncoder(checkNotNull(task), checkNotNull(ctx));
+    public static PropertyEncoder create(WmmEncoder wmmEncoder) throws InvalidConfigurationException {
+        return new PropertyEncoder(wmmEncoder);
     }
 
     public BooleanFormula encodeSpecification(EnumSet<Property> property, SolverContext ctx) {
@@ -121,7 +124,7 @@ public class PropertyEncoder implements Encoder {
     		if(!ax.isFlagged()) {
     			continue;
     		}
-			cat = bmgr.and(cat, bmgr.equivalence(CAT.getSMTVariable(ax, ctx), ax.consistent(ctx)));
+			cat = bmgr.and(cat, bmgr.equivalence(CAT.getSMTVariable(ax, ctx), ax.consistent(wmmEncoder)));
 			one = bmgr.or(one, CAT.getSMTVariable(ax, ctx));
     	}
 		// No need to use the SMT variable if the formula is trivially false

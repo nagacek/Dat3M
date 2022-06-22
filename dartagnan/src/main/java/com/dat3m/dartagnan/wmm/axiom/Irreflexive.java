@@ -1,5 +1,6 @@
 package com.dat3m.dartagnan.wmm.axiom;
 
+import com.dat3m.dartagnan.encoding.WmmEncoder;
 import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
@@ -31,10 +32,11 @@ public class Irreflexive extends Axiom {
     }
 
     @Override
-    public BooleanFormula consistent(SolverContext ctx) {
+    public BooleanFormula consistent(WmmEncoder encoder) {
+        SolverContext ctx = encoder.getSolverContext();
     	BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
 		BooleanFormula enc = bmgr.makeTrue();
-        for(Tuple tuple : rel.getEncodeTupleSet()){
+        for(Tuple tuple : encoder.getActiveSet(rel)){
             if(tuple.isLoop()){
                 enc = bmgr.and(enc, bmgr.not(rel.getSMTVar(tuple, ctx)));
             }

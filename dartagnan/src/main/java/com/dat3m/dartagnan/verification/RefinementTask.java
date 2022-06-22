@@ -82,10 +82,10 @@ public class RefinementTask extends VerificationTask {
     @Override
     public void initializeEncoders(SolverContext ctx) throws InvalidConfigurationException {
         progEncoder = ProgramEncoder.create(this,ctx);
-        propertyEncoder = PropertyEncoder.create(baselineTask,ctx);
         //wmmEncoder = WmmEncoder.fromConfig(this,ctx);
         symmetryEncoder = SymmetryEncoder.create(baselineTask,ctx);
         baselineWmmEncoder = WmmEncoder.create(baselineTask,ctx);
+        propertyEncoder = PropertyEncoder.create(baselineWmmEncoder);
 
 		logger.info("{}: {}", BASELINE, baselines);
     }
