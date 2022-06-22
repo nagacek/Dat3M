@@ -1,7 +1,9 @@
 package com.dat3m.dartagnan.wmm.relation.unary;
 
+import com.dat3m.dartagnan.encoding.WmmEncoder;
 import com.dat3m.dartagnan.program.analysis.ExecutionAnalysis;
 import com.dat3m.dartagnan.program.event.core.Event;
+import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
@@ -98,12 +100,15 @@ public class RelTrans extends UnaryRelation {
     }
 
     @Override
-    public BooleanFormula encode(SolverContext ctx) {
+    public BooleanFormula encode(Set<Tuple> encodeTupleSet, WmmEncoder encoder) {
+        SolverContext ctx = encoder.getSolverContext();
+        RelationAnalysis ra = encoder.getTask().getAnalysisContext().get(RelationAnalysis.class);
     	BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
 		BooleanFormula enc = bmgr.makeTrue();
 
-        TupleSet minSet = getMinTupleSet();
-        TupleSet r1Max = r1.getMaxTupleSet();
+        TupleSet maxTupleSet = ra.getMaxTupleSet(this);
+        TupleSet minSet = ra.getMinTupleSet(this);
+        TupleSet r1Max = ra.getMaxTupleSet(r1);
         for(Tuple tuple : encodeTupleSet){
 
             BooleanFormula orClause = bmgr.makeFalse();

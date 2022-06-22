@@ -1,7 +1,9 @@
 package com.dat3m.dartagnan.wmm.relation.binary;
 
+import com.dat3m.dartagnan.encoding.WmmEncoder;
 import com.dat3m.dartagnan.program.analysis.ExecutionAnalysis;
 import com.dat3m.dartagnan.program.event.core.Event;
+import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
@@ -104,14 +106,16 @@ public class RelComposition extends BinaryRelation {
     }
 
     @Override
-    public BooleanFormula encode(SolverContext ctx) {
+    public BooleanFormula encode(Set<Tuple> encodeTupleSet, WmmEncoder encoder) {
+        SolverContext ctx = encoder.getSolverContext();
+        RelationAnalysis ra = encoder.getTask().getAnalysisContext().get(RelationAnalysis.class);
     	BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
 		BooleanFormula enc = bmgr.makeTrue();
 
-        TupleSet max1 = r1.getMaxTupleSet();
-        TupleSet max2 = r2.getMaxTupleSet();
-        TupleSet min1 = r1.getMinTupleSet();
-        TupleSet min2 = r2.getMinTupleSet();
+        TupleSet max1 = ra.getMaxTupleSet(r1);
+        TupleSet max2 = ra.getMaxTupleSet(r2);
+        TupleSet min1 = ra.getMinTupleSet(r1);
+        TupleSet min2 = ra.getMinTupleSet(r2);
 
         for(Tuple tuple : encodeTupleSet) {
             Event x = tuple.getFirst();

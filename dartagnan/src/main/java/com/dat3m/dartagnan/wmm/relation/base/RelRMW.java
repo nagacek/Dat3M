@@ -1,5 +1,6 @@
 package com.dat3m.dartagnan.wmm.relation.base;
 
+import com.dat3m.dartagnan.encoding.WmmEncoder;
 import com.dat3m.dartagnan.program.analysis.AliasAnalysis;
 import com.dat3m.dartagnan.program.analysis.ExclusiveAccesses;
 import com.dat3m.dartagnan.program.analysis.ExecutionAnalysis;
@@ -23,6 +24,7 @@ import org.sosy_lab.java_smt.api.FormulaManager;
 import org.sosy_lab.java_smt.api.SolverContext;
 
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static com.dat3m.dartagnan.encoding.ProgramEncoder.exclusivePairVariable;
@@ -113,16 +115,17 @@ public class RelRMW extends StaticRelation {
     }
 
     @Override
-    public BooleanFormula encode(SolverContext ctx) {
+    public BooleanFormula encode(Set<Tuple> encodeTupleSet, WmmEncoder encoder) {
+        SolverContext ctx = encoder.getSolverContext();
         FormulaManager fmgr = ctx.getFormulaManager();
 		BooleanFormulaManager bmgr = fmgr.getBooleanFormulaManager();
 
         BooleanFormula enc = bmgr.makeTrue();
 
         // Encode RMW for exclusive pairs
-        ExecutionAnalysis exec = analysisContext.requires(ExecutionAnalysis.class);
-        ExclusiveAccesses excl = analysisContext.requires(ExclusiveAccesses.class);
-        AliasAnalysis alias = analysisContext.requires(AliasAnalysis.class);
+        ExecutionAnalysis exec = encoder.getTask().getAnalysisContext().requires(ExecutionAnalysis.class);
+        ExclusiveAccesses excl = encoder.getTask().getAnalysisContext().requires(ExclusiveAccesses.class);
+        AliasAnalysis alias = encoder.getTask().getAnalysisContext().requires(AliasAnalysis.class);
         for(MemEvent store : excl.getStores()) {
             for(ExclusiveAccesses.LoadInfo info : excl.getLoads(store)) {
                 // Encode if load and store form an exclusive pair

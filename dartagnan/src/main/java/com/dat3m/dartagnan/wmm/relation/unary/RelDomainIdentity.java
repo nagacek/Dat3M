@@ -1,7 +1,9 @@
 package com.dat3m.dartagnan.wmm.relation.unary;
 
+import com.dat3m.dartagnan.encoding.WmmEncoder;
 import com.dat3m.dartagnan.program.analysis.ExecutionAnalysis;
 import com.dat3m.dartagnan.program.event.core.Event;
+import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
@@ -58,13 +60,15 @@ public class RelDomainIdentity extends UnaryRelation {
     }
 
     @Override
-    public BooleanFormula encode(SolverContext ctx) {
-        ExecutionAnalysis exec = analysisContext.get(ExecutionAnalysis.class);
+    public BooleanFormula encode(Set<Tuple> encodeTupleSet, WmmEncoder encoder) {
+        SolverContext ctx = encoder.getSolverContext();
+        ExecutionAnalysis exec = encoder.getTask().getAnalysisContext().get(ExecutionAnalysis.class);
+        RelationAnalysis ra = encoder.getTask().getAnalysisContext().get(RelationAnalysis.class);
     	BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
 		BooleanFormula enc = bmgr.makeTrue();
 
-        TupleSet max1 = r1.getMaxTupleSet();
-        TupleSet min1 = r1.getMinTupleSet();
+        TupleSet max1 = ra.getMaxTupleSet(r1);
+        TupleSet min1 = ra.getMinTupleSet(r1);
         for(Tuple tuple1 : encodeTupleSet){
             Event e = tuple1.getFirst();
             BooleanFormula opt = bmgr.makeFalse();

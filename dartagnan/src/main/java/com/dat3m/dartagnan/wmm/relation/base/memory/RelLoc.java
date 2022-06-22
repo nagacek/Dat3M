@@ -1,11 +1,13 @@
 package com.dat3m.dartagnan.wmm.relation.base.memory;
 
+import com.dat3m.dartagnan.encoding.WmmEncoder;
 import com.dat3m.dartagnan.expression.utils.Utils;
 import com.dat3m.dartagnan.program.analysis.AliasAnalysis;
 import com.dat3m.dartagnan.program.analysis.ExecutionAnalysis;
 import com.dat3m.dartagnan.program.event.core.Event;
 import com.dat3m.dartagnan.program.event.core.MemEvent;
 import com.dat3m.dartagnan.program.filter.FilterBasic;
+import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
@@ -15,6 +17,7 @@ import org.sosy_lab.java_smt.api.FormulaManager;
 import org.sosy_lab.java_smt.api.SolverContext;
 
 import java.util.Collection;
+import java.util.Set;
 
 import static com.dat3m.dartagnan.encoding.ProgramEncoder.execution;
 import static com.dat3m.dartagnan.program.event.Tag.MEMORY;
@@ -59,8 +62,9 @@ public class RelLoc extends Relation {
     }
 
     @Override
-    public BooleanFormula encode(SolverContext ctx) {
-        ExecutionAnalysis exec = analysisContext.requires(ExecutionAnalysis.class);
+    public BooleanFormula encode(Set<Tuple> encodeTupleSet, WmmEncoder encoder) {
+        SolverContext ctx = encoder.getSolverContext();
+        ExecutionAnalysis exec = encoder.getTask().getAnalysisContext().requires(ExecutionAnalysis.class);
     	FormulaManager fmgr = ctx.getFormulaManager();
 		BooleanFormulaManager bmgr = fmgr.getBooleanFormulaManager();
 

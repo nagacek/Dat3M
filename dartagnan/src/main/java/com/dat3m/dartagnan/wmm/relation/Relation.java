@@ -1,5 +1,6 @@
 package com.dat3m.dartagnan.wmm.relation;
 
+import com.dat3m.dartagnan.encoding.WmmEncoder;
 import com.dat3m.dartagnan.program.analysis.ExecutionAnalysis;
 import com.dat3m.dartagnan.program.event.core.Event;
 import com.dat3m.dartagnan.utils.dependable.Dependent;
@@ -132,8 +133,8 @@ public abstract class Relation implements Dependent<Relation> {
         return name != null;
     }
 
-    public BooleanFormula encode(SolverContext ctx) {
-        return ctx.getFormulaManager().getBooleanFormulaManager().makeTrue();
+    public BooleanFormula encode(Set<Tuple> encodeTupleSet, WmmEncoder encoder) {
+        return encoder.getSolverContext().getFormulaManager().getBooleanFormulaManager().makeTrue();
     }
 
     public BooleanFormula getSMTVar(Tuple edge, SolverContext ctx) {

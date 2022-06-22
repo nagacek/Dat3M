@@ -1,5 +1,6 @@
 package com.dat3m.dartagnan.wmm.relation.unary;
 
+import com.dat3m.dartagnan.encoding.WmmEncoder;
 import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
@@ -51,7 +52,8 @@ public class RelInverse extends UnaryRelation {
     }
 
     @Override
-    public BooleanFormula encode(SolverContext ctx) {
+    public BooleanFormula encode(Set<Tuple> encodeTupleSet, WmmEncoder encoder) {
+        SolverContext ctx = encoder.getSolverContext();
     	BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
 		BooleanFormula enc = bmgr.makeTrue();
 

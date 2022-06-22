@@ -1,5 +1,6 @@
 package com.dat3m.dartagnan.wmm.relation.base.memory;
 
+import com.dat3m.dartagnan.encoding.WmmEncoder;
 import com.dat3m.dartagnan.program.analysis.AliasAnalysis;
 import com.dat3m.dartagnan.program.analysis.ExecutionAnalysis;
 import com.dat3m.dartagnan.program.event.core.Event;
@@ -10,6 +11,7 @@ import com.dat3m.dartagnan.program.event.lang.svcomp.EndAtomic;
 import com.dat3m.dartagnan.program.filter.FilterAbstract;
 import com.dat3m.dartagnan.program.filter.FilterBasic;
 import com.dat3m.dartagnan.program.filter.FilterIntersection;
+import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import com.dat3m.dartagnan.wmm.analysis.WmmAnalysis;
 import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
@@ -165,15 +167,17 @@ public class RelRf extends Relation {
     }
 
     @Override
-    public BooleanFormula encode(SolverContext ctx) {
-        ExecutionAnalysis exec = analysisContext.get(ExecutionAnalysis.class);
+    public BooleanFormula encode(Set<Tuple> encodeTupleSet, WmmEncoder encoder) {
+        SolverContext ctx = encoder.getSolverContext();
+        ExecutionAnalysis exec = encoder.getTask().getAnalysisContext().get(ExecutionAnalysis.class);
+        RelationAnalysis ra = encoder.getTask().getAnalysisContext().get(RelationAnalysis.class);
         FormulaManager fmgr = ctx.getFormulaManager();
 		BooleanFormulaManager bmgr = fmgr.getBooleanFormulaManager();
 
     	BooleanFormula enc = bmgr.makeTrue();
         Map<MemEvent, List<BooleanFormula>> edgeMap = new HashMap<>();
 
-        for(Tuple tuple : maxTupleSet){
+        for(Tuple tuple : ra.getMaxTupleSet(this)){
             MemEvent w = (MemEvent) tuple.getFirst();
             MemEvent r = (MemEvent) tuple.getSecond();
             BooleanFormula edge = this.getSMTVar(tuple, ctx);

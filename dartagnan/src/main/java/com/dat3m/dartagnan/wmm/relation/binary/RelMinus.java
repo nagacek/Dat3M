@@ -1,6 +1,8 @@
 package com.dat3m.dartagnan.wmm.relation.binary;
 
+import com.dat3m.dartagnan.encoding.WmmEncoder;
 import com.dat3m.dartagnan.program.analysis.ExecutionAnalysis;
+import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
@@ -81,13 +83,15 @@ public class RelMinus extends BinaryRelation {
     }
 
     @Override
-    public BooleanFormula encode(SolverContext ctx) {
-        ExecutionAnalysis exec = analysisContext.get(ExecutionAnalysis.class);
+    public BooleanFormula encode(Set<Tuple> encodeTupleSet, WmmEncoder encoder) {
+        SolverContext ctx = encoder.getSolverContext();
+        RelationAnalysis ra = encoder.getTask().getAnalysisContext().get(RelationAnalysis.class);
+        ExecutionAnalysis exec = encoder.getTask().getAnalysisContext().get(ExecutionAnalysis.class);
     	BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
 		BooleanFormula enc = bmgr.makeTrue();
 
-        TupleSet max2 = r2.getMaxTupleSet();
-        TupleSet min1 = r1.getMinTupleSet();
+        TupleSet max2 = ra.getMaxTupleSet(r2);
+        TupleSet min1 = ra.getMinTupleSet(r1);
         for(Tuple tuple : encodeTupleSet){
             BooleanFormula opt1 = min1.contains(tuple) ? execution(tuple.getFirst(), tuple.getSecond(), exec, ctx) : r1.getSMTVar(tuple, ctx);
             BooleanFormula opt2 = max2.contains(tuple) ? bmgr.not(r2.getSMTVar(tuple, ctx)) : bmgr.makeTrue();

@@ -1,5 +1,6 @@
 package com.dat3m.dartagnan.wmm.relation.base.stat;
 
+import com.dat3m.dartagnan.encoding.WmmEncoder;
 import com.dat3m.dartagnan.program.Thread;
 import com.dat3m.dartagnan.program.analysis.ExecutionAnalysis;
 import com.dat3m.dartagnan.program.event.Tag;
@@ -12,6 +13,7 @@ import org.sosy_lab.java_smt.api.BooleanFormulaManager;
 import org.sosy_lab.java_smt.api.SolverContext;
 
 import java.util.List;
+import java.util.Set;
 
 import static com.dat3m.dartagnan.encoding.ProgramEncoder.execution;
 
@@ -88,12 +90,13 @@ public class RelFencerel extends StaticRelation {
     }
 
     @Override
-    public BooleanFormula encode(SolverContext ctx) {
-        ExecutionAnalysis exec = analysisContext.requires(ExecutionAnalysis.class);
+    public BooleanFormula encode(Set<Tuple> encodeTupleSet, WmmEncoder encoder) {
+        SolverContext ctx = encoder.getSolverContext();
+        ExecutionAnalysis exec = encoder.getTask().getAnalysisContext().requires(ExecutionAnalysis.class);
     	BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
 		BooleanFormula enc = bmgr.makeTrue();
 
-        List<Event> fences = task.getProgram().getCache().getEvents(FilterBasic.get(fenceName));
+        List<Event> fences = encoder.getTask().getProgram().getCache().getEvents(FilterBasic.get(fenceName));
 
         for(Tuple tuple : encodeTupleSet){
             Event e1 = tuple.getFirst();

@@ -1,13 +1,15 @@
 package com.dat3m.dartagnan.wmm.relation.binary;
 
+import com.dat3m.dartagnan.encoding.WmmEncoder;
+import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import com.google.common.collect.Sets;
 import org.sosy_lab.java_smt.api.BooleanFormula;
 import org.sosy_lab.java_smt.api.BooleanFormulaManager;
-import org.sosy_lab.java_smt.api.SolverContext;
 
 import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
+import org.sosy_lab.java_smt.api.SolverContext;
 
 import java.util.Map;
 import java.util.Set;
@@ -71,12 +73,14 @@ public class RelUnion extends BinaryRelation {
     }
 
     @Override
-    public BooleanFormula encode(SolverContext ctx) {
+    public BooleanFormula encode(Set<Tuple> encodeTupleSet, WmmEncoder encoder) {
+        SolverContext ctx = encoder.getSolverContext();
+        RelationAnalysis ra = encoder.getTask().getAnalysisContext().get(RelationAnalysis.class);
     	BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
 		BooleanFormula enc = bmgr.makeTrue();
 
-        TupleSet max1 = r1.getMaxTupleSet();
-        TupleSet max2 = r2.getMaxTupleSet();
+        TupleSet max1 = ra.getMaxTupleSet(r1);
+        TupleSet max2 = ra.getMaxTupleSet(r2);
         for(Tuple tuple : encodeTupleSet){
             BooleanFormula opt1 = max1.contains(tuple) ? r1.getSMTVar(tuple, ctx) : bmgr.makeFalse();
             BooleanFormula opt2 = max2.contains(tuple) ? r2.getSMTVar(tuple, ctx) : bmgr.makeFalse();

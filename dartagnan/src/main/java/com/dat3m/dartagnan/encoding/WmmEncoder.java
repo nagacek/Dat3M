@@ -27,12 +27,14 @@ public class WmmEncoder implements Encoder {
 
     private static final Logger logger = LogManager.getLogger(WmmEncoder.class);
 
+    private final VerificationTask task;
     private final Wmm memoryModel;
     private final SolverContext ctx;
 
     // =====================================================================
 
     private WmmEncoder(VerificationTask task, SolverContext ctx) {
+        this.task = task;
         this.memoryModel = task.getMemoryModel();
         task.getAnalysisContext().requires(RelationAnalysis.class);
         this.ctx = ctx;
@@ -94,7 +96,7 @@ public class WmmEncoder implements Encoder {
         BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
         BooleanFormula enc = bmgr.makeTrue();
         for(String relName : Wmm.BASE_RELATIONS){
-            enc = bmgr.and(enc, memoryModel.getRelationRepository().getRelation(relName).encode(ctx));
+            enc = bmgr.and(enc, encode(memoryModel.getRelationRepository().getRelation(relName)));
         }
 
         return enc;
@@ -109,7 +111,7 @@ public class WmmEncoder implements Encoder {
         BooleanFormula enc = encodeAnarchicSemantics(ctx);
         for(Relation r : memoryModel.getRelationRepository().getRelations()) {
             if(!r.getIsNamed() || !Wmm.BASE_RELATIONS.contains(r.getName())) {
-                enc = bmgr.and(enc, r.encode(ctx));
+                enc = bmgr.and(enc, encode(r));
             }
         }
         return enc;
@@ -130,8 +132,16 @@ public class WmmEncoder implements Encoder {
         return expr;
     }
 
+    public VerificationTask getTask() {
+        return task;
+    }
+
     @Override
     public SolverContext getSolverContext() {
         return ctx;
+    }
+
+    private BooleanFormula encode(Relation r) {
+        return r.encode(r.getEncodeTupleSet(), this);
     }
 }
