@@ -76,9 +76,9 @@ public abstract class Relation implements Dependent<Relation> {
 
     // TODO: We misuse <task> as data object and analysis information object.
     // Due to partaking in relation analysis
-    public void initializeRelationAnalysis(VerificationTask task, Context context) {
+    public void initializeRelationAnalysis(VerificationTask task) {
         this.task = task;
-        this.analysisContext = context;
+        this.analysisContext = task.getAnalysisContext();
         this.maxTupleSet = null;
         this.minTupleSet = null;
     }

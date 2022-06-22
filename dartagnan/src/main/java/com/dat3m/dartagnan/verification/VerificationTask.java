@@ -135,7 +135,7 @@ public class VerificationTask {
 
     public void performStaticWmmAnalyses() throws InvalidConfigurationException {
         analysisContext.register(WmmAnalysis.class, WmmAnalysis.fromConfig(memoryModel, config));
-        analysisContext.register(RelationAnalysis.class, RelationAnalysis.fromConfig(this, analysisContext, config));
+        analysisContext.register(RelationAnalysis.class, RelationAnalysis.fromConfig(this));
     }
 
     public void initializeEncoders(SolverContext ctx) throws InvalidConfigurationException {

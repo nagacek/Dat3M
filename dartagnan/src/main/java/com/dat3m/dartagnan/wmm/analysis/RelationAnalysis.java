@@ -9,22 +9,22 @@ import com.dat3m.dartagnan.wmm.axiom.Axiom;
 import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.relation.RecursiveRelation;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
-import org.sosy_lab.common.configuration.Configuration;
 import org.sosy_lab.common.configuration.InvalidConfigurationException;
 
 import java.util.Set;
 
 public class RelationAnalysis {
 
-    private RelationAnalysis(VerificationTask task, Context context, Configuration config) {
+    private RelationAnalysis(VerificationTask task) {
+        Context context = task.getAnalysisContext();
         context.requires(AliasAnalysis.class);
         context.requires(BranchEquivalence.class);
         context.requires(WmmAnalysis.class);
-        run(task, context);
+        run(task);
     }
 
-    public static RelationAnalysis fromConfig(VerificationTask task, Context context, Configuration config) throws InvalidConfigurationException {
-        return new RelationAnalysis(task, context, config);
+    public static RelationAnalysis fromConfig(VerificationTask task) throws InvalidConfigurationException {
+        return new RelationAnalysis(task);
     }
 
     public TupleSet getMaxTupleSet(Relation relation) {
@@ -35,7 +35,7 @@ public class RelationAnalysis {
         return relation.getMinTupleSet();
     }
 
-    private void run(VerificationTask task, Context context) {
+    private void run(VerificationTask task) {
         // Init data context so that each relation is able to compute its may/must sets.
         Wmm memoryModel = task.getMemoryModel();
         for (Axiom ax : memoryModel.getAxioms()) {
@@ -44,13 +44,13 @@ public class RelationAnalysis {
 
         // ------------------------------------------------
         for(String relName : Wmm.BASE_RELATIONS){
-            memoryModel.getRelationRepository().getRelation(relName).initializeRelationAnalysis(task, context);
+            memoryModel.getRelationRepository().getRelation(relName).initializeRelationAnalysis(task);
         }
         for (Relation rel : memoryModel.getRelationRepository().getRelations()) {
-            rel.initializeRelationAnalysis(task, context);
+            rel.initializeRelationAnalysis(task);
         }
         for (Axiom ax : memoryModel.getAxioms()) {
-            ax.initializeRelationAnalysis(task, context);
+            ax.initializeRelationAnalysis(task);
         }
 
         // ------------------------------------------------

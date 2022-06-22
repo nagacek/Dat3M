@@ -88,7 +88,7 @@ public class Acyclic extends Axiom {
                       and b is implied by either a or c.
                     - It is possible to reduce must(rel) but that may give a less precise result.
          */
-        ExecutionAnalysis exec = analysisContext.get(ExecutionAnalysis.class);
+        ExecutionAnalysis exec = task.getAnalysisContext().get(ExecutionAnalysis.class);
         TupleSet minSet = rel.getMinTupleSet();
 
         // (1) Approximate transitive closure of minSet (only gets computed when crossEdges are available)

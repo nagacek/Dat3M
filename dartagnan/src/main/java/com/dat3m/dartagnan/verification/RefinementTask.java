@@ -76,7 +76,7 @@ public class RefinementTask extends VerificationTask {
         super.performStaticWmmAnalyses();
         Context baselineContext = baselineTask.getAnalysisContext();
         baselineContext.register(WmmAnalysis.class, WmmAnalysis.fromConfig(baselineModel, getConfig()));
-        baselineContext.register(RelationAnalysis.class, RelationAnalysis.fromConfig(baselineTask, baselineContext, getConfig()));
+        baselineContext.register(RelationAnalysis.class, RelationAnalysis.fromConfig(baselineTask));
     }
 
     @Override
