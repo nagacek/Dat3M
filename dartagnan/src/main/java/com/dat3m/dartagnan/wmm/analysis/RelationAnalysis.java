@@ -49,9 +49,6 @@ public class RelationAnalysis {
         for (Relation rel : memoryModel.getRelationRepository().getRelations()) {
             rel.initializeRelationAnalysis(task);
         }
-        for (Axiom ax : memoryModel.getAxioms()) {
-            ax.initializeRelationAnalysis(task);
-        }
 
         // ------------------------------------------------
         for(String relName : Wmm.BASE_RELATIONS){

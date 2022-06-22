@@ -1,6 +1,8 @@
 package com.dat3m.dartagnan.wmm.axiom;
 
 import com.dat3m.dartagnan.encoding.WmmEncoder;
+import com.dat3m.dartagnan.verification.VerificationTask;
+import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
 import org.sosy_lab.java_smt.api.BooleanFormula;
@@ -21,8 +23,9 @@ public class ForceEncodeAxiom extends Axiom {
     }
 
     @Override
-    public TupleSet getEncodeTupleSet(){
-        return new TupleSet(difference(rel.getMaxTupleSet(),rel.getMinTupleSet()));
+    public TupleSet getEncodeTupleSet(VerificationTask task) {
+        RelationAnalysis ra = task.getAnalysisContext().get(RelationAnalysis.class);
+        return new TupleSet(difference(ra.getMaxTupleSet(rel), ra.getMinTupleSet(rel)));
     }
 
     @Override

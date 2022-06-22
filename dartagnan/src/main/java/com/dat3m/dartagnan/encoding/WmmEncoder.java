@@ -77,14 +77,10 @@ public class WmmEncoder implements Encoder {
             activeMap.put(relation, new TupleSet());
         }
 
-        for (Axiom axiom : memoryModel.getAxioms()) {
-            axiom.initializeEncoding(ctx);
-        }
-
         // ====================== Compute encoding information =================
         Map<Relation, Set<Tuple>> queue = new HashMap<>();
         for (Axiom ax : memoryModel.getAxioms()) {
-            Set<Tuple> set = ax.getEncodeTupleSet();
+            Set<Tuple> set = ax.getEncodeTupleSet(task);
             if(!set.isEmpty()) {
                 queue.merge(ax.getRelation(), set, Sets::union);
             }

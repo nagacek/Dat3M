@@ -1,6 +1,8 @@
 package com.dat3m.dartagnan.wmm.axiom;
 
 import com.dat3m.dartagnan.encoding.WmmEncoder;
+import com.dat3m.dartagnan.verification.VerificationTask;
+import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
@@ -23,10 +25,11 @@ public class Irreflexive extends Axiom {
     }
 
     @Override
-    public TupleSet getEncodeTupleSet(){
+    public TupleSet getEncodeTupleSet(VerificationTask task) {
+        RelationAnalysis ra = task.getAnalysisContext().get(RelationAnalysis.class);
         TupleSet set = new TupleSet();
-        TupleSet max = rel.getMaxTupleSet();
-        TupleSet min = rel.getMinTupleSet();
+        TupleSet max = ra.getMaxTupleSet(rel);
+        TupleSet min = ra.getMinTupleSet(rel);
         max.stream().filter(Tuple::isLoop).filter(t -> !min.contains(t)).forEach(set::add);
         return set;
     }
