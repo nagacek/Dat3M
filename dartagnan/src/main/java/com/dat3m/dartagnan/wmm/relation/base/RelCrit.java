@@ -1,6 +1,7 @@
 package com.dat3m.dartagnan.wmm.relation.base;
 
 import com.dat3m.dartagnan.program.Thread;
+import com.dat3m.dartagnan.program.analysis.ExecutionAnalysis;
 import com.dat3m.dartagnan.program.event.Tag;
 import com.dat3m.dartagnan.program.event.core.Event;
 import com.dat3m.dartagnan.program.filter.FilterBasic;
@@ -11,6 +12,7 @@ import org.sosy_lab.java_smt.api.BooleanFormula;
 import org.sosy_lab.java_smt.api.BooleanFormulaManager;
 import org.sosy_lab.java_smt.api.SolverContext;
 
+import static com.dat3m.dartagnan.encoding.ProgramEncoder.execution;
 import static com.dat3m.dartagnan.wmm.relation.RelationNameRepository.CRIT;
 
 public class RelCrit extends StaticRelation {
@@ -51,6 +53,7 @@ public class RelCrit extends StaticRelation {
     // Let's see if we need to keep a reference to a thread in events for anything else, and then optimize this method
     @Override
     public BooleanFormula encode(SolverContext ctx) {
+        ExecutionAnalysis exec = analysisContext.requires(ExecutionAnalysis.class);
     	BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
 		BooleanFormula enc = bmgr.makeTrue();
         for(Thread thread : task.getProgram().getThreads()){
@@ -59,7 +62,7 @@ public class RelCrit extends StaticRelation {
                     if(lock.getCId() < unlock.getCId()){
                         Tuple tuple = new Tuple(lock, unlock);
                         if(encodeTupleSet.contains(tuple)){
-                        	BooleanFormula relation = bmgr.and(getExecPair(lock, unlock, ctx));
+                            BooleanFormula relation = execution(lock, unlock, exec, ctx);
                             for(Event otherLock : thread.getCache().getEvents(FilterBasic.get(Tag.Linux.RCU_LOCK))){
                                 if(lock.getCId() < otherLock.getCId() && otherLock.getCId() < unlock.getCId()){
                                     relation = bmgr.and(relation, bmgr.not(this.getSMTVar(otherLock, unlock, ctx)));

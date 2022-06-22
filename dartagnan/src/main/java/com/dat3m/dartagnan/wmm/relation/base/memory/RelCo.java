@@ -2,6 +2,7 @@ package com.dat3m.dartagnan.wmm.relation.base.memory;
 
 import com.dat3m.dartagnan.expression.IExpr;
 import com.dat3m.dartagnan.program.analysis.AliasAnalysis;
+import com.dat3m.dartagnan.program.analysis.ExecutionAnalysis;
 import com.dat3m.dartagnan.program.event.core.Event;
 import com.dat3m.dartagnan.program.event.core.Init;
 import com.dat3m.dartagnan.program.event.core.MemEvent;
@@ -26,6 +27,7 @@ import java.util.List;
 
 import static com.dat3m.dartagnan.configuration.OptionNames.CO_ANTISYMMETRY;
 import static com.dat3m.dartagnan.configuration.Property.LIVENESS;
+import static com.dat3m.dartagnan.encoding.ProgramEncoder.execution;
 import static com.dat3m.dartagnan.expression.utils.Utils.*;
 import static com.dat3m.dartagnan.program.Program.SourceLanguage.LITMUS;
 import static com.dat3m.dartagnan.program.event.Tag.INIT;
@@ -135,6 +137,7 @@ public class RelCo extends Relation {
 
     @Override
     public BooleanFormula encode(SolverContext ctx) {
+        ExecutionAnalysis exec = analysisContext.get(ExecutionAnalysis.class);
         AliasAnalysis alias = analysisContext.get(AliasAnalysis.class);
         WmmAnalysis wmmAnalysis = analysisContext.get(WmmAnalysis.class);
     	FormulaManager fmgr = ctx.getFormulaManager();
@@ -173,7 +176,7 @@ public class RelCo extends Relation {
             for(Tuple t : maxTupleSet.getByFirst(w1)){
                 MemEvent w2 = (MemEvent)t.getSecond();
                 BooleanFormula relation = getSMTVar(t, ctx);
-                BooleanFormula execPair = getExecPair(t, ctx);
+                BooleanFormula execPair = execution(t.getFirst(), t.getSecond(), exec, ctx);
                 lastCo = bmgr.and(lastCo, bmgr.not(relation));
 
                 Formula a1 = w1.getMemAddressExpr();
@@ -227,6 +230,7 @@ public class RelCo extends Relation {
             return super.getSMTVar(edge, ctx);
         }
 
+        ExecutionAnalysis exec = analysisContext.requires(ExecutionAnalysis.class);
     	FormulaManager fmgr = ctx.getFormulaManager();
 		BooleanFormulaManager bmgr = fmgr.getBooleanFormulaManager();
 
@@ -238,7 +242,7 @@ public class RelCo extends Relation {
         return !getMaxTupleSet().contains(edge) ? bmgr.makeFalse() :
     		first.getCId() <= second.getCId() ?
     				edge(getName(), first, second, ctx) :
-    					bmgr.ifThenElse(bmgr.and(getExecPair(edge, ctx), eqAdd),
+    					bmgr.ifThenElse(bmgr.and(execution(edge.getFirst(), edge.getSecond(), exec, ctx), eqAdd),
     							bmgr.not(getSMTVar(edge.getInverse(), ctx)),
     							bmgr.makeFalse());
     }

@@ -21,6 +21,7 @@ import org.sosy_lab.java_smt.api.*;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static com.dat3m.dartagnan.encoding.ProgramEncoder.execution;
 import static com.dat3m.dartagnan.expression.utils.Utils.*;
 import static com.dat3m.dartagnan.program.event.Tag.*;
 import static com.dat3m.dartagnan.wmm.relation.RelationNameRepository.RF;
@@ -166,7 +167,8 @@ public class RelRf extends Relation {
 
     @Override
     public BooleanFormula encode(SolverContext ctx) {
-    	FormulaManager fmgr = ctx.getFormulaManager();
+        ExecutionAnalysis exec = analysisContext.get(ExecutionAnalysis.class);
+        FormulaManager fmgr = ctx.getFormulaManager();
 		BooleanFormulaManager bmgr = fmgr.getBooleanFormulaManager();
 
     	BooleanFormula enc = bmgr.makeTrue();
@@ -187,7 +189,7 @@ public class RelRf extends Relation {
             BooleanFormula sameValue = generalEqual(v1, v2, ctx);
 
             edgeMap.computeIfAbsent(r, key -> new ArrayList<>()).add(edge);
-            enc = bmgr.and(enc, bmgr.implication(edge, bmgr.and(getExecPair(w, r, ctx), sameAddress, sameValue)));
+            enc = bmgr.and(enc, bmgr.implication(edge, bmgr.and(execution(w, r, exec, ctx), sameAddress, sameValue)));
         }
 
         for(MemEvent r : edgeMap.keySet()){

@@ -2,6 +2,7 @@ package com.dat3m.dartagnan.wmm.relation.base;
 
 import com.dat3m.dartagnan.program.analysis.AliasAnalysis;
 import com.dat3m.dartagnan.program.analysis.ExclusiveAccesses;
+import com.dat3m.dartagnan.program.analysis.ExecutionAnalysis;
 import com.dat3m.dartagnan.program.event.Tag;
 import com.dat3m.dartagnan.program.event.core.Event;
 import com.dat3m.dartagnan.program.event.core.MemEvent;
@@ -25,6 +26,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static com.dat3m.dartagnan.encoding.ProgramEncoder.exclusivePairVariable;
+import static com.dat3m.dartagnan.encoding.ProgramEncoder.execution;
 import static com.dat3m.dartagnan.expression.utils.Utils.generalEqual;
 import static com.dat3m.dartagnan.program.event.Tag.SVCOMP.SVCOMPATOMIC;
 import static com.dat3m.dartagnan.wmm.relation.RelationNameRepository.RMW;
@@ -115,6 +117,7 @@ public class RelRMW extends StaticRelation {
         BooleanFormula enc = bmgr.makeTrue();
 
         // Encode RMW for exclusive pairs
+        ExecutionAnalysis exec = analysisContext.requires(ExecutionAnalysis.class);
         ExclusiveAccesses excl = analysisContext.requires(ExclusiveAccesses.class);
         AliasAnalysis alias = analysisContext.requires(AliasAnalysis.class);
         for(MemEvent store : excl.getStores()) {
@@ -128,7 +131,7 @@ public class RelRMW extends StaticRelation {
                     ? bmgr.makeTrue()
                     : generalEqual(info.load.getMemAddressExpr(),store.getMemAddressExpr(),ctx);
                 // Relation between exclusive load and store
-                enc = bmgr.and(enc,bmgr.equivalence(getSMTVar(info.load,store,ctx),bmgr.and(getExecPair(info.load,store,ctx),isPair,sameAddress)));
+                enc = bmgr.and(enc,bmgr.equivalence(getSMTVar(info.load,store,ctx),bmgr.and(execution(info.load, store, exec, ctx),isPair,sameAddress)));
 
                 // Can be executed if addresses mismatch, but behaviour is "constrained unpredictable"
                 // The implementation does not include all possible unpredictable cases: in case of address
