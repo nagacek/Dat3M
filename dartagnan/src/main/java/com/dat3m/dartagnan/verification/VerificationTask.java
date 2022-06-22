@@ -13,6 +13,7 @@ import com.dat3m.dartagnan.encoding.WmmEncoder;
 import com.dat3m.dartagnan.program.Program;
 import com.dat3m.dartagnan.program.Thread;
 import com.dat3m.dartagnan.program.analysis.*;
+import com.dat3m.dartagnan.program.analysis.valuerange.*;
 import com.dat3m.dartagnan.program.event.core.Event;
 import com.dat3m.dartagnan.program.event.core.Local;
 import com.dat3m.dartagnan.program.filter.FilterBasic;
@@ -122,6 +123,8 @@ public class VerificationTask {
         analysisContext.register(Dependency.class, Dependency.fromConfig(program, analysisContext, config));
         analysisContext.register(AliasAnalysis.class, AliasAnalysis.fromConfig(program, config));
         analysisContext.register(ThreadSymmetry.class, ThreadSymmetry.fromConfig(program, config));
+        AliasAnalysis aliasAnalysis = analysisContext.get(AliasAnalysis.class);
+        analysisContext.register(ValueRangeAnalysis.class, ValueRangeAnalysis.fromConfig(program, config, aliasAnalysis));
 
         for (Thread thread : program.getThreads()) {
             for (Event e : thread.getEvents()) {

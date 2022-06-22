@@ -166,4 +166,77 @@ public enum COpBin {
 	        throw new UnsupportedOperationException("Illegal operator " + this + " in COpBin");
         }
     }
+    
+        /**
+     * Takes a compare operator and returns its negation.
+     * If the operator is null or cannot be negated null is returned.
+     * Tests: none.
+     * @param operator COpBin: The operator.
+     * @return COpBin: Its negation or null.
+     */
+	public static COpBin negate(COpBin operator) {
+		
+		switch (operator) {
+			case EQ:
+				return COpBin.NEQ;
+			case NEQ:
+				return COpBin.EQ;
+			case GTE:
+				return COpBin.LT;
+			case LTE:
+				return COpBin.GT;
+			case GT:
+				return COpBin.LTE;
+			case LT:
+				return COpBin.GTE;
+			case UGTE:
+				return COpBin.ULT;
+			case ULTE:
+				return COpBin.UGT;
+			case UGT:
+				return COpBin.ULTE;
+			case ULT:
+				return COpBin.UGTE;
+			default:
+				return null;
+		}
+		
+	}
+	 
+	/**	
+     * Takes a compare operator and returns the operator you get by turning it around.
+     * If the operator is null or cannot be turned around null is returned instead.
+     * Tests: none.
+     * @param operator COpBin: The operator.
+     * @return COpBin: The operator turned around or null.
+     */
+	public static COpBin turnAround(COpBin operator) {
+		
+		switch (operator) {
+			case EQ:
+				return COpBin.EQ;
+			case NEQ:
+				return COpBin.NEQ;
+			case GTE:
+				return COpBin.LTE;
+			case LTE:
+				return COpBin.GTE;
+			case GT:
+				return COpBin.LT;
+			case LT:
+				return COpBin.GT;
+			case UGTE:
+				return COpBin.ULTE;
+			case ULTE:
+				return COpBin.UGTE;
+			case UGT:
+				return COpBin.ULT;
+			case ULT:
+				return COpBin.UGT;
+			default:
+				return null;
+		}
+		
+	}
+    
 }
