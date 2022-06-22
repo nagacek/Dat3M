@@ -1,6 +1,7 @@
 package com.dat3m.dartagnan.wmm.relation.unary;
 
 import com.dat3m.dartagnan.encoding.WmmEncoder;
+import com.dat3m.dartagnan.verification.VerificationTask;
 import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
@@ -8,7 +9,6 @@ import org.sosy_lab.java_smt.api.BooleanFormula;
 import org.sosy_lab.java_smt.api.BooleanFormulaManager;
 import org.sosy_lab.java_smt.api.SolverContext;
 
-import java.util.Map;
 import java.util.Set;
 
 import static java.util.stream.Collectors.toSet;
@@ -47,8 +47,8 @@ public class RelInverse extends UnaryRelation {
     }
 
     @Override
-    public Map<Relation, Set<Tuple>> activate(Set<Tuple> news) {
-        return Map.of(r1, news.stream().map(Tuple::getInverse).collect(toSet()));
+    public void activate(Set<Tuple> news, VerificationTask task, WmmEncoder.Buffer buf) {
+        buf.send(r1, news.stream().map(Tuple::getInverse).collect(toSet()));
     }
 
     @Override

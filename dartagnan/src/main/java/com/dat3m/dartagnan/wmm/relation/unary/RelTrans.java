@@ -3,6 +3,7 @@ package com.dat3m.dartagnan.wmm.relation.unary;
 import com.dat3m.dartagnan.encoding.WmmEncoder;
 import com.dat3m.dartagnan.program.analysis.ExecutionAnalysis;
 import com.dat3m.dartagnan.program.event.core.Event;
+import com.dat3m.dartagnan.verification.VerificationTask;
 import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
@@ -12,7 +13,6 @@ import org.sosy_lab.java_smt.api.BooleanFormulaManager;
 import org.sosy_lab.java_smt.api.SolverContext;
 
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 
 import static com.google.common.collect.Sets.intersection;
@@ -81,8 +81,11 @@ public class RelTrans extends UnaryRelation {
     }
 
     @Override
-    public Map<Relation, Set<Tuple>> activate(Set<Tuple> news) {
+    public void activate(Set<Tuple> news, VerificationTask task, WmmEncoder.Buffer buf) {
         HashSet<Tuple> factors = new HashSet<>();
+        RelationAnalysis ra = task.getAnalysisContext().get(RelationAnalysis.class);
+        TupleSet maxTupleSet = ra.getMaxTupleSet(this);
+        TupleSet minTupleSet = ra.getMinTupleSet(this);
         for(Tuple t : news) {
             for(Tuple t1 : maxTupleSet.getByFirst(t.getFirst())) {
                 Tuple t2 = new Tuple(t1.getSecond(), t.getSecond());
@@ -96,7 +99,8 @@ public class RelTrans extends UnaryRelation {
                 }
             }
         }
-        return Map.of(this, factors, r1, intersection(news, r1.getMaxTupleSet()));
+        buf.send(this,factors);
+        buf.send(r1, intersection(news, ra.getMaxTupleSet(r1)));
     }
 
     @Override

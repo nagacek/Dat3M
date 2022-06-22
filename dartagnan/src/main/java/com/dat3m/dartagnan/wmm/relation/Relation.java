@@ -17,7 +17,6 @@ import org.sosy_lab.java_smt.api.SolverContext;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static com.dat3m.dartagnan.encoding.ProgramEncoder.execution;
@@ -101,11 +100,12 @@ public abstract class Relation implements Dependent<Relation> {
      * Non-maximal tuples and minimal tuples should not be marked.
      * @param news
      * Pairs in this relation recently marked as relevant.
-     * @return
-     * Relationships required to be represented by a variable to properly constrain all of {@code news}.
+     * @param task
+     * Provides program, memory model, property, and more.
+     * @param buf
+     * Receives relationships required to be represented by a variable to properly constrain all of {@code news}.
      */
-    public Map<Relation, Set<Tuple>> activate(Set<Tuple> news) {
-        return Map.of();
+    public void activate(Set<Tuple> news, VerificationTask task, WmmEncoder.Buffer buf) {
     }
 
     public TupleSet getEncodeTupleSet(){

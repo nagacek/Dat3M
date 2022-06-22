@@ -3,6 +3,7 @@ package com.dat3m.dartagnan.wmm.relation.unary;
 import com.dat3m.dartagnan.encoding.WmmEncoder;
 import com.dat3m.dartagnan.program.analysis.ExecutionAnalysis;
 import com.dat3m.dartagnan.program.event.core.Event;
+import com.dat3m.dartagnan.verification.VerificationTask;
 import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
@@ -11,7 +12,6 @@ import org.sosy_lab.java_smt.api.BooleanFormula;
 import org.sosy_lab.java_smt.api.BooleanFormulaManager;
 import org.sosy_lab.java_smt.api.SolverContext;
 
-import java.util.Map;
 import java.util.Set;
 
 import static com.dat3m.dartagnan.encoding.ProgramEncoder.execution;
@@ -50,10 +50,11 @@ public class RelDomainIdentity extends UnaryRelation {
     }
 
     @Override
-    public Map<Relation, Set<Tuple>> activate(Set<Tuple> news) {
-        TupleSet max = r1.getMaxTupleSet();
-        TupleSet min = r1.getMinTupleSet();
-        return Map.of(r1, news.stream()
+    public void activate(Set<Tuple> news, VerificationTask task, WmmEncoder.Buffer buf) {
+        RelationAnalysis ra = task.getAnalysisContext().get(RelationAnalysis.class);
+        TupleSet max = ra.getMaxTupleSet(r1);
+        TupleSet min = ra.getMinTupleSet(r1);
+        buf.send(r1, news.stream()
             .flatMap(t -> max.getByFirst(t.getFirst()).stream())
             .filter(t -> !min.contains(t))
             .collect(toSet()));

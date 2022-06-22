@@ -2,6 +2,7 @@ package com.dat3m.dartagnan.wmm.relation.binary;
 
 import com.dat3m.dartagnan.encoding.WmmEncoder;
 import com.dat3m.dartagnan.program.analysis.ExecutionAnalysis;
+import com.dat3m.dartagnan.verification.VerificationTask;
 import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
@@ -10,7 +11,6 @@ import org.sosy_lab.java_smt.api.BooleanFormula;
 import org.sosy_lab.java_smt.api.BooleanFormulaManager;
 import org.sosy_lab.java_smt.api.SolverContext;
 
-import java.util.Map;
 import java.util.Set;
 
 import static com.dat3m.dartagnan.encoding.ProgramEncoder.execution;
@@ -76,10 +76,10 @@ public class RelMinus extends BinaryRelation {
     }
 
     @Override
-    public Map<Relation, Set<Tuple>> activate(Set<Tuple> news) {
-        return Map.of(
-            r1, difference(news, r1.getMinTupleSet()),
-            r2, intersection(news, r2.getMaxTupleSet()));
+    public void activate(Set<Tuple> news, VerificationTask task, WmmEncoder.Buffer buf) {
+        RelationAnalysis ra = task.getAnalysisContext().get(RelationAnalysis.class);
+        buf.send(r1, difference(news, ra.getMinTupleSet(r1)));
+        buf.send(r2, intersection(news, ra.getMaxTupleSet(r2)));
     }
 
     @Override

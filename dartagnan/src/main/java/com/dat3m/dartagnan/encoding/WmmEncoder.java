@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.collect.Sets.difference;
 
 
 public class WmmEncoder implements Encoder {
@@ -46,6 +47,25 @@ public class WmmEncoder implements Encoder {
         return encoder;
     }
 
+    /**
+     * Instances live during {@link WmmEncoder}'s initialization phase.
+     * Pass requests for tuples to be added to the encoding, between relations.
+     */
+    public interface Buffer {
+        /**
+         * Called by {@link Relation#activate(Set,VerificationTask,Buffer) Relation}
+         * whenever a batch of new relationships has been marked.
+         * Performs duplicate elimination (i.e. if multiple relations send overlapping tuples)
+         * and delays their insertion into the encoder's set to decrease the number of propagations.
+         * @param rel
+         * Target relation, will be notified of this batch, eventually.
+         * @param tuples
+         * Collection of event pairs in {@code rel}, that are requested to be encoded.
+         * Subset of {@code rel}'s may set, and disjoint from its must set.
+         */
+        void send(Relation rel, Set<Tuple> tuples);
+    }
+
     private void initializeEncoding() {
         for(String relName : Wmm.BASE_RELATIONS) {
             memoryModel.getRelationRepository().getRelation(relName);
@@ -69,17 +89,13 @@ public class WmmEncoder implements Encoder {
         }
 
         while(!queue.isEmpty()) {
-            Map.Entry<Relation, Set<Tuple>> entry = queue.entrySet().iterator().next();
-            Relation r = entry.getKey();
-            queue.remove(r);
-            TupleSet set = new TupleSet(entry.getValue());
-            set.removeAll(r.getEncodeTupleSet());
-            r.addEncodeTupleSet(set);
-            for(Map.Entry<Relation, Set<Tuple>> e : r.activate(set).entrySet()) {
-                if(!e.getValue().isEmpty()) {
-                    queue.merge(e.getKey(), e.getValue(), Sets::union);
-                }
+            Relation relation = queue.keySet().iterator().next();
+            TupleSet delta = new TupleSet(difference(queue.remove(relation),relation.getEncodeTupleSet()));
+            if(delta.isEmpty()) {
+                continue;
             }
+            relation.addEncodeTupleSet(delta);
+            relation.activate(delta, task, (rel, set) -> queue.merge(rel,set,Sets::union));
         }
     }
 

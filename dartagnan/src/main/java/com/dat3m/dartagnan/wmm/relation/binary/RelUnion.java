@@ -1,6 +1,7 @@
 package com.dat3m.dartagnan.wmm.relation.binary;
 
 import com.dat3m.dartagnan.encoding.WmmEncoder;
+import com.dat3m.dartagnan.verification.VerificationTask;
 import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import com.google.common.collect.Sets;
 import org.sosy_lab.java_smt.api.BooleanFormula;
@@ -11,7 +12,6 @@ import com.dat3m.dartagnan.wmm.utils.Tuple;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
 import org.sosy_lab.java_smt.api.SolverContext;
 
-import java.util.Map;
 import java.util.Set;
 
 import static com.google.common.collect.Sets.intersection;
@@ -66,10 +66,10 @@ public class RelUnion extends BinaryRelation {
     }
 
     @Override
-    public Map<Relation, Set<Tuple>> activate(Set<Tuple> news) {
-        return Map.of(
-            r1, intersection(news, r1.getMaxTupleSet()),
-            r2, intersection(news, r2.getMaxTupleSet()));
+    public void activate(Set<Tuple> news, VerificationTask task, WmmEncoder.Buffer buf) {
+        RelationAnalysis ra = task.getAnalysisContext().get(RelationAnalysis.class);
+        buf.send(r1, intersection(news, ra.getMaxTupleSet(r1)));
+        buf.send(r2, intersection(news, ra.getMaxTupleSet(r2)));
     }
 
     @Override

@@ -3,6 +3,7 @@ package com.dat3m.dartagnan.wmm.relation.binary;
 import com.dat3m.dartagnan.encoding.WmmEncoder;
 import com.dat3m.dartagnan.program.analysis.ExecutionAnalysis;
 import com.dat3m.dartagnan.program.event.core.Event;
+import com.dat3m.dartagnan.verification.VerificationTask;
 import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
@@ -12,7 +13,6 @@ import org.sosy_lab.java_smt.api.BooleanFormulaManager;
 import org.sosy_lab.java_smt.api.SolverContext;
 
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -77,14 +77,15 @@ public class RelComposition extends BinaryRelation {
     }
 
     @Override
-    public Map<Relation, Set<Tuple>> activate(Set<Tuple> activeSet) {
+    public void activate(Set<Tuple> activeSet, VerificationTask task, WmmEncoder.Buffer buf) {
+        RelationAnalysis ra = task.getAnalysisContext().get(RelationAnalysis.class);
         HashSet<Tuple> r1Set = new HashSet<>();
         HashSet<Tuple> r2Set = new HashSet<>();
 
-        TupleSet r1Max = r1.getMaxTupleSet();
-        TupleSet r2Max = r2.getMaxTupleSet();
-        TupleSet r1Min = r1.getMinTupleSet();
-        TupleSet r2Min = r2.getMinTupleSet();
+        TupleSet r1Max = ra.getMaxTupleSet(r1);
+        TupleSet r2Max = ra.getMaxTupleSet(r2);
+        TupleSet r1Min = ra.getMinTupleSet(r1);
+        TupleSet r2Min = ra.getMinTupleSet(r2);
         for(Tuple t : activeSet) {
             Event e1 = t.getFirst();
             Event e3 = t.getSecond();
@@ -102,7 +103,8 @@ public class RelComposition extends BinaryRelation {
             }
         }
 
-        return Map.of(r1, r1Set, r2, r2Set);
+        buf.send(r1,r1Set);
+        buf.send(r2, r2Set);
     }
 
     @Override
