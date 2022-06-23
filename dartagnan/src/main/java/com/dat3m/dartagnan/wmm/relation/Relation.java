@@ -6,6 +6,7 @@ import com.dat3m.dartagnan.program.event.core.Event;
 import com.dat3m.dartagnan.utils.dependable.Dependent;
 import com.dat3m.dartagnan.verification.Context;
 import com.dat3m.dartagnan.verification.VerificationTask;
+import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import com.dat3m.dartagnan.wmm.relation.base.stat.StaticRelation;
 import com.dat3m.dartagnan.wmm.relation.binary.BinaryRelation;
 import com.dat3m.dartagnan.wmm.relation.unary.UnaryRelation;
@@ -127,16 +128,17 @@ public abstract class Relation implements Dependent<Relation> {
         return encoder.getSolverContext().getFormulaManager().getBooleanFormulaManager().makeTrue();
     }
 
-    public BooleanFormula getSMTVar(Tuple edge, SolverContext ctx) {
-        return getMinTupleSet().contains(edge)
-            ? execution(edge.getFirst(), edge.getSecond(), analysisContext.get(ExecutionAnalysis.class), ctx)
-            : getMaxTupleSet().contains(edge)
+    public BooleanFormula getSMTVar(Tuple edge, VerificationTask task, SolverContext ctx) {
+        RelationAnalysis ra = task.getAnalysisContext().get(RelationAnalysis.class);
+        return ra.getMinTupleSet(this).contains(edge)
+            ? execution(edge.getFirst(), edge.getSecond(), task.getAnalysisContext().get(ExecutionAnalysis.class), ctx)
+            : ra.getMaxTupleSet(this).contains(edge)
             ? edge(getName(), edge.getFirst(), edge.getSecond(), ctx)
             : ctx.getFormulaManager().getBooleanFormulaManager().makeFalse();
     }
 
-    public final BooleanFormula getSMTVar(Event e1, Event e2, SolverContext ctx) {
-        return getSMTVar(new Tuple(e1, e2), ctx);
+    public final BooleanFormula getSMTVar(Event e1, Event e2, VerificationTask task, SolverContext ctx) {
+        return getSMTVar(new Tuple(e1, e2), task, ctx);
     }
 
     // ========================== Utility methods =========================

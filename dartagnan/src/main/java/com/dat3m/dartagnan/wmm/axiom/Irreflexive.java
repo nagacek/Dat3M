@@ -37,11 +37,12 @@ public class Irreflexive extends Axiom {
     @Override
     public BooleanFormula consistent(WmmEncoder encoder) {
         SolverContext ctx = encoder.getSolverContext();
+        VerificationTask task = encoder.getTask();
     	BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
 		BooleanFormula enc = bmgr.makeTrue();
         for(Tuple tuple : encoder.getActiveSet(rel)){
             if(tuple.isLoop()){
-                enc = bmgr.and(enc, bmgr.not(rel.getSMTVar(tuple, ctx)));
+                enc = bmgr.and(enc, bmgr.not(rel.getSMTVar(tuple, task, ctx)));
             }
         }
         return negated ? bmgr.not(enc) : enc;

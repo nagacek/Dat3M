@@ -137,7 +137,9 @@ public class RelRMW extends StaticRelation {
                     ? bmgr.makeTrue()
                     : generalEqual(info.load.getMemAddressExpr(),store.getMemAddressExpr(),ctx);
                 // Relation between exclusive load and store
-                enc = bmgr.and(enc,bmgr.equivalence(getSMTVar(info.load,store,ctx),bmgr.and(execution(info.load, store, exec, ctx),isPair,sameAddress)));
+                enc = bmgr.and(enc,bmgr.equivalence(
+                    getSMTVar(info.load,store,encoder.getTask(),ctx),
+                    bmgr.and(execution(info.load, store, exec, ctx),isPair,sameAddress)));
 
                 // Can be executed if addresses mismatch, but behaviour is "constrained unpredictable"
                 // The implementation does not include all possible unpredictable cases: in case of address

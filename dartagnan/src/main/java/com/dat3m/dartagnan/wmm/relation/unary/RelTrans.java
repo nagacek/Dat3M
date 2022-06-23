@@ -120,7 +120,7 @@ public class RelTrans extends UnaryRelation {
             Event e2 = tuple.getSecond();
 
             if(r1Max.contains(tuple)){
-                orClause = bmgr.or(orClause, r1.getSMTVar(tuple, ctx));
+                orClause = bmgr.or(orClause, r1.getSMTVar(tuple, encoder.getTask(), ctx));
             }
 
 
@@ -130,17 +130,17 @@ public class RelTrans extends UnaryRelation {
                 if(e3.getCId() != e1.getCId() && e3.getCId() != e2.getCId() && maxTupleSet.contains(t2)){
                     boolean b1 = minSet.contains(t);
                     boolean b2 = minSet.contains(t2);
-                    BooleanFormula f1 = b1 ? e1.exec() : r1.getSMTVar(t, ctx);
-                    BooleanFormula f2 = b2 ? e2.exec() : getSMTVar(t2, ctx);
+                    BooleanFormula f1 = b1 ? e1.exec() : r1.getSMTVar(t, encoder.getTask(), ctx);
+                    BooleanFormula f2 = b2 ? e2.exec() : getSMTVar(t2, encoder.getTask(), ctx);
                     BooleanFormula f3 = b1 && b2 ? e3.exec() : bmgr.makeTrue();
                     orClause = bmgr.or(orClause, bmgr.and(f1, f2, f3));
                 }
             }
 
             if(Relation.PostFixApprox) {
-                enc = bmgr.and(enc, bmgr.implication(orClause, this.getSMTVar(tuple, ctx)));
+                enc = bmgr.and(enc, bmgr.implication(orClause, this.getSMTVar(tuple, encoder.getTask(), ctx)));
             } else {
-                enc = bmgr.and(enc, bmgr.equivalence(this.getSMTVar(tuple, ctx), orClause));
+                enc = bmgr.and(enc, bmgr.equivalence(this.getSMTVar(tuple, encoder.getTask(), ctx), orClause));
             }
         }
 

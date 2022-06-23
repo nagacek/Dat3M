@@ -37,6 +37,7 @@ public class SymmetryEncoder implements Encoder {
 
     private static final Logger logger = LogManager.getLogger(SymmetryEncoder.class);
 
+    private final VerificationTask task;
     private final Wmm memoryModel;
     private final ThreadSymmetry symm;
     private final RelationAnalysis relationAnalysis;
@@ -57,6 +58,7 @@ public class SymmetryEncoder implements Encoder {
     // =====================================================================
 
     private SymmetryEncoder(VerificationTask task, SolverContext ctx) throws InvalidConfigurationException {
+        this.task = task;
         this.memoryModel = task.getMemoryModel();
         this.symm = task.getAnalysisContext().requires(ThreadSymmetry.class);
         this.relationAnalysis = task.getAnalysisContext().requires(RelationAnalysis.class);
@@ -127,8 +129,8 @@ public class SymmetryEncoder implements Encoder {
             Function<Event, Event> p = symm.createTransposition(t1, t2);
             List<Tuple> r2Tuples = r1Tuples.stream().map(t -> t.permute(p)).collect(Collectors.toList());
 
-            List<BooleanFormula> r1 = Lists.transform(r1Tuples, t -> rel.getSMTVar(t, ctx));
-            List<BooleanFormula> r2 = Lists.transform(r2Tuples, t -> rel.getSMTVar(t, ctx));
+            List<BooleanFormula> r1 = Lists.transform(r1Tuples, t -> rel.getSMTVar(t, task, ctx));
+            List<BooleanFormula> r2 = Lists.transform(r2Tuples, t -> rel.getSMTVar(t, task, ctx));
             final String id = "_" + rep.getId() + "_" + i;
             enc = bmgr.and(enc, encodeLexLeader(id, r2, r1, ctx)); // r1 >= r2
 

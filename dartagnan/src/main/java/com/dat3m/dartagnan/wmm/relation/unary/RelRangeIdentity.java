@@ -73,9 +73,9 @@ public class RelRangeIdentity extends UnaryRelation {
             Event e = tuple1.getFirst();
             BooleanFormula opt = bmgr.makeFalse();
             for(Tuple tuple2 : max1.getBySecond(e)){
-                opt = bmgr.or(min1.contains(tuple2) ? execution(tuple2.getFirst(), e, exec, ctx) : r1.getSMTVar(tuple2.getFirst(), e, ctx));
+                opt = bmgr.or(min1.contains(tuple2) ? execution(tuple2.getFirst(), e, exec, ctx) : r1.getSMTVar(tuple2.getFirst(), e, encoder.getTask(), ctx));
             }
-            enc = bmgr.and(enc, bmgr.equivalence(this.getSMTVar(e, e, ctx), opt));
+            enc = bmgr.and(enc, bmgr.equivalence(this.getSMTVar(e, e, encoder.getTask(), ctx), opt));
         }
         return enc;
     }

@@ -107,7 +107,7 @@ public class RelFencerel extends StaticRelation {
                 .filter(f -> e1.getCId() < f.getCId() && f.getCId() < e2.getCId())
                 .map(Event::exec).reduce(bmgr.makeFalse(), bmgr::or);
 
-            BooleanFormula rel = this.getSMTVar(tuple, ctx);
+            BooleanFormula rel = this.getSMTVar(tuple, encoder.getTask(), ctx);
             enc = bmgr.and(enc, bmgr.equivalence(rel, bmgr.and(execution(tuple.getFirst(), tuple.getSecond(), exec, ctx), orClause)));
         }
 

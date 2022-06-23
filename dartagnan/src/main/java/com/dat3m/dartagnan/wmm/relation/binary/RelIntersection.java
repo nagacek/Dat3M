@@ -82,9 +82,9 @@ public class RelIntersection extends BinaryRelation {
         TupleSet min1 = ra.getMinTupleSet(r1);
         TupleSet min2 = ra.getMinTupleSet(r2);
         for(Tuple tuple : encodeTupleSet){
-            BooleanFormula opt1 = min1.contains(tuple) ? bmgr.makeTrue() : r1.getSMTVar(tuple, ctx);
-            BooleanFormula opt2 = min2.contains(tuple) ? bmgr.makeTrue() : r2.getSMTVar(tuple, ctx);
-            enc = bmgr.and(enc, bmgr.equivalence(this.getSMTVar(tuple, ctx), bmgr.and(opt1, opt2)));
+            BooleanFormula opt1 = min1.contains(tuple) ? bmgr.makeTrue() : r1.getSMTVar(tuple, encoder.getTask(), ctx);
+            BooleanFormula opt2 = min2.contains(tuple) ? bmgr.makeTrue() : r2.getSMTVar(tuple, encoder.getTask(), ctx);
+            enc = bmgr.and(enc, bmgr.equivalence(this.getSMTVar(tuple, encoder.getTask(), ctx), bmgr.and(opt1, opt2)));
         }
         return enc;
     }

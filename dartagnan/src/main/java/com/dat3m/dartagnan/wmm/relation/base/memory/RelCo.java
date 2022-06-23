@@ -9,6 +9,7 @@ import com.dat3m.dartagnan.program.event.core.Init;
 import com.dat3m.dartagnan.program.event.core.MemEvent;
 import com.dat3m.dartagnan.program.filter.FilterBasic;
 import com.dat3m.dartagnan.program.filter.FilterMinus;
+import com.dat3m.dartagnan.verification.VerificationTask;
 import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import com.dat3m.dartagnan.wmm.analysis.WmmAnalysis;
 import com.dat3m.dartagnan.wmm.relation.Relation;
@@ -179,7 +180,7 @@ public class RelCo extends Relation {
 
             for(Tuple t : ra.getMaxTupleSet(this).getByFirst(w1)){
                 MemEvent w2 = (MemEvent)t.getSecond();
-                BooleanFormula relation = getSMTVar(t, ctx);
+                BooleanFormula relation = getSMTVar(t, task, ctx);
                 BooleanFormula execPair = execution(t.getFirst(), t.getSecond(), exec, ctx);
                 lastCo = bmgr.and(lastCo, bmgr.not(relation));
 
@@ -229,12 +230,13 @@ public class RelCo extends Relation {
     }
     
     @Override
-    public BooleanFormula getSMTVar(Tuple edge, SolverContext ctx) {
+    public BooleanFormula getSMTVar(Tuple edge, VerificationTask task, SolverContext ctx) {
         if(!antisymmetry) {
-            return super.getSMTVar(edge, ctx);
+            return super.getSMTVar(edge, task, ctx);
         }
 
-        ExecutionAnalysis exec = analysisContext.requires(ExecutionAnalysis.class);
+        ExecutionAnalysis exec = task.getAnalysisContext().requires(ExecutionAnalysis.class);
+        RelationAnalysis ra = task.getAnalysisContext().get(RelationAnalysis.class);
     	FormulaManager fmgr = ctx.getFormulaManager();
 		BooleanFormulaManager bmgr = fmgr.getBooleanFormulaManager();
 
@@ -243,11 +245,11 @@ public class RelCo extends Relation {
         // Doing the check at the java level seems to slightly improve  performance
         BooleanFormula eqAdd = first.getAddress().equals(second.getAddress()) ? bmgr.makeTrue() :
                 generalEqual(first.getMemAddressExpr(), second.getMemAddressExpr(), ctx);
-        return !getMaxTupleSet().contains(edge) ? bmgr.makeFalse() :
+        return !ra.getMaxTupleSet(this).contains(edge) ? bmgr.makeFalse() :
     		first.getCId() <= second.getCId() ?
     				edge(getName(), first, second, ctx) :
     					bmgr.ifThenElse(bmgr.and(execution(edge.getFirst(), edge.getSecond(), exec, ctx), eqAdd),
-    							bmgr.not(getSMTVar(edge.getInverse(), ctx)),
+    							bmgr.not(getSMTVar(edge.getInverse(), task, ctx)),
     							bmgr.makeFalse());
     }
 

@@ -133,8 +133,8 @@ public class RelRf extends Relation {
         int sizeBefore = maxTupleSet.size();
 
         // Atomics blocks: BeginAtomic -> EndAtomic
-        ExecutionAnalysis exec = analysisContext.get(ExecutionAnalysis.class);
-        AliasAnalysis alias = analysisContext.get(AliasAnalysis.class);
+        ExecutionAnalysis exec = task.getAnalysisContext().get(ExecutionAnalysis.class);
+        AliasAnalysis alias = task.getAnalysisContext().get(AliasAnalysis.class);
         FilterAbstract filter = FilterIntersection.get(FilterBasic.get(RMW), FilterBasic.get(SVCOMP.SVCOMPATOMIC));
         for(Event end : task.getProgram().getCache().getEvents(filter)) {
             // Collect memEvents of the atomic block
@@ -180,7 +180,7 @@ public class RelRf extends Relation {
         for(Tuple tuple : ra.getMaxTupleSet(this)){
             MemEvent w = (MemEvent) tuple.getFirst();
             MemEvent r = (MemEvent) tuple.getSecond();
-            BooleanFormula edge = this.getSMTVar(tuple, ctx);
+            BooleanFormula edge = this.getSMTVar(tuple, encoder.getTask(), ctx);
 
             // The boogie file might have a different type (Ints vs BVs) that the imposed by ARCH_PRECISION
             // In such cases we perform the transformation

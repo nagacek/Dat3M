@@ -15,16 +15,24 @@ import java.util.Set;
 
 public class RelationAnalysis {
 
+    private final VerificationTask task;
+
     private RelationAnalysis(VerificationTask task) {
+        this.task = task;
         Context context = task.getAnalysisContext();
         context.requires(AliasAnalysis.class);
         context.requires(BranchEquivalence.class);
         context.requires(WmmAnalysis.class);
-        run(task);
     }
 
     public static RelationAnalysis fromConfig(VerificationTask task) throws InvalidConfigurationException {
-        return new RelationAnalysis(task);
+        RelationAnalysis ra = new RelationAnalysis(task);
+        ra.run();
+        return ra;
+    }
+
+    public VerificationTask getTask() {
+        return task;
     }
 
     public TupleSet getMaxTupleSet(Relation relation) {
@@ -35,7 +43,7 @@ public class RelationAnalysis {
         return relation.getMinTupleSet();
     }
 
-    private void run(VerificationTask task) {
+    private void run() {
         // Init data context so that each relation is able to compute its may/must sets.
         Wmm memoryModel = task.getMemoryModel();
         for (Axiom ax : memoryModel.getAxioms()) {

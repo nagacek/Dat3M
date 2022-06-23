@@ -74,9 +74,9 @@ public class RelDomainIdentity extends UnaryRelation {
             Event e = tuple1.getFirst();
             BooleanFormula opt = bmgr.makeFalse();
             for(Tuple tuple2 : max1.getByFirst(e)){
-                opt = bmgr.or(min1.contains(tuple2) ? execution(e, tuple2.getSecond(), exec, ctx) : r1.getSMTVar(e, tuple2.getSecond(), ctx));
+                opt = bmgr.or(min1.contains(tuple2) ? execution(e, tuple2.getSecond(), exec, ctx) : r1.getSMTVar(e, tuple2.getSecond(), encoder.getTask(), ctx));
             }
-            enc = bmgr.and(enc, bmgr.equivalence(this.getSMTVar(e, e, ctx), opt));
+            enc = bmgr.and(enc, bmgr.equivalence(this.getSMTVar(e, e, encoder.getTask(), ctx), opt));
         }
         return enc;
     }

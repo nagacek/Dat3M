@@ -136,6 +136,7 @@ public class Refiner {
             enc = rel.getSMTVar(
                     perm.apply(lit.getData().getFirst()),
                     perm.apply(lit.getData().getSecond()),
+                    task,
                     context);
         } else {
             throw new IllegalArgumentException("CoreLiteral " + literal.toString() + " is not supported");

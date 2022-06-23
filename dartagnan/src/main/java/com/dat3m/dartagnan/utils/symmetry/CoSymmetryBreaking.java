@@ -221,7 +221,7 @@ public class CoSymmetryBreaking {
         if (info.hasMustEdges) {
             r1.add(info.writes.get(0).exec());
         }
-        r1.addAll(Lists.transform(r1Tuples, t -> co.getSMTVar(t, ctx)));
+        r1.addAll(Lists.transform(r1Tuples, t -> co.getSMTVar(t, task, ctx)));
 
         // Construct symmetric rows
         Thread rep = symmClass.getRepresentative();
@@ -233,7 +233,7 @@ public class CoSymmetryBreaking {
             if (info.hasMustEdges) {
                 r2.add(symm.map(info.writes.get(0), t2).exec());
             }
-            r2.addAll(Lists.transform(r2Tuples, t -> co.getSMTVar(t, ctx)));
+            r2.addAll(Lists.transform(r2Tuples, t -> co.getSMTVar(t, task, ctx)));
 
             final String id = "_" + rep.getId() + "_" + i;
             // NOTE: We want to have r1 >= r2 but lexLeader encodes r1 <= r2, so we swap r1 and r2.

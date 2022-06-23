@@ -110,6 +110,7 @@ public class RelComposition extends BinaryRelation {
     @Override
     public BooleanFormula encode(Set<Tuple> encodeTupleSet, WmmEncoder encoder) {
         SolverContext ctx = encoder.getSolverContext();
+        VerificationTask task = encoder.getTask();
         RelationAnalysis ra = encoder.getTask().getAnalysisContext().get(RelationAnalysis.class);
     	BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
 		BooleanFormula enc = bmgr.makeTrue();
@@ -129,14 +130,14 @@ public class RelComposition extends BinaryRelation {
                 if(max2.contains(t2)) {
                     boolean b1 = min1.contains(t1);
                     boolean b2 = min2.contains(t2);
-                    BooleanFormula f1 = b1 ? x.exec() : r1.getSMTVar(t1, ctx);
-                    BooleanFormula f2 = b2 ? z.exec() : r2.getSMTVar(t2, ctx);
+                    BooleanFormula f1 = b1 ? x.exec() : r1.getSMTVar(t1, task, ctx);
+                    BooleanFormula f2 = b2 ? z.exec() : r2.getSMTVar(t2, task, ctx);
                     BooleanFormula f3 = b1 && b2 ? y.exec() : bmgr.makeTrue();
                     expr = bmgr.or(expr, bmgr.and(f1, f2, f3));
                 }
             }
 
-            enc = bmgr.and(enc, bmgr.equivalence(this.getSMTVar(tuple, ctx), expr));
+            enc = bmgr.and(enc, bmgr.equivalence(this.getSMTVar(tuple, task, ctx), expr));
         }
         return enc;
     }

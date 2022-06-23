@@ -53,7 +53,7 @@ public class DynamicDefaultWMMGraph extends MaterializedWMMGraph {
     }
 
     private Edge getEdgeFromEventData(EventData e1, EventData e2, Model m, SolverContext ctx) {
-        return m.evaluate(relation.getSMTVar(e1.getEvent(), e2.getEvent(), ctx)) == Boolean.TRUE
+        return m.evaluate(relation.getSMTVar(e1.getEvent(), e2.getEvent(), relationAnalysis.getTask(), ctx)) == Boolean.TRUE
                 ? new Edge(e1.getId(), e2.getId()) : null;
     }
 

@@ -58,7 +58,7 @@ public class RelInverse extends UnaryRelation {
 		BooleanFormula enc = bmgr.makeTrue();
 
         for(Tuple tuple : encodeTupleSet){
-            enc = bmgr.and(enc, bmgr.equivalence(this.getSMTVar(tuple, ctx), r1.getSMTVar(tuple.getInverse(), ctx)));
+            enc = bmgr.and(enc, bmgr.equivalence(this.getSMTVar(tuple, encoder.getTask(), ctx), r1.getSMTVar(tuple.getInverse(), encoder.getTask(), ctx)));
         }
         return enc;
     }
