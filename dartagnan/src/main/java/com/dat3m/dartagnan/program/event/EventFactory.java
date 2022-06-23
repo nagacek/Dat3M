@@ -313,6 +313,11 @@ public class EventFactory {
             public static Fence newISHLDBarrier() {
                 return new Fence ("DSB.ISHLD");
             }
+
+            public static Fence newISHSTBarrier() {
+                return new Fence("DMB.ISHST");
+            }
+
         }
 
     }
@@ -323,6 +328,14 @@ public class EventFactory {
     public static class Linux {
         private Linux() {}
 
+        public static LKMMLoad newLKMMLoad(Register reg, IExpr address, String mo) {
+        	return new LKMMLoad(reg, address, mo);
+        }
+        
+        public static LKMMStore newLKMMStore(IExpr address, ExprInterface value, String mo) {
+        	return new LKMMStore(address, value, mo);
+        }
+        
         public static RMWReadCondCmp newRMWReadCondCmp(Register reg, ExprInterface cmp, IExpr address, String atomic) {
             return new RMWReadCondCmp(reg, cmp, address, atomic);
         }
@@ -368,7 +381,11 @@ public class EventFactory {
         }
 
         public static Fence newMemoryBarrier() {
-            return newFence("Mb");
+            return new LKMMFence(Tag.Linux.MO_MB);
+        }
+
+        public static Fence newLKMMFence(String name) {
+            return new LKMMFence(name);
         }
 
         public static Fence newConditionalMemoryBarrier(RMWReadCond loadEvent) {

@@ -3,6 +3,7 @@ package com.dat3m.dartagnan.utils.visualization;
 import com.dat3m.dartagnan.expression.IExpr;
 import com.dat3m.dartagnan.program.Register;
 import com.dat3m.dartagnan.program.Thread;
+import com.dat3m.dartagnan.program.event.Tag.C11;
 import com.dat3m.dartagnan.program.event.core.MemEvent;
 import com.dat3m.dartagnan.verification.model.EventData;
 import com.dat3m.dartagnan.verification.model.ExecutionModel;
@@ -142,9 +143,7 @@ public class ExecutionGraphVisualizer {
                 continue;
             }
 
-            if (e1.getEvent().getCLine() != e2.getEvent().getCLine()) {
-                appendEdge(e1, e2, model, (String[]) null);
-            }
+            appendEdge(e1, e2, model, (String[]) null);
         }
 
         // --- Subgraph end ---
@@ -172,7 +171,7 @@ public class ExecutionGraphVisualizer {
         if(e.isMemoryEvent()) {
             Object address = addresses.get(e.getAccessedAddress());
             BigInteger value = e.getValue();
-        	String mo = ofNullable(((MemEvent)e.getEvent()).getMo()).orElse("NA");
+        	String mo = ofNullable(((MemEvent)e.getEvent()).getMo()).orElse(C11.NONATOMIC);
             tag = e.isWrite() ?
             		String.format("W(%s, %d, %s)", address, value, mo) :
             		String.format("%d = R(%s, %s)", value, address, mo);
