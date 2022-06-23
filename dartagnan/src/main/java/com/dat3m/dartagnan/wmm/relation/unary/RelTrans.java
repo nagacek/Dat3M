@@ -33,51 +33,20 @@ public class RelTrans extends UnaryRelation {
     }
 
     @Override
-    public TupleSet getMinTupleSet(){
-        if(minTupleSet == null){
-            //TODO: Make sure this is correct and efficient
-            ExecutionAnalysis exec = analysisContext.requires(ExecutionAnalysis.class);
-            minTupleSet = new TupleSet(r1.getMinTupleSet());
-            boolean changed;
-            int size = minTupleSet.size();
-            do {
-                minTupleSet.addAll(minTupleSet.postComposition(r1.getMinTupleSet(),
-                        (t1, t2) -> (exec.isImplied(t1.getFirst(), t1.getSecond())
-                                || exec.isImplied(t2.getSecond(), t1.getSecond()))
-                            && !exec.areMutuallyExclusive(t1.getFirst(), t2.getSecond())));
-                changed = minTupleSet.size() != size;
-                size = minTupleSet.size();
-            } while (changed);
-        }
-        return minTupleSet;
-    }
-
-
-    @Override
-    public TupleSet getMaxTupleSet(){
-        if(maxTupleSet == null){
-            maxTupleSet = new TupleSet();
-            ExecutionAnalysis exec = analysisContext.requires(ExecutionAnalysis.class);
-            TupleSet child = r1.getMaxTupleSet();
-            Set<Tuple> update = child;
-            while(!update.isEmpty()) {
-                maxTupleSet.addAll(update);
-                Set<Tuple> next = new HashSet<>();
-                for(Tuple t1 : update) {
-                    Event e1 = t1.getFirst();
-                    Event e2 = t1.getSecond();
-                    for(Tuple t2 : child.getByFirst(e2)) {
-                        Event e3 = t2.getSecond();
-                        if(!exec.areMutuallyExclusive(e1, e3)) {
-                            next.add(new Tuple(e1, e3));
-                        }
-                    }
-                }
-                next.removeAll(maxTupleSet);
-                update = next;
-            }
-        }
-        return maxTupleSet;
+    public void initialize(RelationAnalysis ra, RelationAnalysis.SetBuffer buf, RelationAnalysis.SetObservable obs) {
+        ExecutionAnalysis exec = ra.getTask().getAnalysisContext().requires(ExecutionAnalysis.class);
+        TupleSet maySet = ra.getMaxTupleSet(this);
+        TupleSet mustSet = ra.getMinTupleSet(this);
+        obs.listen(this, (may, must) -> {
+            TupleSet maxTupleSet = may.postComposition(maySet,
+                (t1, t2) -> !exec.areMutuallyExclusive(t1.getFirst(), t2.getSecond()));
+            TupleSet minTupleSet = must.postComposition(mustSet,
+                (t1, t2) -> (exec.isImplied(t1.getFirst(), t1.getSecond())
+                        || exec.isImplied(t2.getSecond(), t1.getSecond()))
+                    && !exec.areMutuallyExclusive(t1.getFirst(), t2.getSecond()));
+            buf.send(this,maxTupleSet,minTupleSet);
+        });
+        obs.listen(r1, (may, must) -> buf.send(this, may, must));
     }
 
     @Override

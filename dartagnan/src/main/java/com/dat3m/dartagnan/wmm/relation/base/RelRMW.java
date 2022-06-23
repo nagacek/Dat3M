@@ -13,6 +13,7 @@ import com.dat3m.dartagnan.program.filter.FilterAbstract;
 import com.dat3m.dartagnan.program.filter.FilterBasic;
 import com.dat3m.dartagnan.program.filter.FilterIntersection;
 import com.dat3m.dartagnan.program.filter.FilterUnion;
+import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import com.dat3m.dartagnan.wmm.relation.base.stat.StaticRelation;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
@@ -47,71 +48,60 @@ public class RelRMW extends StaticRelation {
     }
 
     @Override
-    public TupleSet getMinTupleSet(){
-        if(minTupleSet == null){
-            getMaxTupleSet();
+    public void initialize(RelationAnalysis ra, RelationAnalysis.SetBuffer buf, RelationAnalysis.SetObservable obs) {
+        ExecutionAnalysis exec = ra.getTask().getAnalysisContext().requires(ExecutionAnalysis.class);
+        logger.info("Computing maxTupleSet for " + getName());
+        TupleSet minTupleSet = new TupleSet();
+
+        // RMWLoad -> RMWStore
+        FilterAbstract filter = FilterIntersection.get(FilterBasic.get(Tag.RMW), FilterBasic.get(Tag.WRITE));
+        for(Event store : ra.getTask().getProgram().getCache().getEvents(filter)){
+            if(store instanceof RMWStore) {
+                minTupleSet.add(new Tuple(((RMWStore)store).getLoadEvent(), store));
+            }
         }
-        return minTupleSet;
-    }
 
-    @Override
-    public TupleSet getMaxTupleSet(){
-        if(maxTupleSet == null){
-            ExecutionAnalysis exec = analysisContext.requires(ExecutionAnalysis.class);
-        	logger.info("Computing maxTupleSet for " + getName());
-            minTupleSet = new TupleSet();
+        // Locks: Load -> Assume/CondJump -> Store
+        FilterAbstract locks = FilterUnion.get(FilterBasic.get(Tag.C11.LOCK),
+                FilterBasic.get(Tag.Linux.LOCK_READ));
+        filter = FilterIntersection.get(FilterBasic.get(Tag.RMW), locks);
+        for(Event e : ra.getTask().getProgram().getCache().getEvents(filter)){
 
-            // RMWLoad -> RMWStore
-            FilterAbstract filter = FilterIntersection.get(FilterBasic.get(Tag.RMW), FilterBasic.get(Tag.WRITE));
-            for(Event store : task.getProgram().getCache().getEvents(filter)){
-            	if(store instanceof RMWStore) {
-                    minTupleSet.add(new Tuple(((RMWStore)store).getLoadEvent(), store));
-            	}
-            }
+            // Connect Load to Store
+            minTupleSet.add(new Tuple(e, e.getSuccessor().getSuccessor()));
+        }
 
-            // Locks: Load -> Assume/CondJump -> Store
-            FilterAbstract locks = FilterUnion.get(FilterBasic.get(Tag.C11.LOCK),
-            									   FilterBasic.get(Tag.Linux.LOCK_READ));
-            filter = FilterIntersection.get(FilterBasic.get(Tag.RMW), locks);
-            for(Event e : task.getProgram().getCache().getEvents(filter)){
-
-                    // Connect Load to Store
-                    minTupleSet.add(new Tuple(e, e.getSuccessor().getSuccessor()));
-            }
-
-            // Atomics blocks: BeginAtomic -> EndAtomic
-            filter = FilterIntersection.get(FilterBasic.get(Tag.RMW), FilterBasic.get(SVCOMPATOMIC));
-            for(Event end : task.getProgram().getCache().getEvents(filter)){
-                List<Event> block = ((EndAtomic)end).getBlock().stream().filter(x -> x.is(Tag.VISIBLE)).collect(Collectors.toList());
-                for (int i = 0; i < block.size(); i++) {
-                    Event e1 = block.get(i);
-                    for(Event e2 : block.subList(i + 1, block.size())) {
-                        if(!exec.areMutuallyExclusive(e1, e2)) {
-                            minTupleSet.add(new Tuple(e1, e2));
-                        }
-                    }
-
-                }
-            }
-
-            maxTupleSet = new TupleSet();
-            maxTupleSet.addAll(minTupleSet);
-
-            // LoadExcl -> StoreExcl
-            ExclusiveAccesses excl = analysisContext.requires(ExclusiveAccesses.class);
-            AliasAnalysis alias = analysisContext.requires(AliasAnalysis.class);
-            for(MemEvent store : excl.getStores()) {
-                for(ExclusiveAccesses.LoadInfo info : excl.getLoads(store)) {
-                    Tuple tuple = new Tuple(info.load,store);
-                    maxTupleSet.add(tuple);
-                    if(info.intermediates.isEmpty() && alias.mustAlias(info.load,store)) {
-                        minTupleSet.add(tuple);
+        // Atomics blocks: BeginAtomic -> EndAtomic
+        filter = FilterIntersection.get(FilterBasic.get(Tag.RMW), FilterBasic.get(SVCOMPATOMIC));
+        for(Event end : ra.getTask().getProgram().getCache().getEvents(filter)){
+            List<Event> block = ((EndAtomic)end).getBlock().stream().filter(x -> x.is(Tag.VISIBLE)).collect(Collectors.toList());
+            for (int i = 0; i < block.size(); i++) {
+                Event e1 = block.get(i);
+                for(Event e2 : block.subList(i + 1, block.size())) {
+                    if(!exec.areMutuallyExclusive(e1, e2)) {
+                        minTupleSet.add(new Tuple(e1, e2));
                     }
                 }
             }
-            logger.info("maxTupleSet size for " + getName() + ": " + maxTupleSet.size());
         }
-        return maxTupleSet;
+
+        TupleSet maxTupleSet = new TupleSet();
+        maxTupleSet.addAll(minTupleSet);
+
+        // LoadExcl -> StoreExcl
+        ExclusiveAccesses excl = ra.getTask().getAnalysisContext().requires(ExclusiveAccesses.class);
+        AliasAnalysis alias = ra.getTask().getAnalysisContext().requires(AliasAnalysis.class);
+        for(MemEvent store : excl.getStores()) {
+            for(ExclusiveAccesses.LoadInfo info : excl.getLoads(store)) {
+                Tuple tuple = new Tuple(info.load,store);
+                maxTupleSet.add(tuple);
+                if(info.intermediates.isEmpty() && alias.mustAlias(info.load,store)) {
+                    minTupleSet.add(tuple);
+                }
+            }
+        }
+        logger.info("maxTupleSet size for " + getName() + ": " + maxTupleSet.size());
+        buf.send(this,maxTupleSet,minTupleSet);
     }
 
     @Override

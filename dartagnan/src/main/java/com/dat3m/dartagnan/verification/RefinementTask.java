@@ -102,11 +102,11 @@ public class RefinementTask extends VerificationTask {
         Wmm baseline = new Wmm();
         RelationRepository repo = baseline.getRelationRepository();
         Relation rf = repo.getRelation(RF);
+        Relation co = repo.getRelation(CO);
 
         if(baselines.contains(UNIPROC)) {
 	        // ---- acyclic(po-loc | rf) ----
 	        Relation poloc = repo.getRelation(POLOC);
-	        Relation co = repo.getRelation(CO);
 	        Relation fr = repo.getRelation(FR);
 	        Relation porf = repo.union(poloc, rf);
 	        Relation porfco =repo.union(porf, co);

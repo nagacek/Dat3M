@@ -30,35 +30,24 @@ public class RelLoc extends Relation {
     }
 
     @Override
-    public TupleSet getMinTupleSet(){
-        if(minTupleSet == null){
-            AliasAnalysis alias = analysisContext.get(AliasAnalysis.class);
-            minTupleSet = new TupleSet();
-            for (Tuple t : getMaxTupleSet()) {
-                if (alias.mustAlias((MemEvent) t.getFirst(), (MemEvent) t.getSecond())) {
-                    minTupleSet.add(t);
-                }
-            }
-        }
-        return minTupleSet;
-    }
-
-    @Override
-    public TupleSet getMaxTupleSet(){
-        if(maxTupleSet == null){
-            ExecutionAnalysis exec = analysisContext.requires(ExecutionAnalysis.class);
-            AliasAnalysis alias = analysisContext.get(AliasAnalysis.class);
-            maxTupleSet = new TupleSet();
-            Collection<Event> events = task.getProgram().getCache().getEvents(FilterBasic.get(MEMORY));
-            for(Event e1 : events){
-                for(Event e2 : events){
-                    if(alias.mayAlias((MemEvent) e1, (MemEvent)e2) && !exec.areMutuallyExclusive(e1, e2)) {
-                        maxTupleSet.add(new Tuple(e1, e2));
+    public void initialize(RelationAnalysis ra, RelationAnalysis.SetBuffer buf, RelationAnalysis.SetObservable obs) {
+        ExecutionAnalysis exec = ra.getTask().getAnalysisContext().requires(ExecutionAnalysis.class);
+        AliasAnalysis alias = ra.getTask().getAnalysisContext().get(AliasAnalysis.class);
+        TupleSet maxTupleSet = new TupleSet();
+        TupleSet minTupleSet = new TupleSet();
+        Collection<Event> events = ra.getTask().getProgram().getCache().getEvents(FilterBasic.get(MEMORY));
+        for(Event e1 : events){
+            for(Event e2 : events){
+                if(alias.mayAlias((MemEvent)e1, (MemEvent)e2) && !exec.areMutuallyExclusive(e1, e2)) {
+                    Tuple t = new Tuple(e1, e2);
+                    maxTupleSet.add(t);
+                    if(alias.mustAlias((MemEvent)e1, (MemEvent)e2)) {
+                        minTupleSet.add(t);
                     }
                 }
             }
         }
-        return maxTupleSet;
+        buf.send(this, maxTupleSet, minTupleSet);
     }
 
     @Override

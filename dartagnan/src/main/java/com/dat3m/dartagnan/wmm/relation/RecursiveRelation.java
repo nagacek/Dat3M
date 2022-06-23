@@ -2,8 +2,8 @@ package com.dat3m.dartagnan.wmm.relation;
 
 import com.dat3m.dartagnan.encoding.WmmEncoder;
 import com.dat3m.dartagnan.verification.VerificationTask;
+import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
-import com.dat3m.dartagnan.wmm.utils.TupleSet;
 
 import java.util.Collections;
 import java.util.List;
@@ -16,7 +16,6 @@ import java.util.Set;
 public class RecursiveRelation extends Relation {
 
     private Relation r1;
-    private boolean doRecurse = false;
 
     public Relation getInner() {
         return r1;
@@ -42,44 +41,9 @@ public class RecursiveRelation extends Relation {
         this.term = r1.getTerm();
     }
 
-    public void setDoRecurse(){
-        doRecurse = true;
-    }
-
     @Override
-    public TupleSet getMinTupleSet(){
-        if(minTupleSet == null){
-            minTupleSet = new TupleSet();
-        }
-        return minTupleSet;
-    }
-
-    @Override
-    public TupleSet getMaxTupleSet(){
-        if(maxTupleSet == null){
-            maxTupleSet = new TupleSet();
-        }
-        return maxTupleSet;
-    }
-
-    @Override
-    public TupleSet getMinTupleSetRecursive(){
-        if(doRecurse){
-            doRecurse = false;
-            minTupleSet = r1.getMinTupleSetRecursive();
-            return minTupleSet;
-        }
-        return getMinTupleSet();
-    }
-
-    @Override
-    public TupleSet getMaxTupleSetRecursive(){
-        if(doRecurse){
-            doRecurse = false;
-            maxTupleSet = r1.getMaxTupleSetRecursive();
-            return maxTupleSet;
-        }
-        return getMaxTupleSet();
+    public void initialize(RelationAnalysis ra, RelationAnalysis.SetBuffer buf, RelationAnalysis.SetObservable obs) {
+        obs.listen(r1, (may,must) -> buf.send(this, may, must));
     }
 
     @Override

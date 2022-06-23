@@ -29,24 +29,11 @@ public class RelRangeIdentity extends UnaryRelation {
     }
 
     @Override
-    public TupleSet getMinTupleSet(){
-        if(minTupleSet == null){
-            ExecutionAnalysis exec = analysisContext.get(ExecutionAnalysis.class);
-            minTupleSet = new TupleSet();
-            r1.getMinTupleSet().stream()
-                    .filter(t -> exec.isImplied(t.getSecond(), t.getFirst()))
-                    .map(t -> new Tuple(t.getSecond(), t.getSecond()))
-                    .forEach(minTupleSet::add);
-        }
-        return minTupleSet;
-    }
-
-    @Override
-    public TupleSet getMaxTupleSet(){
-        if(maxTupleSet == null){
-            maxTupleSet = r1.getMaxTupleSet().mapped(t -> new Tuple(t.getSecond(), t.getSecond()));
-        }
-        return maxTupleSet;
+    public void initialize(RelationAnalysis ra, RelationAnalysis.SetBuffer buf, RelationAnalysis.SetObservable obs) {
+        ExecutionAnalysis exec = ra.getTask().getAnalysisContext().get(ExecutionAnalysis.class);
+        obs.listen(r1, (may, must) -> buf.send(this,
+            may.stream().map(Tuple::getSecond).map(e -> new Tuple(e,e)).collect(toSet()),
+            must.stream().filter(t -> exec.isImplied(t.getSecond(),t.getFirst())).map(Tuple::getSecond).map(e -> new Tuple(e,e)).collect(toSet())));
     }
 
     @Override

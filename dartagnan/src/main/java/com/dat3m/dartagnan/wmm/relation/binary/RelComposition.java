@@ -31,49 +31,24 @@ public class RelComposition extends BinaryRelation {
     }
 
     @Override
-    public TupleSet getMinTupleSet(){
-        if(minTupleSet == null){
-            ExecutionAnalysis exec = analysisContext.requires(ExecutionAnalysis.class);
-            minTupleSet = r1.getMinTupleSet().postComposition(r2.getMinTupleSet(),
-                    (t1, t2) -> (exec.isImplied(t1.getFirst(), t1.getSecond())
-                            || exec.isImplied(t2.getSecond(), t1.getSecond()))
-                        && !exec.areMutuallyExclusive(t1.getFirst(), t2.getSecond()));
-        }
-        return minTupleSet;
+    public void initialize(RelationAnalysis ra, RelationAnalysis.SetBuffer buf, RelationAnalysis.SetObservable obs) {
+        TupleSet may1 = ra.getMaxTupleSet(r1);
+        TupleSet must1 = ra.getMinTupleSet(r1);
+        TupleSet may2 = ra.getMaxTupleSet(r2);
+        TupleSet must2 = ra.getMinTupleSet(r2);
+        ExecutionAnalysis exec = ra.getTask().getAnalysisContext().requires(ExecutionAnalysis.class);
+        obs.listen(r1, (may, must) -> update(may, must, may2, must2, exec, buf));
+        obs.listen(r2, (may, must) -> update(may1, must1, may, must, exec, buf));
     }
 
-    @Override
-    public TupleSet getMaxTupleSet(){
-        if(maxTupleSet == null){
-            ExecutionAnalysis exec = analysisContext.requires(ExecutionAnalysis.class);
-            maxTupleSet = r1.getMaxTupleSet().postComposition(r2.getMaxTupleSet(),
-                    (t1, t2) -> !exec.areMutuallyExclusive(t1.getFirst(), t2.getSecond()));
-        }
-        return maxTupleSet;
-    }
-
-    @Override
-    public TupleSet getMinTupleSetRecursive(){
-        if(recursiveGroupId > 0 && maxTupleSet != null){
-            ExecutionAnalysis exec = analysisContext.requires(ExecutionAnalysis.class);
-            minTupleSet = r1.getMinTupleSetRecursive().postComposition(r2.getMinTupleSetRecursive(),
-                    (t1, t2) -> (exec.isImplied(t1.getFirst(), t1.getSecond())
-                            || exec.isImplied(t2.getSecond(), t1.getSecond()))
-                        && !exec.areMutuallyExclusive(t1.getFirst(), t2.getFirst()));
-            return minTupleSet;
-        }
-        return getMinTupleSet();
-    }
-
-    @Override
-    public TupleSet getMaxTupleSetRecursive(){
-        if(recursiveGroupId > 0 && maxTupleSet != null){
-            ExecutionAnalysis exec = analysisContext.get(ExecutionAnalysis.class);
-            maxTupleSet = r1.getMaxTupleSetRecursive().postComposition(r2.getMaxTupleSetRecursive(),
-                    (t1, t2) -> !exec.areMutuallyExclusive(t1.getFirst(), t2.getSecond()));
-            return maxTupleSet;
-        }
-        return getMaxTupleSet();
+    private void update(TupleSet may1, TupleSet must1, TupleSet may2, TupleSet must2, ExecutionAnalysis exec, RelationAnalysis.SetBuffer buf) {
+        TupleSet maxTupleSet = may1.postComposition(may2,
+            (t1, t2) -> !exec.areMutuallyExclusive(t1.getFirst(), t2.getSecond()));
+        TupleSet minTupleSet = must1.postComposition(must2,
+            (t1, t2) -> (exec.isImplied(t1.getFirst(), t1.getSecond())
+                    || exec.isImplied(t2.getSecond(), t1.getSecond()))
+                && !exec.areMutuallyExclusive(t1.getFirst(), t2.getSecond()));
+        buf.send(this,maxTupleSet,minTupleSet);
     }
 
     @Override

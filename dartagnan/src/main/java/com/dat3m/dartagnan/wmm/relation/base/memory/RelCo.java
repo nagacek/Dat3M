@@ -62,97 +62,66 @@ public class RelCo extends Relation {
     }
 
     @Override
-    public void initializeEncoding(SolverContext ctx) {
-        super.initializeEncoding(ctx);
-        try {
-            task.getConfig().inject(this);
-            logger.info("{}: {}", CO_ANTISYMMETRY, antisymmetry);
-        } catch(InvalidConfigurationException e) {
-            logger.warn(e.getMessage());
-        }
-    }
+    public void initialize(RelationAnalysis ra, RelationAnalysis.SetBuffer buf, RelationAnalysis.SetObservable obs) {
+        logger.info("Computing knowledge for {}", getName());
+        VerificationTask task = ra.getTask();
+        AliasAnalysis alias = task.getAnalysisContext().get(AliasAnalysis.class);
+        WmmAnalysis wmmAnalysis = task.getAnalysisContext().get(WmmAnalysis.class);
 
-    @Override
-    public TupleSet getMinTupleSet(){
-        if(minTupleSet == null){
-            minTupleSet = new TupleSet();
-            WmmAnalysis wmmAnalysis = analysisContext.get(WmmAnalysis.class);
-            if (wmmAnalysis.isLocallyConsistent()) {
-                applyLocalConsistencyMinSet();
-            }
-        }
-        return minTupleSet;
-    }
+        TupleSet may = new TupleSet();
+        TupleSet must = new TupleSet();
+        List<Event> eventsInit = task.getProgram().getCache().getEvents(FilterBasic.get(INIT));
+        List<Event> eventsStore = task.getProgram().getCache().getEvents(FilterMinus.get(FilterBasic.get(WRITE),FilterBasic.get(INIT)));
 
-    private void applyLocalConsistencyMinSet() {
-        for (Tuple t : getMaxTupleSet()) {
-            AliasAnalysis alias = analysisContext.get(AliasAnalysis.class);
-            MemEvent w1 = (MemEvent) t.getFirst();
-            MemEvent w2 = (MemEvent) t.getSecond();
-            if (!w1.is(INIT) && alias.mustAlias(w1, w2) && (w1.is(INIT) || t.isForward())) {
-                minTupleSet.add(t);
-            }
-        }
-    }
-
-    @Override
-    public TupleSet getMaxTupleSet(){
-        if(maxTupleSet == null){
-        	logger.info("Computing maxTupleSet for " + getName());
-        	AliasAnalysis alias = analysisContext.get(AliasAnalysis.class);
-            WmmAnalysis wmmAnalysis = analysisContext.get(WmmAnalysis.class);
-            maxTupleSet = new TupleSet();
-            List<Event> eventsInit = task.getProgram().getCache().getEvents(FilterBasic.get(INIT));
-            List<Event> eventsStore = task.getProgram().getCache().getEvents(FilterMinus.get(
-                    FilterBasic.get(WRITE),
-                    FilterBasic.get(INIT)
-            ));
-
-            for(Event e1 : eventsInit){
-                for(Event e2 : eventsStore){
-                    if(alias.mayAlias((MemEvent) e1, (MemEvent)e2)){
-                        maxTupleSet.add(new Tuple(e1, e2));
+        for(Event e1 : eventsInit) {
+            MemEvent w1 = (MemEvent) e1;
+            for(Event e2 : eventsStore) {
+                MemEvent w2 = (MemEvent) e2;
+                if(alias.mayAlias(w1,w2)){
+                    Tuple t = new Tuple(e1,e2);
+                    may.add(t);
+                    if(alias.mustAlias(w1,w2)) {
+                        must.add(t);
                     }
                 }
             }
+        }
 
-            for(Event e1 : eventsStore){
-                for(Event e2 : eventsStore){
-                    if(e1.getCId() != e2.getCId() && alias.mayAlias((MemEvent) e1, (MemEvent)e2)){
-                        maxTupleSet.add(new Tuple(e1, e2));
+        boolean lc = wmmAnalysis.isLocallyConsistent();
+        for(Event e1 : eventsStore) {
+            MemEvent w1 = (MemEvent) e1;
+            for(Event e2 : eventsStore) {
+                MemEvent w2 = (MemEvent) e2;
+                Tuple t = new Tuple(e1,e2);
+                if(!t.isLoop() && alias.mayAlias(w1,w2) && (!lc || !t.isBackward())) {
+                    may.add(t);
+                    if(lc && t.isForward() && alias.mustAlias(w1,w2)) {
+                        must.add(t);
                     }
                 }
             }
-
-            if (wmmAnalysis.isLocallyConsistent()) {
-                applyLocalConsistencyMaxSet();
-            }
-
-            logger.info("maxTupleSet size for " + getName() + ": " + maxTupleSet.size());
         }
-        return maxTupleSet;
-    }
 
-    private void applyLocalConsistencyMaxSet() {
-        //TODO: Make sure that this is correct and does not cause any issues with totality of co
-        maxTupleSet.removeIf(t -> t.getSecond().is(INIT) || t.isBackward());
+        logger.info("knowledge size for {}: {}/{}", getName(), must.size(), may.size());
+        buf.send(this, may, must);
     }
 
     @Override
     public BooleanFormula encode(Set<Tuple> encodeTupleSet, WmmEncoder encoder) {
         SolverContext ctx = encoder.getSolverContext();
-        ExecutionAnalysis exec = encoder.getTask().getAnalysisContext().get(ExecutionAnalysis.class);
-        AliasAnalysis alias = encoder.getTask().getAnalysisContext().get(AliasAnalysis.class);
-        WmmAnalysis wmmAnalysis = encoder.getTask().getAnalysisContext().get(WmmAnalysis.class);
-        RelationAnalysis ra = encoder.getTask().getAnalysisContext().get(RelationAnalysis.class);
+        VerificationTask task = encoder.getTask();
+        ExecutionAnalysis exec = task.getAnalysisContext().get(ExecutionAnalysis.class);
+        AliasAnalysis alias = task.getAnalysisContext().get(AliasAnalysis.class);
+        WmmAnalysis wmmAnalysis = task.getAnalysisContext().get(WmmAnalysis.class);
+        RelationAnalysis ra = task.getAnalysisContext().get(RelationAnalysis.class);
     	FormulaManager fmgr = ctx.getFormulaManager();
 		BooleanFormulaManager bmgr = fmgr.getBooleanFormulaManager();
         IntegerFormulaManager imgr = fmgr.getIntegerFormulaManager();
         
     	BooleanFormula enc = bmgr.makeTrue();
 
-        List<Event> eventsInit = encoder.getTask().getProgram().getCache().getEvents(FilterBasic.get(INIT));
-        List<Event> eventsStore = encoder.getTask().getProgram().getCache().getEvents(FilterMinus.get(
+        List<Event> eventsInit = task.getProgram().getCache().getEvents(FilterBasic.get(INIT));
+        List<Event> eventsStore = task.getProgram().getCache().getEvents(FilterMinus.get(
                 FilterBasic.get(WRITE),
                 FilterBasic.get(INIT)
         ));
@@ -174,7 +143,7 @@ public class RelCo extends Relation {
 
         enc = bmgr.and(enc, distinct);
 
-        for(Event w :  encoder.getTask().getProgram().getCache().getEvents(FilterBasic.get(WRITE))) {
+        for(Event w :  task.getProgram().getCache().getEvents(FilterBasic.get(WRITE))) {
             MemEvent w1 = (MemEvent)w;
             BooleanFormula lastCo = w1.exec();
 
@@ -205,7 +174,7 @@ public class RelCo extends Relation {
                 }
             }
 
-            if (encoder.getTask().getProgram().getFormat().equals(LITMUS) || task.getProperty().contains(LIVENESS)) {
+            if (task.getProgram().getFormat().equals(LITMUS) || task.getProperty().contains(LIVENESS)) {
                 BooleanFormula lastCoExpr = getLastCoVar(w1, ctx);
                 enc = bmgr.and(enc, bmgr.equivalence(lastCoExpr, lastCo));
 

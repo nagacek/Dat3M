@@ -4,15 +4,12 @@ import com.dat3m.dartagnan.encoding.WmmEncoder;
 import com.dat3m.dartagnan.program.analysis.ExecutionAnalysis;
 import com.dat3m.dartagnan.program.event.core.Event;
 import com.dat3m.dartagnan.utils.dependable.Dependent;
-import com.dat3m.dartagnan.verification.Context;
 import com.dat3m.dartagnan.verification.VerificationTask;
 import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import com.dat3m.dartagnan.wmm.relation.base.stat.StaticRelation;
 import com.dat3m.dartagnan.wmm.relation.binary.BinaryRelation;
 import com.dat3m.dartagnan.wmm.relation.unary.UnaryRelation;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
-import com.dat3m.dartagnan.wmm.utils.TupleSet;
-import com.google.common.base.Preconditions;
 import org.sosy_lab.java_smt.api.BooleanFormula;
 import org.sosy_lab.java_smt.api.SolverContext;
 
@@ -34,12 +31,6 @@ public abstract class Relation implements Dependent<Relation> {
 
     protected String name;
     protected String term;
-
-    protected VerificationTask task;
-    protected Context analysisContext;
-
-    protected TupleSet minTupleSet = null;
-    protected TupleSet maxTupleSet = null;
 
     protected int recursiveGroupId = 0;
     protected boolean forceUpdateRecursiveGroupId = false;
@@ -69,30 +60,11 @@ public abstract class Relation implements Dependent<Relation> {
 
     // Due to being an encoder
     public void initializeEncoding(SolverContext ctx) {
-    	Preconditions.checkState(this.maxTupleSet != null && this.minTupleSet != null,
-    			String.format("No available relation data to encode %s. Perform RelationAnalysis before encoding.", this));
     }
 
     // TODO: We misuse <task> as data object and analysis information object.
     // Due to partaking in relation analysis
-    public void initializeRelationAnalysis(VerificationTask task) {
-        this.task = task;
-        this.analysisContext = task.getAnalysisContext();
-        this.maxTupleSet = null;
-        this.minTupleSet = null;
-    }
-
-    public abstract TupleSet getMinTupleSet();
-
-    public abstract TupleSet getMaxTupleSet();
-
-    public TupleSet getMinTupleSetRecursive(){
-        return getMinTupleSet();
-    }
-
-    public TupleSet getMaxTupleSetRecursive(){
-        return getMaxTupleSet();
-    }
+    public abstract void initialize(RelationAnalysis ra, RelationAnalysis.SetBuffer buf, RelationAnalysis.SetObservable obs);
 
     /**
      * Marks more relationships as relevant to the consistency property.

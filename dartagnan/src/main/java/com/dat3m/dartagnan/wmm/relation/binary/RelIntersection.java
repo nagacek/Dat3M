@@ -32,37 +32,13 @@ public class RelIntersection extends BinaryRelation {
     }
 
     @Override
-    public TupleSet getMinTupleSet(){
-        if(minTupleSet == null){
-            minTupleSet = new TupleSet(intersection(r1.getMinTupleSet(), r2.getMinTupleSet()));
-        }
-        return minTupleSet;
-    }
-
-    @Override
-    public TupleSet getMaxTupleSet(){
-        if(maxTupleSet == null){
-            maxTupleSet = new TupleSet(intersection(r1.getMaxTupleSet(), r2.getMaxTupleSet()));
-        }
-        return maxTupleSet;
-    }
-
-    @Override
-    public TupleSet getMinTupleSetRecursive(){
-        if(recursiveGroupId > 0 && minTupleSet != null){
-            minTupleSet.addAll(intersection(r1.getMinTupleSetRecursive(), r2.getMinTupleSetRecursive()));
-            return minTupleSet;
-        }
-        return getMinTupleSet();
-    }
-
-    @Override
-    public TupleSet getMaxTupleSetRecursive(){
-        if(recursiveGroupId > 0 && maxTupleSet != null){
-            maxTupleSet.addAll(intersection(r1.getMaxTupleSetRecursive(), r2.getMaxTupleSetRecursive()));
-            return maxTupleSet;
-        }
-        return getMaxTupleSet();
+    public void initialize(RelationAnalysis ra, RelationAnalysis.SetBuffer buf, RelationAnalysis.SetObservable obs) {
+        TupleSet max1 = ra.getMaxTupleSet(r1);
+        TupleSet max2 = ra.getMaxTupleSet(r2);
+        TupleSet min1 = ra.getMinTupleSet(r1);
+        TupleSet min2 = ra.getMinTupleSet(r2);
+        obs.listen(r1, (may, must) -> buf.send(this, intersection(may, max2), intersection(must, min2)));
+        obs.listen(r2, (may, must) -> buf.send(this, intersection(may, max1), intersection(must, min1)));
     }
 
     @Override
