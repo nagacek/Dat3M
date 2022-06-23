@@ -74,7 +74,6 @@ public class VisitorBase extends CatBaseVisitor<Object> implements CatVisitor<Ob
             group[i].setConcreteRelation(ctx.expression().get(i).accept(relationVisitor));
         }
 
-        wmm.addRecursiveGroup(Set.of(group));
         return null;
     }
 }

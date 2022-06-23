@@ -24,7 +24,6 @@ import static com.dat3m.dartagnan.wmm.utils.Utils.edge;
  *
  * @author Florian Furbach
  */
-//TODO: Remove "Encoder" once we split data and operations appropriately
 public abstract class Relation implements Dependent<Relation> {
 
     public static boolean PostFixApprox = false;
@@ -32,8 +31,6 @@ public abstract class Relation implements Dependent<Relation> {
     protected String name;
     protected String term;
 
-    protected int recursiveGroupId = 0;
-    protected boolean forceUpdateRecursiveGroupId = false;
     protected boolean forceDoEncode = false;
 
     @Override
@@ -41,29 +38,6 @@ public abstract class Relation implements Dependent<Relation> {
         return Collections.emptyList();
     }
 
-    public int getRecursiveGroupId(){
-        return recursiveGroupId;
-    }
-
-    public void setRecursiveGroupId(int id){
-        forceUpdateRecursiveGroupId = true;
-        recursiveGroupId = id;
-    }
-
-    public int updateRecursiveGroupId(int parentId){
-        return recursiveGroupId;
-    }
-
-    // TODO: The following two methods are provided because currently Relations are treated as three things:
-    //  data objects, static analysers (relation analysis) and encoders of said data objects.
-    //  Once we split these aspects, we might get rid of these methods
-
-    // Due to being an encoder
-    public void initializeEncoding(SolverContext ctx) {
-    }
-
-    // TODO: We misuse <task> as data object and analysis information object.
-    // Due to partaking in relation analysis
     public abstract void initialize(RelationAnalysis ra, RelationAnalysis.SetBuffer buf, RelationAnalysis.SetObservable obs);
 
     /**

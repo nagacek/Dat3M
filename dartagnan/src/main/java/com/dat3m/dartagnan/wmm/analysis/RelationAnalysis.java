@@ -7,7 +7,6 @@ import com.dat3m.dartagnan.verification.Context;
 import com.dat3m.dartagnan.verification.VerificationTask;
 import com.dat3m.dartagnan.wmm.Wmm;
 import com.dat3m.dartagnan.wmm.analysis.newRelationAnalysis.Knowledge;
-import com.dat3m.dartagnan.wmm.axiom.Axiom;
 import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
@@ -71,9 +70,6 @@ public class RelationAnalysis {
     private void run() {
         // Init data context so that each relation is able to compute its may/must sets.
         Wmm memoryModel = task.getMemoryModel();
-        for (Axiom ax : memoryModel.getAxioms()) {
-            ax.getRelation().updateRecursiveGroupId(ax.getRelation().getRecursiveGroupId());
-        }
 
         for (Relation rel : memoryModel.getRelationRepository().getRelations()) {
             knowledgeMap.put(rel, new Knowledge());

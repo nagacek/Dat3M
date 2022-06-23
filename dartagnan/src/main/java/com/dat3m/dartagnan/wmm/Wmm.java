@@ -4,15 +4,16 @@ import com.dat3m.dartagnan.program.filter.FilterAbstract;
 import com.dat3m.dartagnan.program.filter.FilterBasic;
 import com.dat3m.dartagnan.utils.dependable.DependencyGraph;
 import com.dat3m.dartagnan.wmm.axiom.Axiom;
-import com.dat3m.dartagnan.wmm.relation.RecursiveRelation;
 import com.dat3m.dartagnan.wmm.relation.Relation;
+import com.dat3m.dartagnan.wmm.relation.binary.RelMinus;
 import com.dat3m.dartagnan.wmm.utils.RelationRepository;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 
 import java.util.*;
 
 import static com.dat3m.dartagnan.wmm.relation.RelationNameRepository.*;
+import static com.google.common.base.Preconditions.checkArgument;
+import static java.util.stream.Collectors.toSet;
 
 /**
  *
@@ -26,7 +27,6 @@ public class Wmm {
     private final List<Axiom> axioms = new ArrayList<>();
     private final Map<String, FilterAbstract> filters = new HashMap<>();
     private final RelationRepository relationRepository;
-    private final List<Set<RecursiveRelation>> recursiveGroups = new ArrayList<>();
 
     public Wmm() {
         relationRepository = new RelationRepository();
@@ -40,8 +40,6 @@ public class Wmm {
         return axioms;
     }
 
-    public List<Set<RecursiveRelation>> getRecursiveGroups() { return recursiveGroups; }
-
     public void addFilter(FilterAbstract filter) {
         filters.put(filter.getName(), filter);
     }
@@ -53,16 +51,6 @@ public class Wmm {
     public RelationRepository getRelationRepository(){
         return relationRepository;
     }
-
-    public void addRecursiveGroup(Set<RecursiveRelation> recursiveGroup){
-        int id = 1 << recursiveGroups.size();
-        Preconditions.checkArgument(id >= 0, "Exceeded maximum number of recursive relations.");
-        for(RecursiveRelation relation : recursiveGroup) {
-            relation.setRecursiveGroupId(id);
-        }
-        recursiveGroups.add(recursiveGroup);
-    }
-
 
     public String toString() {
         StringBuilder sb = new StringBuilder();
@@ -92,6 +80,10 @@ public class Wmm {
     public DependencyGraph<Relation> getRelationDependencyGraph() {
         if (relationDependencyGraph == null) {
             relationDependencyGraph = DependencyGraph.from(relationRepository.getRelations());
+            checkArgument(relationDependencyGraph.getSCCs().stream()
+                    .map(c -> c.stream().map(DependencyGraph.Node::getContent).collect(toSet()))
+                    .noneMatch(c -> c.stream().anyMatch(r -> r instanceof RelMinus && c.contains(r.getSecond()))),
+                "unstratifiable model");
         }
         return relationDependencyGraph;
     }

@@ -50,14 +50,4 @@ public class RecursiveRelation extends Relation {
     public void activate(Set<Tuple> news, VerificationTask task, WmmEncoder.Buffer buf) {
         buf.send(r1,news);
     }
-
-    @Override
-    public int updateRecursiveGroupId(int parentId){
-        if(forceUpdateRecursiveGroupId){
-            forceUpdateRecursiveGroupId = false;
-            int r1Id = r1.updateRecursiveGroupId(parentId | recursiveGroupId);
-            recursiveGroupId |= r1Id & parentId;
-        }
-        return recursiveGroupId;
-    }
 }

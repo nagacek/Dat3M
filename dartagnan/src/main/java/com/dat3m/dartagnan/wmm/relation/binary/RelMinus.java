@@ -33,14 +33,6 @@ public class RelMinus extends BinaryRelation {
     }
 
     @Override
-    public void initializeEncoding(SolverContext ctx){
-        super.initializeEncoding(ctx);
-        if(r2.getRecursiveGroupId() > 0){
-            throw new RuntimeException("Relation " + r2.getName() + " cannot be recursive since it occurs in a set minus.");
-        }
-    }
-
-    @Override
     public void initialize(RelationAnalysis ra, RelationAnalysis.SetBuffer buf, RelationAnalysis.SetObservable obs) {
         TupleSet max2 = ra.getMaxTupleSet(r2);
         TupleSet min2 = ra.getMinTupleSet(r2);

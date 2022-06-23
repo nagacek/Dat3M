@@ -73,7 +73,6 @@ public class WmmEncoder implements Encoder {
         }
 
         for(Relation relation : memoryModel.getRelationRepository().getRelations()){
-            relation.initializeEncoding(ctx);
             activeMap.put(relation, new TupleSet());
         }
 
