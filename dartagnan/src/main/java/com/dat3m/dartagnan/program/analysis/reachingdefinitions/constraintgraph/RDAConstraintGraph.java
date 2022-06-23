@@ -1,14 +1,9 @@
 package com.dat3m.dartagnan.program.analysis.reachingdefinitions.constraintgraph;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
 import com.dat3m.dartagnan.program.analysis.reachingdefinitions.abstractdomain.ReachedDefinitionsList;
 import com.dat3m.dartagnan.program.event.core.Event;
+
+import java.util.*;
 
 public class RDAConstraintGraph {
 	
@@ -24,17 +19,17 @@ public class RDAConstraintGraph {
 		
 		this.vertexId = 0;
 		
-		this.printHello();
+		//this.printHello();
 		
 		this.build();
 		
-		this.printVertices();
+		//this.printVertices();
 		
 		this.solve();
 		
-		this.printResults();
+		//this.printResults();
 		
-		this.printDone();
+		//this.printDone();
 		
 	}
 	

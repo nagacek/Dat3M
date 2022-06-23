@@ -1,28 +1,12 @@
 package com.dat3m.dartagnan.program.analysis.reachingdefinitions.constraintgraph;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
-import com.dat3m.dartagnan.expression.ExprInterface;
-import com.dat3m.dartagnan.expression.Atom;
-import com.dat3m.dartagnan.expression.BExprBin;
-import com.dat3m.dartagnan.expression.BExprUn;
-import com.dat3m.dartagnan.expression.IExprBin;
-import com.dat3m.dartagnan.expression.IExprUn;
-import com.dat3m.dartagnan.expression.IfExpr;
-import com.dat3m.dartagnan.program.analysis.valuerange.events.RestrictionEvent;
-import com.dat3m.dartagnan.program.event.core.CondJump;
-import com.dat3m.dartagnan.program.event.core.Event;
-import com.dat3m.dartagnan.program.event.core.IfAsJump;
-import com.dat3m.dartagnan.program.event.core.Label;
-import com.dat3m.dartagnan.program.event.core.Local;
-import com.dat3m.dartagnan.program.event.core.Store;
-import com.dat3m.dartagnan.program.event.core.utils.RegWriter;
+import com.dat3m.dartagnan.expression.*;
 import com.dat3m.dartagnan.program.Register;
+import com.dat3m.dartagnan.program.analysis.valuerange.events.RestrictionEvent;
+import com.dat3m.dartagnan.program.event.core.*;
+import com.dat3m.dartagnan.program.event.core.utils.RegWriter;
+
+import java.util.*;
 
 public class RDAThreadSummary {
 	
@@ -63,24 +47,24 @@ public class RDAThreadSummary {
 	
 	private void build() {
 		
-		this.printIntroduction();
+		//this.printIntroduction();
 		
 		this.initializeRegisters();
 		
 		if (this.registers == null || this.registers.isEmpty()) {
 			
-			this.printStop();
+			//this.printStop();
 			
 			return;
 		}
 		
-		this.printRegisters();
+		//this.printRegisters();
 		
 		this.initializeSummary();
 		
-		this.printVertices();
+		//this.printVertices();
 		
-		this.printDone();
+		//this.printDone();
 		
 	}
 	

@@ -6,10 +6,14 @@ import com.dat3m.dartagnan.program.Thread;
 import com.dat3m.dartagnan.program.analysis.BranchEquivalence;
 import com.dat3m.dartagnan.program.analysis.Dependency;
 import com.dat3m.dartagnan.program.analysis.ExecutionAnalysis;
+import com.dat3m.dartagnan.program.analysis.valuerange.ValueRangeAnalysis;
+import com.dat3m.dartagnan.program.analysis.valuerange.abstractdomain.ZInterval;
+import com.dat3m.dartagnan.program.event.Tag;
 import com.dat3m.dartagnan.program.event.core.CondJump;
 import com.dat3m.dartagnan.program.event.core.Event;
 import com.dat3m.dartagnan.program.event.core.Label;
 import com.dat3m.dartagnan.program.event.core.utils.RegWriter;
+import com.dat3m.dartagnan.program.filter.FilterBasic;
 import com.dat3m.dartagnan.program.memory.Memory;
 import com.dat3m.dartagnan.verification.Context;
 import com.google.common.base.Preconditions;
@@ -60,6 +64,7 @@ public class ProgramEncoder implements Encoder {
     private final BranchEquivalence eq;
     private final ExecutionAnalysis exec;
     private final Dependency dep;
+    private final ValueRangeAnalysis valRange;
     private boolean isInitialized = false;
 
     private ProgramEncoder(Program program, Context context, Configuration config) throws InvalidConfigurationException {
@@ -68,6 +73,7 @@ public class ProgramEncoder implements Encoder {
         this.eq = context.requires(BranchEquivalence.class);
         this.exec = context.requires(ExecutionAnalysis.class);
         this.dep = context.requires(Dependency.class);
+        this.valRange = context.requires(ValueRangeAnalysis.class);
         config.inject(this);
 
         logger.info("{}: {}", ALLOW_PARTIAL_EXECUTIONS, shouldAllowPartialExecutions);
@@ -108,7 +114,9 @@ public class ProgramEncoder implements Encoder {
                 encodeControlFlow(ctx),
                 encodeFinalRegisterValues(ctx),
                 encodeFilter(ctx),
-                encodeDependencies(ctx));
+                encodeDependencies(ctx),
+                encodeValueRanges(ctx)
+        );
     }
 
     public BooleanFormula encodeControlFlow(SolverContext ctx) {
@@ -317,5 +325,26 @@ public class ProgramEncoder implements Encoder {
 
     private static BooleanFormula dependencyEdgeVariable(Event writer, Event reader, BooleanFormulaManager bmgr) {
         return bmgr.makeVariable("__dep " + writer.getCId() + " " + reader.getCId());
+    }
+
+
+    public BooleanFormula encodeValueRanges(SolverContext ctx) {
+        IntegerFormulaManager imgr = ctx.getFormulaManager().getIntegerFormulaManager();
+        BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
+        BooleanFormula enc = bmgr.makeTrue();
+        for (Event e : this.program.getCache().getEvents(FilterBasic.get(Tag.REG_WRITER))) {
+            RegWriter regWriter = (RegWriter)e;
+            ZInterval range = valRange.getResult(regWriter);
+
+            BooleanFormula lowerBound = range.getLowerBound() != null ?
+                    imgr.lessOrEquals(imgr.makeNumber(range.getLowerBound()), (IntegerFormula) regWriter.getResultRegisterExpr())
+                    : bmgr.makeTrue();
+            BooleanFormula upperBound = range.getUpperBound() != null ?
+                    imgr.lessOrEquals((IntegerFormula) regWriter.getResultRegisterExpr(), imgr.makeNumber(range.getUpperBound()))
+                    : bmgr.makeTrue();
+            enc = bmgr.and(enc, lowerBound, upperBound);
+
+        }
+        return enc;
     }
 }

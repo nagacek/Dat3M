@@ -1,28 +1,11 @@
 package com.dat3m.dartagnan.program.analysis.valuerange.constraintgraphbounded;
 
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
 import com.dat3m.dartagnan.program.analysis.valuerange.abstractdomain.SimpleDomain;
-import com.dat3m.dartagnan.program.analysis.valuerange.constraintgraphbounded.ProgramSummaryBounded;
-import com.dat3m.dartagnan.program.analysis.valuerange.constraintgraphbounded.Vertex;
-import com.dat3m.dartagnan.program.analysis.valuerange.constraintgraphbounded.VertexLoad;
-import com.dat3m.dartagnan.program.analysis.valuerange.constraintgraphbounded.VertexLocal;
-import com.dat3m.dartagnan.program.analysis.valuerange.constraintgraphbounded.VertexRestrict;
-import com.dat3m.dartagnan.program.analysis.valuerange.constraintgraphbounded.VertexStore;
-import com.dat3m.dartagnan.program.analysis.valuerange.constraintgraphbounded.VertexUnknown;
 import com.dat3m.dartagnan.program.analysis.valuerange.events.RestrictionEvent;
-import com.dat3m.dartagnan.program.event.core.Event;
-import com.dat3m.dartagnan.program.event.core.Init;
-import com.dat3m.dartagnan.program.event.core.Load;
-import com.dat3m.dartagnan.program.event.core.Local;
-import com.dat3m.dartagnan.program.event.core.Store;
+import com.dat3m.dartagnan.program.event.core.*;
 import com.dat3m.dartagnan.program.event.core.utils.RegWriter;
+
+import java.util.*;
 
 public class BoundedConstraintGraph<AD extends SimpleDomain> {
 	
@@ -42,17 +25,17 @@ public class BoundedConstraintGraph<AD extends SimpleDomain> {
 		
 		this.summary = programSummary.getSummary();
 		
-		this.printHello();
+		//this.printHello();
 		
 		this.build();
 		
-		this.printVertices();
+		//this.printVertices();
 		
 		this.solve();
 		
-		this.printResults();
+		//this.printResults();
 		
-		this.printDone();
+		//this.printDone();
 		
 	}
 	
@@ -385,8 +368,8 @@ public class BoundedConstraintGraph<AD extends SimpleDomain> {
 	private void solve() {
 		
 		for (int sccId : this.sccIdsTopologicallyOrdered) {
-			System.out.println("Solving SCC: " + sccId);
-			System.out.println("SCC-sice:" + this.verticesPerScc.get(sccId).size());
+			//System.out.println("Solving SCC: " + sccId);
+			//System.out.println("SCC-sice:" + this.verticesPerScc.get(sccId).size());
 			this.solveScc(sccId);
 		}
 		

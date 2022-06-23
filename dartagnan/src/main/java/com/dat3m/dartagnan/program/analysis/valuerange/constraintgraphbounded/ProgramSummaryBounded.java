@@ -1,21 +1,6 @@
 package com.dat3m.dartagnan.program.analysis.valuerange.constraintgraphbounded;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
-import com.dat3m.dartagnan.expression.Atom;
-import com.dat3m.dartagnan.expression.BConst;
-import com.dat3m.dartagnan.expression.BExprBin;
-import com.dat3m.dartagnan.expression.BExprUn;
-import com.dat3m.dartagnan.expression.ExprInterface;
-import com.dat3m.dartagnan.expression.IExprBin;
-import com.dat3m.dartagnan.expression.IExprUn;
-import com.dat3m.dartagnan.expression.IValue;
-import com.dat3m.dartagnan.expression.IfExpr;
+import com.dat3m.dartagnan.expression.*;
 import com.dat3m.dartagnan.expression.op.BOpUn;
 import com.dat3m.dartagnan.expression.op.COpBin;
 import com.dat3m.dartagnan.program.Program;
@@ -23,16 +8,10 @@ import com.dat3m.dartagnan.program.Register;
 import com.dat3m.dartagnan.program.analysis.AliasAnalysis;
 import com.dat3m.dartagnan.program.analysis.reachingdefinitions.ReachingDefinitionsAnalysis;
 import com.dat3m.dartagnan.program.analysis.valuerange.events.RestrictionEvent;
-import com.dat3m.dartagnan.program.event.core.CondJump;
-import com.dat3m.dartagnan.program.event.core.Event;
-import com.dat3m.dartagnan.program.event.core.IfAsJump;
-import com.dat3m.dartagnan.program.event.core.Init;
-import com.dat3m.dartagnan.program.event.core.Label;
-import com.dat3m.dartagnan.program.event.core.Load;
-import com.dat3m.dartagnan.program.event.core.Local;
-import com.dat3m.dartagnan.program.event.core.MemEvent;
-import com.dat3m.dartagnan.program.event.core.Store;
+import com.dat3m.dartagnan.program.event.core.*;
 import com.dat3m.dartagnan.program.event.core.utils.RegWriter;
+
+import java.util.*;
 
 public class ProgramSummaryBounded {
 
@@ -58,23 +37,23 @@ public class ProgramSummaryBounded {
 		this.program = program;
 		this.aliasAnalysis = aliasAnalysis;
 		
-		this.printHello();
-		this.printOriginalProgram();
+		//this.printHello();
+		//this.printOriginalProgram();
 		
 		this.initializeThreadMaps();
 		this.initializeMinNewCid();
 		this.initializeNumberJumpToLabel();
 		this.insertRestrictionEvents();
 		
-		this.printModifiedProgram();
+		//this.printModifiedProgram();
 		
-		this.printPerformRDABegin();
+		//this.printPerformRDABegin();
 		
 		this.initializeSummary();
 		
-		this.printPerformRDAEnd();
-		this.printSummary();
-		this.printDone();
+		//this.printPerformRDAEnd();
+		//this.printSummary();
+		//this.printDone();
 		
 	}
 	
@@ -666,7 +645,7 @@ public class ProgramSummaryBounded {
 	}
 	
 	private void addPreToRegWriter(RegWriter regWriter) {
-		
+
 		// RegWriters of an unknown type do not have any input.
 		
 	}
