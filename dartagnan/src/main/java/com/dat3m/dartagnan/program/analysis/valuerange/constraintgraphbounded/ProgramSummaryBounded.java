@@ -175,7 +175,6 @@ public class ProgramSummaryBounded {
 	}
 	
 	private void insertRestrictionEventsForJump(Event jump) {
-		
 		ExprInterface guard = null;
 		Label label = null;
 		
@@ -197,21 +196,25 @@ public class ProgramSummaryBounded {
 			Atom atom = (Atom) ((BExprUn) guard).getInner();
 			if (this.matchPatternRegCompReg(atom) || this.matchPatternRegCompConst(atom)) {
 				lhs = ((Atom) atom).getLHS();
-				cmpOp = COpBin.negate(((Atom) atom).getOp());
+				//cmpOp = COpBin.negate(((Atom) atom).getOp());
+				cmpOp = atom.getOp();
 				rhs = ((Atom) atom).getRHS();
 			} else if (this.matchPatternConstCompReg(atom)) {
 				lhs = ((Atom) atom).getRHS();
-				cmpOp = COpBin.negate(COpBin.turnAround(((Atom) atom).getOp()));
+				//cmpOp = COpBin.negate(COpBin.turnAround(((Atom) atom).getOp()));
+				cmpOp = COpBin.turnAround(atom.getOp());
 				rhs = ((Atom) atom).getLHS();
 			}
 		} else {
 			if (this.matchPatternRegCompReg(guard) || this.matchPatternRegCompConst(guard)) {
 				lhs = ((Atom) guard).getLHS();
-				cmpOp = ((Atom) guard).getOp();
+				//cmpOp = ((Atom) guard).getOp();
+				cmpOp = COpBin.negate(((Atom) guard).getOp());
 				rhs = ((Atom) guard).getRHS();
 			} else if (this.matchPatternConstCompReg(guard)) {
 				lhs = ((Atom) guard).getRHS();
-				cmpOp = COpBin.turnAround(((Atom) guard).getOp());
+				//cmpOp = COpBin.turnAround(((Atom) guard).getOp());
+				cmpOp = COpBin.negate(COpBin.turnAround(((Atom) guard).getOp()));
 				rhs = ((Atom) guard).getLHS();
 			}
 		}
