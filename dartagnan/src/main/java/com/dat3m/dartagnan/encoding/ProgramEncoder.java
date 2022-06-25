@@ -12,8 +12,10 @@ import com.dat3m.dartagnan.program.event.Tag;
 import com.dat3m.dartagnan.program.event.core.CondJump;
 import com.dat3m.dartagnan.program.event.core.Event;
 import com.dat3m.dartagnan.program.event.core.Label;
+import com.dat3m.dartagnan.program.event.core.Store;
 import com.dat3m.dartagnan.program.event.core.utils.RegWriter;
 import com.dat3m.dartagnan.program.filter.FilterBasic;
+import com.dat3m.dartagnan.program.filter.FilterUnion;
 import com.dat3m.dartagnan.program.memory.Memory;
 import com.dat3m.dartagnan.verification.Context;
 import com.google.common.base.Preconditions;
@@ -26,6 +28,7 @@ import org.sosy_lab.common.configuration.Options;
 import org.sosy_lab.java_smt.api.*;
 import org.sosy_lab.java_smt.api.NumeralFormula.IntegerFormula;
 
+import java.math.BigInteger;
 import java.util.*;
 import java.util.function.BiFunction;
 
@@ -266,7 +269,7 @@ public class ProgramEncoder implements Encoder {
                     assert writer instanceof RegWriter;
                     BooleanFormula edge;
                     if(state.must.contains(writer)) {
-                        edge = writer.exec();
+                        edge = bmgr.and(writer.exec(), reader.cf());
                     } else {
                         edge = dependencyEdgeVariable(writer, reader, bmgr);
                         enc = bmgr.and(enc, bmgr.equivalence(edge, bmgr.and(writer.exec(), reader.cf(), bmgr.not(overwrite))));
@@ -332,17 +335,32 @@ public class ProgramEncoder implements Encoder {
         IntegerFormulaManager imgr = ctx.getFormulaManager().getIntegerFormulaManager();
         BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
         BooleanFormula enc = bmgr.makeTrue();
-        for (Event e : this.program.getCache().getEvents(FilterBasic.get(Tag.REG_WRITER))) {
-            RegWriter regWriter = (RegWriter)e;
-            ZInterval range = valRange.getResult(regWriter);
+        for (Event e : this.program.getCache().getEvents(FilterUnion.get(FilterBasic.get(Tag.REG_WRITER), FilterBasic.get(Tag.WRITE)))) {
+            ZInterval range = valRange.getResult(e);
+            if (range == null) {
+                continue;
+            }
 
-            BooleanFormula lowerBound = range.getLowerBound() != null ?
-                    imgr.lessOrEquals(imgr.makeNumber(range.getLowerBound()), (IntegerFormula) regWriter.getResultRegisterExpr())
-                    : bmgr.makeTrue();
-            BooleanFormula upperBound = range.getUpperBound() != null ?
-                    imgr.lessOrEquals((IntegerFormula) regWriter.getResultRegisterExpr(), imgr.makeNumber(range.getUpperBound()))
-                    : bmgr.makeTrue();
-            enc = bmgr.and(enc, lowerBound, upperBound);
+            IntegerFormula boundedExpr = null;
+            if (e instanceof RegWriter) {
+                boundedExpr = (IntegerFormula) ((RegWriter) e).getResultRegisterExpr();
+            } else if (e instanceof Store) {
+                Store store = (Store)e;
+                boundedExpr = (IntegerFormula) store.getMemValueExpr();
+            } else {
+                continue;
+            }
+
+            BooleanFormula lowerBound = bmgr.makeTrue();
+            BooleanFormula upperBound = bmgr.makeTrue();
+            if (range.getLowerBound() != null  && range.getLowerBound().compareTo(BigInteger.ZERO) > 0) {
+                lowerBound = imgr.lessOrEquals(imgr.makeNumber(range.getLowerBound()), boundedExpr);
+            }
+            if (range.getUpperBound() != null && range.getUpperBound().compareTo(BigInteger.ZERO) < 0) {
+                upperBound = imgr.lessOrEquals(boundedExpr, imgr.makeNumber(range.getUpperBound()));
+            }
+            enc = bmgr.and(enc, bmgr.implication(e.exec(), bmgr.and(lowerBound, upperBound)));
+
 
         }
         return enc;

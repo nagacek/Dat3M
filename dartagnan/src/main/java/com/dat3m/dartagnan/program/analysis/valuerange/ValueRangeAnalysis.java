@@ -1,9 +1,5 @@
 package com.dat3m.dartagnan.program.analysis.valuerange;
 
-import java.util.Map;
-
-import org.sosy_lab.common.configuration.Configuration;
-
 import com.dat3m.dartagnan.program.Program;
 import com.dat3m.dartagnan.program.analysis.AliasAnalysis;
 import com.dat3m.dartagnan.program.analysis.valuerange.abstractdomain.ZInterval;
@@ -12,6 +8,9 @@ import com.dat3m.dartagnan.program.analysis.valuerange.constraintgraphbounded.Pr
 import com.dat3m.dartagnan.program.event.core.Event;
 import com.dat3m.dartagnan.program.event.core.Store;
 import com.dat3m.dartagnan.program.event.core.utils.RegWriter;
+import org.sosy_lab.common.configuration.Configuration;
+
+import java.util.Map;
 
 /**
  * 
@@ -41,7 +40,7 @@ public class ValueRangeAnalysis {
 		
 	}
 	
-	public ZInterval getResult(RegWriter regWriter) {
+	public ZInterval getResult(Event regWriter) {
 		
 		return this.results.get(regWriter);
 		
