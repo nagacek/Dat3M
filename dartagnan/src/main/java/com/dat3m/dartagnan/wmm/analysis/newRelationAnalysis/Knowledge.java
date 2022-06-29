@@ -3,6 +3,9 @@ package com.dat3m.dartagnan.wmm.analysis.newRelationAnalysis;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
 
+import java.util.HashSet;
+import java.util.Set;
+
 /**
  * Knowledge contains static must-information about a relation
  * by assigning unknown (?), true (T), false (F) and contradiction (TF) to each tuple of the relation.
@@ -30,9 +33,11 @@ import com.dat3m.dartagnan.wmm.utils.TupleSet;
 public class Knowledge {
     private final TupleSet maySet;
     private final TupleSet mustSet;
+    private final Set<Tuple> disabledSet = new HashSet<>();
 
     public TupleSet getMaySet() { return maySet; }
     public TupleSet getMustSet() { return mustSet; }
+    public Set<Tuple> getDisabledSet() { return disabledSet; }
 
     // ======================== Construction ========================
 
@@ -92,10 +97,10 @@ public class Knowledge {
         if (delta.isEmpty()) {
             return delta;
         }
-        return new Delta(
-                delta.disabledSet.stream().filter(maySet::remove).collect(TupleSet.collector()),
-                delta.enabledSet.stream().filter(mustSet::add).collect(TupleSet.collector())
-        );
+        TupleSet dis = delta.disabledSet.stream().filter(maySet::remove).collect(TupleSet.collector());
+        TupleSet en = delta.enabledSet.stream().filter(mustSet::add).collect(TupleSet.collector());
+        disabledSet.addAll(dis);
+        return new Delta(dis,en);
     }
 
     public Knowledge copy() {

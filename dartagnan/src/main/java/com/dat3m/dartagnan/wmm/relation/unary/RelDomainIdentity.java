@@ -32,8 +32,25 @@ public class RelDomainIdentity extends UnaryRelation {
     public void initialize(RelationAnalysis ra, RelationAnalysis.SetBuffer buf, RelationAnalysis.SetObservable obs) {
         ExecutionAnalysis exec = ra.getTask().getAnalysisContext().get(ExecutionAnalysis.class);
         obs.listen(r1, (may, must) -> buf.send(this,
-            may.stream().map(Tuple::getFirst).map(e -> new Tuple(e,e)).collect(toSet()),
-            must.stream().filter(t -> exec.isImplied(t.getFirst(),t.getSecond())).map(Tuple::getFirst).map(e -> new Tuple(e,e)).collect(toSet())));
+            may.stream().map(RelDomainIdentity::idTuple).collect(toSet()),
+            must.stream().filter(t -> exec.isImplied(t.getFirst(),t.getSecond())).map(RelDomainIdentity::idTuple).collect(toSet())));
+    }
+
+    @Override
+    public void propagate(RelationAnalysis ra, RelationAnalysis.Buffer buf, RelationAnalysis.Observable obs) {
+        ExecutionAnalysis exec = ra.getTask().getAnalysisContext().get(ExecutionAnalysis.class);
+        TupleSet max1 = ra.getMaxTupleSet(r1);
+        obs.listen(this, (dis, en) -> {
+            for(Tuple t : dis) {
+                buf.send(r1, max1.getByFirst(t.getFirst()), Set.of());
+            }
+        });
+        obs.listen(r1, (dis, en) -> buf.send(this,
+            Set.of(),
+            en.stream()
+                .filter(t -> exec.isImplied(t.getFirst(), t.getSecond()))
+                .map(RelDomainIdentity::idTuple)
+                .collect(toSet())));
     }
 
     @Override
@@ -66,5 +83,10 @@ public class RelDomainIdentity extends UnaryRelation {
             enc = bmgr.and(enc, bmgr.equivalence(this.getSMTVar(e, e, encoder.getTask(), ctx), opt));
         }
         return enc;
+    }
+
+    private static Tuple idTuple(Tuple t) {
+        Event e = t.getFirst();
+        return new Tuple(e,e);
     }
 }

@@ -42,6 +42,25 @@ public class RelIntersection extends BinaryRelation {
     }
 
     @Override
+    public void propagate(RelationAnalysis ra, RelationAnalysis.Buffer buf, RelationAnalysis.Observable obs) {
+        Set<Tuple> dis0 = ra.getDisabledSet(this);
+        TupleSet min1 = ra.getMinTupleSet(r1);
+        TupleSet min2 = ra.getMinTupleSet(r2);
+        obs.listen(r1, (dis, en) -> {
+            buf.send(this, dis, intersection(en, min2));
+            buf.send(r2, intersection(en, dis0), Set.of());
+        });
+        obs.listen(r2, (dis, en) ->{
+            buf.send(this, dis, intersection(en, min1));
+            buf.send(r1, intersection(en, dis0), Set.of());
+        });
+        obs.listen(this, (dis, en) -> {
+            buf.send(r1,intersection(dis,min2),en);
+            buf.send(r2,intersection(dis,min1),en);
+        });
+    }
+
+    @Override
     public void activate(VerificationTask task, WmmEncoder.Buffer buf, WmmEncoder.Observable obs) {
         RelationAnalysis ra = task.getAnalysisContext().get(RelationAnalysis.class);
         TupleSet min1 = ra.getMinTupleSet(r1);
@@ -50,21 +69,30 @@ public class RelIntersection extends BinaryRelation {
             buf.send(r1, difference(news, min1));
             buf.send(r2, difference(news, min2));
         });
+        Set<Tuple> dis = ra.getDisabledSet(this);
+        buf.send(r1, intersection(difference(dis,min1), ra.getMaxTupleSet(r1)));
+        buf.send(r2, intersection(difference(dis,min2), ra.getMaxTupleSet(r2)));
     }
 
     @Override
     public BooleanFormula encode(Set<Tuple> encodeTupleSet, WmmEncoder encoder) {
+        VerificationTask task = encoder.getTask();
         SolverContext ctx = encoder.getSolverContext();
-        RelationAnalysis ra = encoder.getTask().getAnalysisContext().get(RelationAnalysis.class);
+        RelationAnalysis ra = task.getAnalysisContext().get(RelationAnalysis.class);
     	BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
 		BooleanFormula enc = bmgr.makeTrue();
 
         TupleSet min1 = ra.getMinTupleSet(r1);
         TupleSet min2 = ra.getMinTupleSet(r2);
         for(Tuple tuple : encodeTupleSet){
-            BooleanFormula opt1 = min1.contains(tuple) ? bmgr.makeTrue() : r1.getSMTVar(tuple, encoder.getTask(), ctx);
-            BooleanFormula opt2 = min2.contains(tuple) ? bmgr.makeTrue() : r2.getSMTVar(tuple, encoder.getTask(), ctx);
-            enc = bmgr.and(enc, bmgr.equivalence(this.getSMTVar(tuple, encoder.getTask(), ctx), bmgr.and(opt1, opt2)));
+            BooleanFormula opt1 = min1.contains(tuple) ? bmgr.makeTrue() : r1.getSMTVar(tuple, task, ctx);
+            BooleanFormula opt2 = min2.contains(tuple) ? bmgr.makeTrue() : r2.getSMTVar(tuple, task, ctx);
+            enc = bmgr.and(enc, bmgr.equivalence(this.getSMTVar(tuple, task, ctx), bmgr.and(opt1, opt2)));
+        }
+        for(Tuple tuple : ra.getDisabledSet(this)) {
+            if(!min1.contains(tuple) && !min2.contains(tuple)) {
+                enc = bmgr.and(enc, bmgr.not(bmgr.and(r1.getSMTVar(tuple,task,ctx), r2.getSMTVar(tuple,task,ctx))));
+            }
         }
         return enc;
     }

@@ -36,6 +36,9 @@ public class OptionNames {
 	public static final String ALWAYS_SPLIT_ON_JUMPS = "program.analysis.cf.alwaysSplitOnJump";
 	public static final String MERGE_BRANCHES = "program.analysis.cf.mergeBranches";
 
+	// WMM options
+	public static final String EXTEND_RELATION_ANALYSIS = "wmm.analysis.extendedRelationAnalysis";
+
 	// Refinement Options
 	public static final String BASELINE = "refinement.baseline";
 	

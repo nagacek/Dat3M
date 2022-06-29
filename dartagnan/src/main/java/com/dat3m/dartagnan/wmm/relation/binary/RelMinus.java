@@ -40,14 +40,35 @@ public class RelMinus extends BinaryRelation {
     }
 
     @Override
+    public void propagate(RelationAnalysis ra, RelationAnalysis.Buffer buf, RelationAnalysis.Observable obs) {
+        Set<Tuple> dis0 = ra.getDisabledSet(this);
+        TupleSet max2 = ra.getMaxTupleSet(r2);
+        TupleSet min1 = ra.getMinTupleSet(r1);
+        obs.listen(r1, (dis, en) ->{
+            buf.send(this, dis, difference(en, max2));
+            buf.send(r2, Set.of(), intersection(en, dis0));
+        });
+        obs.listen(r2, (dis, en) ->{
+            buf.send(this, en, intersection(dis, min1));
+            buf.send(r1, intersection(dis, dis0), Set.of());
+        });
+        obs.listen(this, (dis, en) -> {
+            buf.send(r1,difference(dis,max2),en);
+            buf.send(r2,en,intersection(dis,min1));
+        });
+    }
+
+    @Override
     public void activate(VerificationTask task, WmmEncoder.Buffer buf, WmmEncoder.Observable obs) {
         RelationAnalysis ra = task.getAnalysisContext().get(RelationAnalysis.class);
         TupleSet min1 = ra.getMinTupleSet(r1);
         TupleSet max2 = ra.getMaxTupleSet(r2);
-        obs.listen(this, news -> {
+        WmmEncoder.Listener lis = news -> {
             buf.send(r1, difference(news, min1));
             buf.send(r2, intersection(news, max2));
-        });
+        };
+        obs.listen(this,lis);
+        lis.notify(ra.getDisabledSet(this));
     }
 
     @Override
@@ -58,8 +79,10 @@ public class RelMinus extends BinaryRelation {
     	BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
 		BooleanFormula enc = bmgr.makeTrue();
 
+        TupleSet max1 = ra.getMaxTupleSet(r1);
         TupleSet max2 = ra.getMaxTupleSet(r2);
         TupleSet min1 = ra.getMinTupleSet(r1);
+        TupleSet min2 = ra.getMinTupleSet(r2);
         for(Tuple tuple : encodeTupleSet){
             BooleanFormula opt1 = min1.contains(tuple) ? execution(tuple.getFirst(), tuple.getSecond(), exec, ctx) : r1.getSMTVar(tuple, encoder.getTask(), ctx);
             BooleanFormula opt2 = max2.contains(tuple) ? bmgr.not(r2.getSMTVar(tuple, encoder.getTask(), ctx)) : bmgr.makeTrue();
@@ -67,6 +90,13 @@ public class RelMinus extends BinaryRelation {
                 enc = bmgr.and(enc, bmgr.implication(bmgr.and(opt1, opt2), this.getSMTVar(tuple, encoder.getTask(), ctx)));
             } else {
                 enc = bmgr.and(enc, bmgr.equivalence(this.getSMTVar(tuple, encoder.getTask(), ctx), bmgr.and(opt1, opt2)));
+            }
+        }
+        for(Tuple tuple : ra.getDisabledSet(this)) {
+            if(max1.contains(tuple) && !min2.contains(tuple)) {
+                BooleanFormula opt1 = min1.contains(tuple) ? execution(tuple.getFirst(), tuple.getSecond(), exec, ctx) : r1.getSMTVar(tuple, encoder.getTask(), ctx);
+                BooleanFormula opt2 = max2.contains(tuple) ? r2.getSMTVar(tuple, encoder.getTask(), ctx) : bmgr.makeFalse();
+                enc = bmgr.and(enc, bmgr.implication(opt1, opt2));
             }
         }
         return enc;

@@ -40,6 +40,9 @@ public abstract class Relation implements Dependent<Relation> {
 
     public abstract void initialize(RelationAnalysis ra, RelationAnalysis.SetBuffer buf, RelationAnalysis.SetObservable obs);
 
+    public void propagate(RelationAnalysis ra, RelationAnalysis.Buffer buf, RelationAnalysis.Observable obs) {
+    }
+
     /**
      * Called once for each relation during the initialization of a {@link WmmEncoder}.
      * Marks relationships as relevant to the consistency property.

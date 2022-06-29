@@ -233,6 +233,16 @@ public class TupleSet implements Set<Tuple>{
         return tuples.preComposition(this, condition);
     }
 
+    public TupleSet postCompositionMay(TupleSet tuples, ExecutionAnalysis exec) {
+        return postComposition(tuples, (t1, t2) -> !exec.areMutuallyExclusive(t1.getFirst(), t2.getSecond()));
+    }
+
+    public TupleSet postCompositionMust(TupleSet tuples, ExecutionAnalysis exec) {
+        return postComposition(tuples, (t1, t2) -> (exec.isImplied(t1.getFirst(),t1.getSecond())
+                || exec.isImplied(t2.getSecond(),t2.getFirst()))
+            && !exec.areMutuallyExclusive(t1.getFirst(), t2.getSecond()));
+    }
+
     public TupleSet mapped(Function<Tuple, Tuple> mapping) {
         TupleSet result = new TupleSet();
         tuples.stream().map(mapping).forEach(result::add);

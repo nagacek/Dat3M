@@ -32,8 +32,25 @@ public class RelRangeIdentity extends UnaryRelation {
     public void initialize(RelationAnalysis ra, RelationAnalysis.SetBuffer buf, RelationAnalysis.SetObservable obs) {
         ExecutionAnalysis exec = ra.getTask().getAnalysisContext().get(ExecutionAnalysis.class);
         obs.listen(r1, (may, must) -> buf.send(this,
-            may.stream().map(Tuple::getSecond).map(e -> new Tuple(e,e)).collect(toSet()),
-            must.stream().filter(t -> exec.isImplied(t.getSecond(),t.getFirst())).map(Tuple::getSecond).map(e -> new Tuple(e,e)).collect(toSet())));
+            may.stream().map(RelRangeIdentity::idTuple).collect(toSet()),
+            must.stream().filter(t -> exec.isImplied(t.getSecond(),t.getFirst())).map(RelRangeIdentity::idTuple).collect(toSet())));
+    }
+
+    @Override
+    public void propagate(RelationAnalysis ra, RelationAnalysis.Buffer buf, RelationAnalysis.Observable obs) {
+        ExecutionAnalysis exec = ra.getTask().getAnalysisContext().get(ExecutionAnalysis.class);
+        TupleSet max1 = ra.getMaxTupleSet(r1);
+        obs.listen(this, (dis, en) -> {
+            for(Tuple t : dis) {
+                buf.send(r1, max1.getBySecond(t.getSecond()), Set.of());
+            }
+        });
+        obs.listen(r1, (dis, en) -> buf.send(this,
+            Set.of(),
+            en.stream()
+            .filter(t -> exec.isImplied(t.getSecond(), t.getFirst()))
+            .map(RelRangeIdentity::idTuple)
+            .collect(toSet())));
     }
 
     @Override
@@ -65,5 +82,10 @@ public class RelRangeIdentity extends UnaryRelation {
             enc = bmgr.and(enc, bmgr.equivalence(this.getSMTVar(e, e, encoder.getTask(), ctx), opt));
         }
         return enc;
+    }
+
+    private static Tuple idTuple(Tuple t) {
+        Event e = t.getSecond();
+        return new Tuple(e,e);
     }
 }

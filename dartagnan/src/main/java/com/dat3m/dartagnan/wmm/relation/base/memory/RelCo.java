@@ -39,6 +39,7 @@ import static com.dat3m.dartagnan.program.event.Tag.WRITE;
 import static com.dat3m.dartagnan.wmm.relation.RelationNameRepository.CO;
 import static com.dat3m.dartagnan.wmm.utils.Utils.edge;
 import static com.dat3m.dartagnan.wmm.utils.Utils.intVar;
+import static java.util.stream.Collectors.toSet;
 import static org.sosy_lab.java_smt.api.FormulaType.BooleanType;
 
 @Options
@@ -104,6 +105,15 @@ public class RelCo extends Relation {
 
         logger.info("knowledge size for {}: {}/{}", getName(), must.size(), may.size());
         buf.send(this, may, must);
+    }
+
+    @Override
+    public void propagate(RelationAnalysis ra, RelationAnalysis.Buffer buf, RelationAnalysis.Observable obs) {
+        AliasAnalysis alias = ra.getTask().getAnalysisContext().get(AliasAnalysis.class);
+        obs.listen(this, (dis, en) -> buf.send(this, Set.of(), dis.stream()
+                .filter(t -> alias.mustAlias((MemEvent)t.getFirst(),(MemEvent)t.getSecond()))
+                .map(Tuple::getInverse)
+                .collect(toSet())));
     }
 
     @Override

@@ -10,6 +10,10 @@ import org.sosy_lab.java_smt.api.BooleanFormula;
 import org.sosy_lab.java_smt.api.BooleanFormulaManager;
 import org.sosy_lab.java_smt.api.SolverContext;
 
+import java.util.Set;
+
+import static java.util.stream.Collectors.toSet;
+
 /**
  *
  * @author Florian Furbach
@@ -32,6 +36,13 @@ public class Irreflexive extends Axiom {
         TupleSet min = ra.getMinTupleSet(rel);
         max.stream().filter(Tuple::isLoop).filter(t -> !min.contains(t)).forEach(set::add);
         return set;
+    }
+
+    @Override
+    public void propagate(RelationAnalysis ra, RelationAnalysis.Buffer buf, RelationAnalysis.Observable obs) {
+        if(!flag && !negated) {
+            buf.send(rel, ra.getMaxTupleSet(rel).stream().filter(Tuple::isLoop).collect(toSet()), Set.of());
+        }
     }
 
     @Override

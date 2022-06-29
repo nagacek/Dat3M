@@ -36,6 +36,12 @@ public class RelInverse extends UnaryRelation {
     }
 
     @Override
+    public void propagate(RelationAnalysis ra, RelationAnalysis.Buffer buf, RelationAnalysis.Observable obs) {
+        obs.listen(r1, (dis, en) -> buf.send(this,dis.inverse(),en.inverse()));
+        obs.listen(this, (dis, en) -> buf.send(r1,dis.inverse(),en.inverse()));
+    }
+
+    @Override
     public void activate(VerificationTask task, WmmEncoder.Buffer buf, WmmEncoder.Observable obs) {
         obs.listen(this, news -> buf.send(r1, news.stream().map(Tuple::getInverse).collect(toSet())));
     }

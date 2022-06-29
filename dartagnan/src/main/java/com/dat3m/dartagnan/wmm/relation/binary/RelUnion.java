@@ -13,6 +13,7 @@ import org.sosy_lab.java_smt.api.SolverContext;
 
 import java.util.Set;
 
+import static com.google.common.collect.Sets.difference;
 import static com.google.common.collect.Sets.intersection;
 
 /**
@@ -34,6 +35,18 @@ public class RelUnion extends BinaryRelation {
     public void initialize(RelationAnalysis ra, RelationAnalysis.SetBuffer buf, RelationAnalysis.SetObservable obs) {
         obs.listen(r1, (may, must) -> buf.send(this,may,must));
         obs.listen(r2, (may, must) -> buf.send(this,may,must));
+    }
+
+    @Override
+    public void propagate(RelationAnalysis ra, RelationAnalysis.Buffer buf, RelationAnalysis.Observable obs) {
+        TupleSet max1 = ra.getMaxTupleSet(r1);
+        TupleSet max2 = ra.getMaxTupleSet(r2);
+        obs.listen(r1, (dis, en) -> buf.send(this,difference(dis,max2),en));
+        obs.listen(r2, (dis, en) -> buf.send(this,difference(dis,max1),en));
+        obs.listen(this, (dis, en) -> {
+            buf.send(r1,intersection(dis,max1),Set.of());
+            buf.send(r2,intersection(dis,max2),Set.of());
+        });
     }
 
     @Override

@@ -17,6 +17,8 @@ import org.apache.logging.log4j.Logger;
 import org.sosy_lab.java_smt.api.*;
 
 import java.util.*;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static com.dat3m.dartagnan.wmm.utils.Utils.cycleVar;
@@ -130,6 +132,48 @@ public class Acyclic extends Axiom {
 
         // Remove (must(r)+ \ red(must(r)+)
         encodeSet.removeIf(t -> transMinSet.contains(t) && !reduct.contains(t));
+    }
+
+    @Override
+    public void propagate(RelationAnalysis ra, RelationAnalysis.Buffer buf, RelationAnalysis.Observable obs) {
+        if(flag || negated) {
+            return;
+        }
+        ExecutionAnalysis exec = ra.getTask().getAnalysisContext().get(ExecutionAnalysis.class);
+        Map<Event,Set<Event>> byFirst = new HashMap<>();
+        Map<Event,Set<Event>> bySecond = new HashMap<>();
+        Queue<Tuple> queue = new LinkedList<>();
+        Predicate<Tuple> processTuple = tuple -> {
+            Event x = tuple.getFirst();
+            Event y = tuple.getSecond();
+            if(!byFirst.computeIfAbsent(x, k -> new HashSet<>()).add(y)) {
+                return false;
+            }
+            bySecond.computeIfAbsent(y, k -> new HashSet<>()).add(x);
+            byFirst.getOrDefault(y, Set.of()).stream()
+            .filter(exec.isImplied(x,y) ? z -> true : z -> exec.isImplied(z,y))
+            .forEach(z -> new Tuple(x,z));
+            bySecond.getOrDefault(x, Set.of()).stream()
+            .filter(exec.isImplied(y,x) ? w -> true : w -> exec.isImplied(w,x))
+            .forEach(w -> new Tuple(w,y));
+            return true;
+        };
+        Function<Set<Tuple>,Set<Tuple>> processAll = set -> {
+            Set<Tuple> result = new HashSet<>();
+            set.stream()
+            .filter(processTuple)
+            .map(Tuple::getInverse)
+            .forEach(result::add);
+            while(!queue.isEmpty()) {
+                Tuple t = queue.remove();
+                if(processTuple.test(t)) {
+                    result.add(t.getInverse());
+                }
+            }
+            return result;
+        };
+        buf.send(rel, processAll.apply(ra.getMinTupleSet(rel)), Set.of());
+        obs.listen(rel, (dis, en) -> buf.send(rel, processAll.apply(en), Set.of()));
     }
 
     @Override

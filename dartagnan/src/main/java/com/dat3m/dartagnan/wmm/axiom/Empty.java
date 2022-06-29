@@ -10,6 +10,8 @@ import org.sosy_lab.java_smt.api.BooleanFormula;
 import org.sosy_lab.java_smt.api.BooleanFormulaManager;
 import org.sosy_lab.java_smt.api.SolverContext;
 
+import java.util.Set;
+
 import static com.google.common.collect.Sets.difference;
 
 public class Empty extends Axiom {
@@ -26,6 +28,13 @@ public class Empty extends Axiom {
     public TupleSet getEncodeTupleSet(VerificationTask task) {
         RelationAnalysis ra = task.getAnalysisContext().get(RelationAnalysis.class);
         return new TupleSet(difference(ra.getMaxTupleSet(rel), ra.getMinTupleSet(rel)));
+    }
+
+    @Override
+    public void propagate(RelationAnalysis ra, RelationAnalysis.Buffer buf, RelationAnalysis.Observable obs) {
+        if(!flag && !negated) {
+            buf.send(rel, ra.getMaxTupleSet(rel), Set.of());
+        }
     }
 
     @Override
