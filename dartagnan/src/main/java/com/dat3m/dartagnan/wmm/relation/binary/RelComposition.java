@@ -52,34 +52,36 @@ public class RelComposition extends BinaryRelation {
     }
 
     @Override
-    public void activate(Set<Tuple> activeSet, VerificationTask task, WmmEncoder.Buffer buf) {
+    public void activate(VerificationTask task, WmmEncoder.Buffer buf, WmmEncoder.Observable obs) {
         RelationAnalysis ra = task.getAnalysisContext().get(RelationAnalysis.class);
-        HashSet<Tuple> r1Set = new HashSet<>();
-        HashSet<Tuple> r2Set = new HashSet<>();
 
         TupleSet r1Max = ra.getMaxTupleSet(r1);
         TupleSet r2Max = ra.getMaxTupleSet(r2);
         TupleSet r1Min = ra.getMinTupleSet(r1);
         TupleSet r2Min = ra.getMinTupleSet(r2);
-        for(Tuple t : activeSet) {
-            Event e1 = t.getFirst();
-            Event e3 = t.getSecond();
-            for(Tuple t1 : r1Max.getByFirst(e1)) {
-                Event e2 = t1.getSecond();
-                Tuple t2 = new Tuple(e2, e3);
-                if(r2Max.contains(t2)) {
-                    if(!r1Min.contains(t1)) {
-                        r1Set.add(t1);
-                    }
-                    if(!r2Min.contains(t2)) {
-                        r2Set.add(t2);
+        obs.listen(this, news -> {
+            HashSet<Tuple> r1Set = new HashSet<>();
+            HashSet<Tuple> r2Set = new HashSet<>();
+            for(Tuple t : news) {
+                Event e1 = t.getFirst();
+                Event e3 = t.getSecond();
+                for(Tuple t1 : r1Max.getByFirst(e1)) {
+                    Event e2 = t1.getSecond();
+                    Tuple t2 = new Tuple(e2, e3);
+                    if(r2Max.contains(t2)) {
+                        if(!r1Min.contains(t1)) {
+                            r1Set.add(t1);
+                        }
+                        if(!r2Min.contains(t2)) {
+                            r2Set.add(t2);
+                        }
                     }
                 }
             }
-        }
 
-        buf.send(r1,r1Set);
-        buf.send(r2, r2Set);
+            buf.send(r1,r1Set);
+            buf.send(r2, r2Set);
+        });
     }
 
     @Override

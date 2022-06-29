@@ -37,10 +37,14 @@ public class RelUnion extends BinaryRelation {
     }
 
     @Override
-    public void activate(Set<Tuple> news, VerificationTask task, WmmEncoder.Buffer buf) {
+    public void activate(VerificationTask task, WmmEncoder.Buffer buf, WmmEncoder.Observable obs) {
         RelationAnalysis ra = task.getAnalysisContext().get(RelationAnalysis.class);
-        buf.send(r1, intersection(news, ra.getMaxTupleSet(r1)));
-        buf.send(r2, intersection(news, ra.getMaxTupleSet(r2)));
+        TupleSet max1 = ra.getMaxTupleSet(r1);
+        TupleSet max2 = ra.getMaxTupleSet(r2);
+        obs.listen(this, news -> {
+            buf.send(r1, intersection(news, max1));
+            buf.send(r2, intersection(news, max2));
+        });
     }
 
     @Override

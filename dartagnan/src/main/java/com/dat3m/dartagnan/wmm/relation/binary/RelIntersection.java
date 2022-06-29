@@ -42,10 +42,14 @@ public class RelIntersection extends BinaryRelation {
     }
 
     @Override
-    public void activate(Set<Tuple> news, VerificationTask task, WmmEncoder.Buffer buf) {
+    public void activate(VerificationTask task, WmmEncoder.Buffer buf, WmmEncoder.Observable obs) {
         RelationAnalysis ra = task.getAnalysisContext().get(RelationAnalysis.class);
-        buf.send(r1, difference(news, ra.getMinTupleSet(r1)));
-        buf.send(r2, difference(news, ra.getMinTupleSet(r2)));
+        TupleSet min1 = ra.getMinTupleSet(r1);
+        TupleSet min2 = ra.getMinTupleSet(r2);
+        obs.listen(this, news -> {
+            buf.send(r1, difference(news, min1));
+            buf.send(r2, difference(news, min2));
+        });
     }
 
     @Override

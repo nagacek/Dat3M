@@ -40,10 +40,14 @@ public class RelMinus extends BinaryRelation {
     }
 
     @Override
-    public void activate(Set<Tuple> news, VerificationTask task, WmmEncoder.Buffer buf) {
+    public void activate(VerificationTask task, WmmEncoder.Buffer buf, WmmEncoder.Observable obs) {
         RelationAnalysis ra = task.getAnalysisContext().get(RelationAnalysis.class);
-        buf.send(r1, difference(news, ra.getMinTupleSet(r1)));
-        buf.send(r2, intersection(news, ra.getMaxTupleSet(r2)));
+        TupleSet min1 = ra.getMinTupleSet(r1);
+        TupleSet max2 = ra.getMaxTupleSet(r2);
+        obs.listen(this, news -> {
+            buf.send(r1, difference(news, min1));
+            buf.send(r2, intersection(news, max2));
+        });
     }
 
     @Override

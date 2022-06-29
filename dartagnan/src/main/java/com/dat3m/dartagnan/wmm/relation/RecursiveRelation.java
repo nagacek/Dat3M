@@ -3,11 +3,9 @@ package com.dat3m.dartagnan.wmm.relation;
 import com.dat3m.dartagnan.encoding.WmmEncoder;
 import com.dat3m.dartagnan.verification.VerificationTask;
 import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
-import com.dat3m.dartagnan.wmm.utils.Tuple;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 
 /**
  *
@@ -47,7 +45,7 @@ public class RecursiveRelation extends Relation {
     }
 
     @Override
-    public void activate(Set<Tuple> news, VerificationTask task, WmmEncoder.Buffer buf) {
-        buf.send(r1,news);
+    public void activate(VerificationTask task, WmmEncoder.Buffer buf, WmmEncoder.Observable obs) {
+        obs.listen(this, news -> buf.send(r1,news));
     }
 }

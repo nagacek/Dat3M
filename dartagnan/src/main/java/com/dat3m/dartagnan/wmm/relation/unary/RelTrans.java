@@ -50,26 +50,34 @@ public class RelTrans extends UnaryRelation {
     }
 
     @Override
-    public void activate(Set<Tuple> news, VerificationTask task, WmmEncoder.Buffer buf) {
-        HashSet<Tuple> factors = new HashSet<>();
+    public void activate(VerificationTask task, WmmEncoder.Buffer buf, WmmEncoder.Observable obs) {
         RelationAnalysis ra = task.getAnalysisContext().get(RelationAnalysis.class);
         TupleSet maxTupleSet = ra.getMaxTupleSet(this);
         TupleSet minTupleSet = ra.getMinTupleSet(this);
-        for(Tuple t : news) {
-            for(Tuple t1 : maxTupleSet.getByFirst(t.getFirst())) {
-                Tuple t2 = new Tuple(t1.getSecond(), t.getSecond());
-                if(maxTupleSet.contains(t2)) {
-                    if(!minTupleSet.contains(t1)) {
-                        factors.add(t1);
+        obs.listen(this, news -> {
+            Set<Tuple> factors = new HashSet<>();
+            for(Tuple t : news) {
+                Event e1 = t.getFirst();
+                Event e3 = t.getSecond();
+                for(Tuple t1 : maxTupleSet.getByFirst(e1)) {
+                    Event e2 = t1.getSecond();
+                    if(e1.equals(e2) || e2.equals(e3)) {
+                        continue;
                     }
-                    if(!minTupleSet.contains(t2)) {
-                        factors.add(t2);
+                    Tuple t2 = new Tuple(e2,e3);
+                    if(maxTupleSet.contains(t2)) {
+                        if(!minTupleSet.contains(t1)) {
+                            factors.add(t1);
+                        }
+                        if(!minTupleSet.contains(t2)) {
+                            factors.add(t2);
+                        }
                     }
                 }
             }
-        }
-        buf.send(this,factors);
-        buf.send(r1, intersection(news, ra.getMaxTupleSet(r1)));
+            buf.send(this,factors);
+            buf.send(r1, intersection(news, ra.getMaxTupleSet(r1)));
+        });
     }
 
     @Override

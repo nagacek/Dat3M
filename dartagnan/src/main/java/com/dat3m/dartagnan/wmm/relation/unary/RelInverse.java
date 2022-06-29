@@ -36,8 +36,8 @@ public class RelInverse extends UnaryRelation {
     }
 
     @Override
-    public void activate(Set<Tuple> news, VerificationTask task, WmmEncoder.Buffer buf) {
-        buf.send(r1, news.stream().map(Tuple::getInverse).collect(toSet()));
+    public void activate(VerificationTask task, WmmEncoder.Buffer buf, WmmEncoder.Observable obs) {
+        obs.listen(this, news -> buf.send(r1, news.stream().map(Tuple::getInverse).collect(toSet())));
     }
 
     @Override

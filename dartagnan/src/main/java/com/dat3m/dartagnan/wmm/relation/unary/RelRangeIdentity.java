@@ -37,14 +37,14 @@ public class RelRangeIdentity extends UnaryRelation {
     }
 
     @Override
-    public void activate(Set<Tuple> news, VerificationTask task, WmmEncoder.Buffer buf) {
+    public void activate(VerificationTask task, WmmEncoder.Buffer buf, WmmEncoder.Observable obs) {
         RelationAnalysis ra = task.getAnalysisContext().get(RelationAnalysis.class);
         TupleSet max = ra.getMaxTupleSet(r1);
         TupleSet min = ra.getMinTupleSet(r1);
-        buf.send(r1, news.stream()
+        obs.listen(this, news -> buf.send(r1, news.stream()
             .flatMap(t -> max.getBySecond(t.getSecond()).stream())
             .filter(t -> !min.contains(t))
-            .collect(toSet()));
+            .collect(toSet())));
     }
 
     @Override

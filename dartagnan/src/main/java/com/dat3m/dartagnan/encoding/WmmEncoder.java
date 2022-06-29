@@ -16,7 +16,10 @@ import org.sosy_lab.java_smt.api.BooleanFormula;
 import org.sosy_lab.java_smt.api.BooleanFormulaManager;
 import org.sosy_lab.java_smt.api.SolverContext;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -54,7 +57,7 @@ public class WmmEncoder implements Encoder {
      */
     public interface Buffer {
         /**
-         * Called by {@link Relation#activate(Set,VerificationTask,Buffer) Relation}
+         * Called by {@link Relation#activate(VerificationTask, Buffer, Observable) Relation}
          * whenever a batch of new relationships has been marked.
          * Performs duplicate elimination (i.e. if multiple relations send overlapping tuples)
          * and delays their insertion into the encoder's set to decrease the number of propagations.
@@ -67,17 +70,37 @@ public class WmmEncoder implements Encoder {
         void send(Relation rel, Set<Tuple> tuples);
     }
 
+    /**
+     * Instances are associated with a relation of a soon-to-be-encoded memory model.
+     */
+    public interface Listener {
+        /**
+         * Reacts to a batch of activated tuples.
+         * @param active
+         * Immutable collection of newly-active event pairs in the associated relation.
+         */
+        void notify(Set<Tuple> active);
+    }
+
+    public interface Observable {
+        void listen(Relation relation, Listener listener);
+    }
+
     private void initializeEncoding() {
         for(String relName : Wmm.BASE_RELATIONS) {
             memoryModel.getRelationRepository().getRelation(relName);
         }
 
+        Map<Relation,List<Listener>> listener = new HashMap<>();
+        Map<Relation, Set<Tuple>> queue = new HashMap<>();
+        Buffer buffer = (rel, set) -> queue.merge(rel,set,Sets::union);
+        Observable observable = (rel, lis) -> listener.computeIfAbsent(rel, k -> new ArrayList<>()).add(lis);
         for(Relation relation : memoryModel.getRelationRepository().getRelations()){
             activeMap.put(relation, new TupleSet());
+            relation.activate(task,buffer,observable);
         }
 
         // ====================== Compute encoding information =================
-        Map<Relation, Set<Tuple>> queue = new HashMap<>();
         for (Axiom ax : memoryModel.getAxioms()) {
             Set<Tuple> set = ax.getEncodeTupleSet(task);
             if(!set.isEmpty()) {
@@ -88,12 +111,14 @@ public class WmmEncoder implements Encoder {
         while(!queue.isEmpty()) {
             Relation relation = queue.keySet().iterator().next();
             TupleSet active = activeMap.get(relation);
-            TupleSet delta = new TupleSet(difference(queue.remove(relation),active));
+            Set<Tuple> delta = new HashSet<>(difference(queue.remove(relation),active));
             if(delta.isEmpty()) {
                 continue;
             }
             active.addAll(delta);
-            relation.activate(delta, task, (rel, set) -> queue.merge(rel,set,Sets::union));
+            for(Listener lis : listener.getOrDefault(relation, List.of())) {
+                lis.notify(delta);
+            }
         }
     }
 

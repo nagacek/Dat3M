@@ -41,16 +41,17 @@ public abstract class Relation implements Dependent<Relation> {
     public abstract void initialize(RelationAnalysis ra, RelationAnalysis.SetBuffer buf, RelationAnalysis.SetObservable obs);
 
     /**
-     * Marks more relationships as relevant to the consistency property.
+     * Called once for each relation during the initialization of a {@link WmmEncoder}.
+     * Marks relationships as relevant to the consistency property.
      * Non-maximal tuples and minimal tuples should not be marked.
-     * @param news
-     * Pairs in this relation recently marked as relevant.
      * @param task
      * Provides program, memory model, property, and more.
      * @param buf
-     * Receives relationships required to be represented by a variable to properly constrain all of {@code news}.
+     * Receives relationships required to be represented by a variable to be properly constrained.
+     * @param obs
+     * Register for later updates to the set.
      */
-    public void activate(Set<Tuple> news, VerificationTask task, WmmEncoder.Buffer buf) {
+    public void activate(VerificationTask task, WmmEncoder.Buffer buf, WmmEncoder.Observable obs) {
     }
 
     public String getName() {
