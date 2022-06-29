@@ -60,54 +60,6 @@ public class RelationRepository {
         return basic;
     }
 
-    @Deprecated
-    public Relation copy(Relation r) {
-        if(r.getIsNamed()) {
-            Relation namedCopy = getRelation(r.getName());
-            if(namedCopy != null) {
-                return namedCopy;
-            }
-        }
-        if(r instanceof RelFencerel) {
-            return fence(((RelFencerel) r).getFenceName());
-        }
-        if(r instanceof RelSetIdentity) {
-            return identity(((RelSetIdentity) r).getFilter());
-        }
-        if(r instanceof RelCartesian) {
-            return cartesian(((RelCartesian) r).getFirstFilter(), ((RelCartesian) r).getSecondFilter());
-        }
-        if(r instanceof RelInverse) {
-            return inverse(copy(r.getFirst()));
-        }
-        if(r instanceof RelTransRef) {
-            return reflexiveTransitive(copy(r.getFirst()));
-        }
-        if(r instanceof RelTrans) {
-            return transitive(copy(r.getFirst()));
-        }
-        if(r instanceof RelDomainIdentity) {
-            return domain(copy(r.getFirst()));
-        }
-        if(r instanceof RelRangeIdentity) {
-            return range(copy(r.getFirst()));
-        }
-        if(r instanceof RelUnion) {
-            return union(copy(r.getFirst()), copy(r.getSecond()));
-        }
-        if(r instanceof RelIntersection) {
-            return intersection(copy(r.getFirst()), copy(r.getSecond()));
-        }
-        if(r instanceof RelMinus) {
-            return difference(copy(r.getFirst()), copy(r.getSecond()));
-        }
-        if(r instanceof RelComposition) {
-            return composition(copy(r.getFirst()), copy(r.getSecond()));
-        }
-        //TODO RecursiveRelation
-        throw new UnsupportedOperationException("No support for copying " + r);
-    }
-
     public void nameRelation(Relation relation, String name) {
         checkArgument(!relationMap.containsKey(name),"Name %s already defined",name);
         relationMap.put(name,relation);
