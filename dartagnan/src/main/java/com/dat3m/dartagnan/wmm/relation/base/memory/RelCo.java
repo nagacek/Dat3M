@@ -18,9 +18,6 @@ import com.dat3m.dartagnan.wmm.utils.TupleSet;
 import com.google.common.base.Preconditions;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.sosy_lab.common.configuration.InvalidConfigurationException;
-import org.sosy_lab.common.configuration.Option;
-import org.sosy_lab.common.configuration.Options;
 import org.sosy_lab.java_smt.api.*;
 import org.sosy_lab.java_smt.api.NumeralFormula.IntegerFormula;
 
@@ -29,7 +26,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-import static com.dat3m.dartagnan.configuration.OptionNames.CO_ANTISYMMETRY;
 import static com.dat3m.dartagnan.configuration.Property.LIVENESS;
 import static com.dat3m.dartagnan.encoding.ProgramEncoder.execution;
 import static com.dat3m.dartagnan.expression.utils.Utils.*;
@@ -37,25 +33,13 @@ import static com.dat3m.dartagnan.program.Program.SourceLanguage.LITMUS;
 import static com.dat3m.dartagnan.program.event.Tag.INIT;
 import static com.dat3m.dartagnan.program.event.Tag.WRITE;
 import static com.dat3m.dartagnan.wmm.relation.RelationNameRepository.CO;
-import static com.dat3m.dartagnan.wmm.utils.Utils.edge;
 import static com.dat3m.dartagnan.wmm.utils.Utils.intVar;
 import static java.util.stream.Collectors.toSet;
 import static org.sosy_lab.java_smt.api.FormulaType.BooleanType;
 
-@Options
 public class RelCo extends Relation {
 
 	private static final Logger logger = LogManager.getLogger(RelCo.class);
-
-    // =========================== Configurables ===========================
-
-	@Option(
-		name=CO_ANTISYMMETRY,
-		description="Encodes the antisymmetry of coherences explicitly.",
-		secure=true)
-	private boolean antisymmetry = false;
-
-	// =====================================================================
 
     public RelCo(){
         term = CO;
@@ -153,23 +137,26 @@ public class RelCo extends Relation {
 
         enc = bmgr.and(enc, distinct);
 
+        TupleSet may = ra.getMaxTupleSet(this);
         for(Event w :  task.getProgram().getCache().getEvents(FilterBasic.get(WRITE))) {
             MemEvent w1 = (MemEvent)w;
             BooleanFormula lastCo = w1.exec();
 
-            for(Tuple t : ra.getMaxTupleSet(this).getByFirst(w1)){
+            for(Tuple t : may.getByFirst(w1)){
                 MemEvent w2 = (MemEvent)t.getSecond();
                 BooleanFormula relation = getSMTVar(t, task, ctx);
                 BooleanFormula execPair = execution(t.getFirst(), t.getSecond(), exec, ctx);
                 lastCo = bmgr.and(lastCo, bmgr.not(relation));
 
-                Formula a1 = w1.getMemAddressExpr();
-                Formula a2 = w2.getMemAddressExpr();
-                BooleanFormula sameAddress = generalEqual(a1, a2, ctx);
+                BooleanFormula sameAddress = alias.mustAlias(w1,w2)
+                    ? bmgr.makeTrue()
+                    : generalEqual(w1.getMemAddressExpr(),w2.getMemAddressExpr(),ctx);
 
-                enc = bmgr.and(enc, bmgr.equivalence(relation,
-                        bmgr.and(execPair, sameAddress, imgr.lessThan(getIntVar(w1, ctx), getIntVar(w2, ctx))
-                )));
+                BooleanFormula order = !encoder.doEncodeAntisymmetry() || w1.getCId() < w2.getCId() || !may.contains(t.getInverse())
+                    ? imgr.lessThan(getIntVar(w1, ctx), getIntVar(w2, ctx))
+                    : bmgr.not(getSMTVar(t.getInverse(), task, ctx));
+
+                enc = bmgr.and(enc, bmgr.equivalence(relation,bmgr.and(execPair,sameAddress,order)));
 
                 // ============ Local consistency optimizations ============
                 if (ra.getMinTupleSet(this).contains(t)) {
@@ -206,30 +193,6 @@ public class RelCo extends Relation {
             }
         }
         return enc;
-    }
-    
-    @Override
-    public BooleanFormula getSMTVar(Tuple edge, VerificationTask task, SolverContext ctx) {
-        if(!antisymmetry) {
-            return super.getSMTVar(edge, task, ctx);
-        }
-
-        ExecutionAnalysis exec = task.getAnalysisContext().requires(ExecutionAnalysis.class);
-        RelationAnalysis ra = task.getAnalysisContext().get(RelationAnalysis.class);
-    	FormulaManager fmgr = ctx.getFormulaManager();
-		BooleanFormulaManager bmgr = fmgr.getBooleanFormulaManager();
-
-        MemEvent first = (MemEvent) edge.getFirst();
-        MemEvent second = (MemEvent) edge.getSecond();
-        // Doing the check at the java level seems to slightly improve  performance
-        BooleanFormula eqAdd = first.getAddress().equals(second.getAddress()) ? bmgr.makeTrue() :
-                generalEqual(first.getMemAddressExpr(), second.getMemAddressExpr(), ctx);
-        return !ra.getMaxTupleSet(this).contains(edge) ? bmgr.makeFalse() :
-    		first.getCId() <= second.getCId() ?
-    				edge(getName(), first, second, ctx) :
-    					bmgr.ifThenElse(bmgr.and(execution(edge.getFirst(), edge.getSecond(), exec, ctx), eqAdd),
-    							bmgr.not(getSMTVar(edge.getInverse(), task, ctx)),
-    							bmgr.makeFalse());
     }
 
     public IntegerFormula getIntVar(Event write, SolverContext ctx) {

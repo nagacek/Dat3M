@@ -12,6 +12,8 @@ import com.google.common.collect.Sets;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.sosy_lab.common.configuration.InvalidConfigurationException;
+import org.sosy_lab.common.configuration.Option;
+import org.sosy_lab.common.configuration.Options;
 import org.sosy_lab.java_smt.api.BooleanFormula;
 import org.sosy_lab.java_smt.api.BooleanFormulaManager;
 import org.sosy_lab.java_smt.api.SolverContext;
@@ -23,10 +25,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static com.dat3m.dartagnan.configuration.OptionNames.CO_ANTISYMMETRY;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.collect.Sets.difference;
 
-
+@Options
 public class WmmEncoder implements Encoder {
 
     private static final Logger logger = LogManager.getLogger(WmmEncoder.class);
@@ -35,6 +38,12 @@ public class WmmEncoder implements Encoder {
     private final Wmm memoryModel;
     private final SolverContext ctx;
     private final HashMap<Relation,TupleSet> activeMap = new HashMap<>();
+
+    @Option(
+        name=CO_ANTISYMMETRY,
+        description="Encodes the antisymmetry of coherences explicitly.",
+        secure=true)
+    private boolean antisymmetry = false;
 
     // =====================================================================
 
@@ -47,6 +56,8 @@ public class WmmEncoder implements Encoder {
 
     public static WmmEncoder create(VerificationTask task, SolverContext ctx) throws InvalidConfigurationException {
         WmmEncoder encoder = new WmmEncoder(checkNotNull(task), checkNotNull(ctx));
+        task.getConfig().inject(encoder);
+        logger.info("{}: {}",CO_ANTISYMMETRY,encoder.antisymmetry);
         encoder.initializeEncoding();
         return encoder;
     }
@@ -84,6 +95,10 @@ public class WmmEncoder implements Encoder {
 
     public interface Observable {
         void listen(Relation relation, Listener listener);
+    }
+
+    public boolean doEncodeAntisymmetry() {
+        return antisymmetry;
     }
 
     private void initializeEncoding() {
