@@ -9,18 +9,25 @@ import com.dat3m.dartagnan.verification.solving.IncrementalSolver;
 import com.dat3m.dartagnan.verification.solving.RefinementSolver;
 import com.dat3m.dartagnan.verification.solving.TwoSolvers;
 import com.dat3m.dartagnan.wmm.Wmm;
+import com.dat3m.dartagnan.wmm.axiom.Axiom;
 import com.dat3m.dartagnan.configuration.Arch;
+import com.dat3m.dartagnan.configuration.Property;
 import com.dat3m.ui.utils.UiOptions;
 import com.dat3m.ui.utils.Utils;
 import org.sosy_lab.common.ShutdownManager;
 import org.sosy_lab.common.configuration.Configuration;
 import org.sosy_lab.common.log.BasicLogManager;
 import org.sosy_lab.java_smt.SolverContextFactory;
+import org.sosy_lab.java_smt.api.Model;
 import org.sosy_lab.java_smt.api.ProverEnvironment;
 import org.sosy_lab.java_smt.api.SolverContext;
 import org.sosy_lab.java_smt.api.SolverContext.ProverOptions;
 
 import static com.dat3m.dartagnan.configuration.OptionNames.PHANTOM_REFERENCES;
+import static com.dat3m.dartagnan.configuration.Property.CAT;
+import static com.dat3m.dartagnan.configuration.Property.REACHABILITY;
+import static com.dat3m.dartagnan.program.Program.SourceLanguage.LITMUS;
+import static java.lang.Boolean.TRUE;
 
 public class ReachabilityResult {
 
@@ -63,7 +70,7 @@ public class ReachabilityResult {
                         .withBound(options.getBound())
                         .withSolverTimeout(options.getTimeout())
                         .withTarget(arch)
-                        .build(program, wmm);
+                        .build(program, wmm, Property.getDefault());
 
             	t.start();
                 Configuration config = Configuration.builder()
@@ -96,7 +103,7 @@ public class ReachabilityResult {
                     }
                     // Verification ended, we can interrupt the timeout Thread
                     t.interrupt();
-                    buildVerdict(result);
+                    buildVerdict(result, prover.getModel(), ctx);
                 }
             } catch (InterruptedException e){
             	verdict = "TIMEOUT";
@@ -106,10 +113,16 @@ public class ReachabilityResult {
         }
     }
 
-    private void buildVerdict(Result result){
+    private void buildVerdict(Result result, Model m, SolverContext ctx){
         StringBuilder sb = new StringBuilder();
-        sb.append("Condition ").append(program.getAss().toStringWithType()).append("\n");
-        sb.append(result).append("\n");
+		for(Axiom ax : wmm.getAxioms()) {
+    		if(ax.isFlagged() && TRUE.equals(m.evaluate(CAT.getSMTVariable(ax, ctx)))) {
+    			sb.append("Flag " + (ax.getName() != null ? ax.getName() : ax.getRelation().getName())).append("\n");
+    		}
+		}
+		// TODO We might want to output different messages once we allow to check LIVENESS from the UI
+		sb.append("Condition ").append(program.getAss().toStringWithType()).append("\n");
+		sb.append(program.getFormat().equals(LITMUS) ? TRUE.equals(m.evaluate(REACHABILITY.getSMTVariable(ctx))) ? "Ok" : "No" : result).append("\n");
         verdict = sb.toString();
     }
 

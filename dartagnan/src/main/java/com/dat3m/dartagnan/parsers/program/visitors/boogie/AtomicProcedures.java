@@ -11,6 +11,7 @@ import com.dat3m.dartagnan.program.Register;
 import java.util.Arrays;
 import java.util.List;
 
+import static com.dat3m.dartagnan.GlobalSettings.ARCH_PRECISION;
 import static com.dat3m.dartagnan.program.event.EventFactory.Atomic;
 import static com.dat3m.dartagnan.program.event.EventFactory.newStore;
 import static com.dat3m.dartagnan.program.event.Tag.C11.intToMo;
@@ -70,7 +71,9 @@ public class AtomicProcedures {
 	private static void atomicInit(VisitorBoogie visitor, Call_cmdContext ctx) {
 		IExpr add = (IExpr)ctx.call_params().exprs().expr().get(0).accept(visitor);
 		ExprInterface value = (ExprInterface)ctx.call_params().exprs().expr().get(1).accept(visitor);
-		visitor.programBuilder.addChild(visitor.threadCount, newStore(add, value, null, visitor.currentLine));
+		visitor.programBuilder.addChild(visitor.threadCount, newStore(add, value, null))
+				.setCLine(visitor.currentLine)
+				.setSourceCodeFile(visitor.sourceCodeFile);
 	}
 
 	private static void atomicStore(VisitorBoogie visitor, Call_cmdContext ctx) {
@@ -81,22 +84,24 @@ public class AtomicProcedures {
 			mo = intToMo(((IConst)ctx.call_params().exprs().expr().get(2).accept(visitor)).getValueAsInt());
 		}
 		visitor.programBuilder.addChild(visitor.threadCount, Atomic.newStore(add, value, mo))
-				.setCLine(visitor.currentLine);
+				.setCLine(visitor.currentLine)
+				.setSourceCodeFile(visitor.sourceCodeFile);
 	}
 
 	private static void atomicLoad(VisitorBoogie visitor, Call_cmdContext ctx) {
-		Register reg = visitor.programBuilder.getOrCreateRegister(visitor.threadCount, visitor.currentScope.getID() + ":" + ctx.call_params().Ident(0).getText(), -1);
+		Register reg = visitor.programBuilder.getOrCreateRegister(visitor.threadCount, visitor.currentScope.getID() + ":" + ctx.call_params().Ident(0).getText(), ARCH_PRECISION);
 		IExpr add = (IExpr)ctx.call_params().exprs().expr().get(0).accept(visitor);
 		String mo = null;
 		if(ctx.call_params().exprs().expr().size() > 1) {
 			mo = intToMo(((IConst)ctx.call_params().exprs().expr().get(1).accept(visitor)).getValueAsInt());
 		}
 		visitor.programBuilder.addChild(visitor.threadCount, Atomic.newLoad(reg, add, mo))
-				.setCLine(visitor.currentLine);
+				.setCLine(visitor.currentLine)
+				.setSourceCodeFile(visitor.sourceCodeFile);
 	}
 
 	private static void atomicFetchOp(VisitorBoogie visitor, Call_cmdContext ctx) {
-		Register reg = visitor.programBuilder.getOrCreateRegister(visitor.threadCount, visitor.currentScope.getID() + ":" + ctx.call_params().Ident(0).getText(), -1);
+		Register reg = visitor.programBuilder.getOrCreateRegister(visitor.threadCount, visitor.currentScope.getID() + ":" + ctx.call_params().Ident(0).getText(), ARCH_PRECISION);
 		IExpr add = (IExpr)ctx.call_params().exprs().expr().get(0).accept(visitor);
 		IExpr value = (IExpr)ctx.call_params().exprs().expr().get(1).accept(visitor);
 		String mo = null;
@@ -118,11 +123,12 @@ public class AtomicProcedures {
 			mo = intToMo(((IConst)ctx.call_params().exprs().expr().get(2).accept(visitor)).getValueAsInt());
 		}
 		visitor.programBuilder.addChild(visitor.threadCount, Atomic.newFetchOp(reg, add, value, op, mo))
-				.setCLine(visitor.currentLine);
+				.setCLine(visitor.currentLine)
+				.setSourceCodeFile(visitor.sourceCodeFile);
 	}
 
 	private static void atomicXchg(VisitorBoogie visitor, Call_cmdContext ctx) {
-		Register reg = visitor.programBuilder.getOrCreateRegister(visitor.threadCount, visitor.currentScope.getID() + ":" + ctx.call_params().Ident(0).getText(), -1);
+		Register reg = visitor.programBuilder.getOrCreateRegister(visitor.threadCount, visitor.currentScope.getID() + ":" + ctx.call_params().Ident(0).getText(), ARCH_PRECISION);
 		IExpr add = (IExpr)ctx.call_params().exprs().expr().get(0).accept(visitor);
 		IExpr value = (IExpr)ctx.call_params().exprs().expr().get(1).accept(visitor);
 		String mo = null;
@@ -130,11 +136,12 @@ public class AtomicProcedures {
 			mo = intToMo(((IConst)ctx.call_params().exprs().expr().get(2).accept(visitor)).getValueAsInt());
 		}
 		visitor.programBuilder.addChild(visitor.threadCount, Atomic.newExchange(reg, add, value, mo))
-				.setCLine(visitor.currentLine);
+				.setCLine(visitor.currentLine)
+				.setSourceCodeFile(visitor.sourceCodeFile);
 	}
 
 	private static void DAT3M_CAS(VisitorBoogie visitor, Call_cmdContext ctx) {
-		Register reg = visitor.programBuilder.getOrCreateRegister(visitor.threadCount, visitor.currentScope.getID() + ":" + ctx.call_params().Ident(0).getText(), -1);
+		Register reg = visitor.programBuilder.getOrCreateRegister(visitor.threadCount, visitor.currentScope.getID() + ":" + ctx.call_params().Ident(0).getText(), ARCH_PRECISION);
 		List<BoogieParser.ExprContext> params = ctx.call_params().exprs().expr();
 		IExpr addr = (IExpr) params.get(0).accept(visitor);
 		IExpr expectedVal = (IExpr) params.get(1).accept(visitor);
@@ -144,17 +151,19 @@ public class AtomicProcedures {
 			mo = intToMo(((IConst) params.get(3).accept(visitor)).getValueAsInt());
 		}
 		visitor.programBuilder.addChild(visitor.threadCount, Atomic.newDat3mCAS(reg, addr, expectedVal, desiredVal, mo))
-				.setCLine(visitor.currentLine);
+				.setCLine(visitor.currentLine)
+				.setSourceCodeFile(visitor.sourceCodeFile);
 	}
 
 	private static void atomicThreadFence(VisitorBoogie visitor, Call_cmdContext ctx) {
 		String mo = intToMo(((IConst)ctx.call_params().exprs().expr().get(0).accept(visitor)).getValueAsInt());
 		visitor.programBuilder.addChild(visitor.threadCount, Atomic.newFence(mo))
-				.setCLine(visitor.currentLine);
+				.setCLine(visitor.currentLine)
+				.setSourceCodeFile(visitor.sourceCodeFile);
 	}
 	
 	private static void atomicCmpXchg(VisitorBoogie visitor, Call_cmdContext ctx) {
-		Register reg = visitor.programBuilder.getOrCreateRegister(visitor.threadCount, visitor.currentScope.getID() + ":" + ctx.call_params().Ident(0).getText(), -1);
+		Register reg = visitor.programBuilder.getOrCreateRegister(visitor.threadCount, visitor.currentScope.getID() + ":" + ctx.call_params().Ident(0).getText(), ARCH_PRECISION);
 		List<BoogieParser.ExprContext> params = ctx.call_params().exprs().expr();
 		IExpr addr = (IExpr) params.get(0).accept(visitor);
 		IExpr expectedAddr = (IExpr) params.get(1).accept(visitor); // NOTE: We assume a register here
@@ -167,6 +176,7 @@ public class AtomicProcedures {
 			// (see issue #123 for an explanation)
 		}
 		visitor.programBuilder.addChild(visitor.threadCount, Atomic.newCompareExchange(reg, addr, expectedAddr, desiredVal, mo, strong))
-				.setCLine(visitor.currentLine);
+				.setCLine(visitor.currentLine)
+				.setSourceCodeFile(visitor.sourceCodeFile);
 	}
 }

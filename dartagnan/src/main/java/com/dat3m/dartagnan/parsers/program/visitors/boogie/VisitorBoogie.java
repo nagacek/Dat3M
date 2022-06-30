@@ -18,10 +18,8 @@ import com.dat3m.dartagnan.parsers.program.utils.ProgramBuilder;
 import com.dat3m.dartagnan.program.Register;
 import com.dat3m.dartagnan.program.event.EventFactory;
 import com.dat3m.dartagnan.program.event.Tag;
-import com.dat3m.dartagnan.program.event.core.Event;
 import com.dat3m.dartagnan.program.event.core.Label;
-import com.dat3m.dartagnan.program.event.core.Local;
-import com.dat3m.dartagnan.program.event.core.Store;
+import com.dat3m.dartagnan.program.event.core.annotations.FunCall;
 import com.dat3m.dartagnan.program.event.lang.svcomp.BeginAtomic;
 import com.dat3m.dartagnan.program.memory.MemoryObject;
 import org.antlr.v4.runtime.tree.ParseTree;
@@ -32,6 +30,7 @@ import java.math.BigInteger;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static com.dat3m.dartagnan.GlobalSettings.ARCH_PRECISION;
 import static com.dat3m.dartagnan.expression.op.BOpUn.NOT;
 import static com.dat3m.dartagnan.expression.op.COpBin.EQ;
 import static com.dat3m.dartagnan.parsers.program.boogie.LlvmFunctions.LLVMFUNCTIONS;
@@ -61,6 +60,7 @@ public class VisitorBoogie extends BoogieBaseVisitor<Object> implements BoogieVi
 	protected int currentThread = 0;
     
 	protected int currentLine= -1;
+	protected String sourceCodeFile = "";
 	
     private Label currentLabel = null;
     private final Map<Label, Label> pairLabels = new HashMap<>();
@@ -121,7 +121,7 @@ public class VisitorBoogie extends BoogieBaseVisitor<Object> implements BoogieVi
     		throw new ParsingException("Program shall have a main procedure");
     	}
 
-    	Register next = programBuilder.getOrCreateRegister(threadCount, currentScope.getID() + ":" + "ptrMain", -1);
+    	Register next = programBuilder.getOrCreateRegister(threadCount, currentScope.getID() + ":" + "ptrMain", ARCH_PRECISION);
     	pool.add(next, "main", -1);
     	while(pool.canCreate()) {
     		next = pool.next();
@@ -142,7 +142,7 @@ public class VisitorBoogie extends BoogieBaseVisitor<Object> implements BoogieVi
         	for(Attr_typed_idents_whereContext atiwC : ctx.proc_sign().proc_sign_in().attr_typed_idents_wheres().attr_typed_idents_where()) {
         		for(ParseTree ident : atiwC.typed_idents_where().typed_idents().idents().Ident()) {
         			String type = atiwC.typed_idents_where().typed_idents().type().getText();
-        			int precision = type.contains("bv") ? Integer.parseInt(type.split("bv")[1]) : -1;
+        			int precision = type.contains("bv") ? Integer.parseInt(type.split("bv")[1]) : ARCH_PRECISION;
             		threadCallingValues.get(threadCount).add(programBuilder.getOrCreateRegister(threadCount, currentScope.getID() + ":" + ident.getText(), precision));
         		}
         	}
@@ -166,7 +166,7 @@ public class VisitorBoogie extends BoogieBaseVisitor<Object> implements BoogieVi
 		for(ParseTree ident : ctx.typed_idents().idents().Ident()) {
 			String name = ident.getText();
 			String type = ctx.typed_idents().type().getText();
-			int precision = type.contains("bv") ? Integer.parseInt(type.split("bv")[1]) : -1;
+			int precision = type.contains("bv") ? Integer.parseInt(type.split("bv")[1]) : ARCH_PRECISION;
 			if(ctx.getText().contains("ref;") && !procedures.containsKey(name) && !smackDummyVariables.contains(name) && ATOMICPROCEDURES.stream().noneMatch(name::startsWith)) {
 				int size = ctx.getText().contains(":allocSize")
 					? Integer.parseInt(ctx.getText().split(":allocSize")[1].split("}")[0])
@@ -204,7 +204,7 @@ public class VisitorBoogie extends BoogieBaseVisitor<Object> implements BoogieVi
 			for(ParseTree ident : atiwC.typed_idents_where().typed_idents().idents().Ident()) {
 				String name = ident.getText();
 				String type = atiwC.typed_idents_where().typed_idents().type().getText();
-				int precision = type.contains("bv") ? Integer.parseInt(type.split("bv")[1]) : -1;
+				int precision = type.contains("bv") ? Integer.parseInt(type.split("bv")[1]) : ARCH_PRECISION;
 				if(constantsTypeMap.containsKey(name)) {
 	                throw new ParsingException("Variable " + name + " is already defined as a constant");
 				}
@@ -234,9 +234,8 @@ public class VisitorBoogie extends BoogieBaseVisitor<Object> implements BoogieVi
             if(threadCount != 1) {
                 // Used to allow execution of threads after they have been created (pthread_create)
                 MemoryObject object = programBuilder.getOrNewObject(String.format("%s(%s)_active", pool.getPtrFromInt(threadCount), pool.getCreatorFromPtr(pool.getPtrFromInt(threadCount))));
-                Register reg = programBuilder.getOrCreateRegister(threadCount, null, -1);
-                Label label = programBuilder.getOrCreateLabel("END_OF_T" + threadCount);
-                programBuilder.addChild(threadCount, EventFactory.Pthread.newStart(reg, object, label));
+                Register reg = programBuilder.getOrCreateRegister(threadCount, null, ARCH_PRECISION);
+                programBuilder.addChild(threadCount, EventFactory.Pthread.newStart(reg, object));
             }
     	}
 
@@ -255,11 +254,12 @@ public class VisitorBoogie extends BoogieBaseVisitor<Object> implements BoogieVi
     				// To deal with references passed to created threads
     				if(index < callingValues.size()) {
     					String type = atiwC.typed_idents_where().typed_idents().type().getText();
-    					int precision = type.contains("bv") ? Integer.parseInt(type.split("bv")[1]) : -1;
+    					int precision = type.contains("bv") ? Integer.parseInt(type.split("bv")[1]) : ARCH_PRECISION;
         				Register register = programBuilder.getOrCreateRegister(threadCount, currentScope.getID() + ":" + ident.getText(), precision);
         				ExprInterface value = callingValues.get(index);
-        				Local child = EventFactory.newLocal(register, value, currentLine);
-						programBuilder.addChild(threadCount, child);
+						programBuilder.addChild(threadCount, EventFactory.newLocal(register, value))
+    							.setCLine(currentLine)
+    							.setSourceCodeFile(sourceCodeFile);
         				index++;    					
     				}
     			}
@@ -296,9 +296,10 @@ public class VisitorBoogie extends BoogieBaseVisitor<Object> implements BoogieVi
     	IExpr expr = (IExpr)ctx.proposition().expr().accept(this);
     	Register ass = programBuilder.getOrCreateRegister(threadCount, "assert_" + assertionIndex, expr.getPrecision());
     	assertionIndex++;
-    	Local event = EventFactory.newLocal(ass, expr, currentLine);
-		event.addFilters(Tag.ASSERTION);
-		programBuilder.addChild(threadCount, event);
+		programBuilder.addChild(threadCount, EventFactory.newLocal(ass, expr))
+				.setCLine(currentLine)
+				.setSourceCodeFile(sourceCodeFile)
+				.addFilters(Tag.ASSERTION);
        	Label end = programBuilder.getOrCreateLabel("END_OF_T" + threadCount);
 		programBuilder.addChild(threadCount, EventFactory.newJump(new Atom(ass, COpBin.NEQ, IValue.ONE), end));
     	return null;
@@ -330,11 +331,12 @@ public class VisitorBoogie extends BoogieBaseVisitor<Object> implements BoogieVi
 	       	return null;
 		}
 		if(name.equals("reach_error")) {
-	    	Register ass = programBuilder.getOrCreateRegister(threadCount, "assert_" + assertionIndex, -1);
+	    	Register ass = programBuilder.getOrCreateRegister(threadCount, "assert_" + assertionIndex, ARCH_PRECISION);
 	    	assertionIndex++;
-	    	Local event = EventFactory.newLocal(ass, new BConst(false), currentLine);
-			event.addFilters(Tag.ASSERTION);
-			programBuilder.addChild(threadCount, event);
+			programBuilder.addChild(threadCount, EventFactory.newLocal(ass, new BConst(false)))
+					.setCLine(currentLine)
+					.setSourceCodeFile(sourceCodeFile)
+					.addFilters(Tag.ASSERTION);
 	       	Label end = programBuilder.getOrCreateLabel("END_OF_T" + threadCount);
 			programBuilder.addChild(threadCount, EventFactory.newJump(new Atom(ass, COpBin.NEQ, IValue.ONE), end));
 			return null;
@@ -383,8 +385,10 @@ public class VisitorBoogie extends BoogieBaseVisitor<Object> implements BoogieVi
 		if(!procedures.containsKey(name)) {
 			throw new ParsingException("Procedure " + name + " is not defined");
 		}
-		Event call = EventFactory.newFunctionCall(name, currentLine);
-		programBuilder.addChild(threadCount, call);	
+		FunCall call = EventFactory.newFunctionCall(name);
+		programBuilder.addChild(threadCount, call)
+				.setCLine(currentLine)
+				.setSourceCodeFile(sourceCodeFile);	
 		visitProc_decl(procedures.get(name), false, callingValues);
 		if(ctx.equals(atomicMode)) {
 			atomicMode = null;
@@ -395,8 +399,9 @@ public class VisitorBoogie extends BoogieBaseVisitor<Object> implements BoogieVi
 			}
 			
 		}
-		Event ret = EventFactory.newFunctionReturn(name, call.getCLine());
-		programBuilder.addChild(threadCount, ret);
+		programBuilder.addChild(threadCount, EventFactory.newFunctionReturn(name))
+				.setCLine(call.getCLine())
+				.setSourceCodeFile(sourceCodeFile);
 		if(name.equals("$initialize")) {
 			initMode = false;
 		}
@@ -430,38 +435,46 @@ public class VisitorBoogie extends BoogieBaseVisitor<Object> implements BoogieVi
 	        	if(ctx.getText().contains("$load.") || value instanceof MemoryObject) {
 	        		try {
 		    			// This names are global so we don't use currentScope.getID(), but per thread.
-		    			Register reg = programBuilder.getOrCreateRegister(threadCount, ctx.Ident(0).getText(), -1);
+		    			Register reg = programBuilder.getOrCreateRegister(threadCount, ctx.Ident(0).getText(), ARCH_PRECISION);
 		    			String tmp = ctx.def_body().exprs().expr(0).getText();
 		    			tmp = tmp.substring(tmp.indexOf(",") + 1, tmp.indexOf(")"));
 		    			// This names are global so we don't use currentScope.getID(), but per thread.
-		    			Register ptr = programBuilder.getOrCreateRegister(threadCount, tmp, -1);
+		    			Register ptr = programBuilder.getOrCreateRegister(threadCount, tmp, ARCH_PRECISION);
 	        			pool.addRegPtr(reg, ptr);	        				        			
 	        		} catch (Exception e) {
 	        			// Nothing to be done
 	        		}
 	        		if(!allocationRegs.contains(value)) {
-	        			programBuilder.addChild(threadCount, EventFactory.newLoad(register, (IExpr)value, null, currentLine));
+	        			// These events are eventually compiled and we need to compare its mo, thus it cannot be null
+	        			programBuilder.addChild(threadCount, EventFactory.newLoad(register, (IExpr)value, ""))
+	        					.setCLine(currentLine)
+	        					.setSourceCodeFile(sourceCodeFile);
 	        		} else {
-	        			programBuilder.addChild(threadCount, EventFactory.newLoad(register, (IExpr)value, null));
+	        			// These events are eventually compiled and we need to compare its mo, thus it cannot be null
+	        			programBuilder.addChild(threadCount, EventFactory.newLoad(register, (IExpr)value, ""));
 	        		}						        			
 		            continue;
 	        	}
 	        	value = value.visit(exprSimplifier);
-	            Local child = EventFactory.newLocal(register, value, currentLine);
-				programBuilder.addChild(threadCount, child);	        		
+				programBuilder.addChild(threadCount, EventFactory.newLocal(register, value))
+						.setCLine(currentLine)
+						.setSourceCodeFile(sourceCodeFile);
 	            continue;
 	        }
             MemoryObject object = programBuilder.getObject(name);
             if(object != null){
-                Store child = EventFactory.newStore(object, value, null, currentLine);
-				programBuilder.addChild(threadCount, child);
+    			// These events are eventually compiled and we need to compare its mo, thus it cannot be null
+				programBuilder.addChild(threadCount, EventFactory.newStore(object, value, ""))
+						.setCLine(currentLine)
+						.setSourceCodeFile(sourceCodeFile);
 	            continue;
 	        }
 	        if(currentReturnName.equals(name)) {
 	        	if(!returnRegister.isEmpty()) {
 	        		Register ret = returnRegister.remove(returnRegister.size() - 1);
-					Local child = EventFactory.newLocal(ret, value, currentLine);
-					programBuilder.addChild(threadCount, child);
+					programBuilder.addChild(threadCount, EventFactory.newLocal(ret, value))
+							.setCLine(currentLine)
+							.setSourceCodeFile(sourceCodeFile);
 	        	}
 	        	continue;
 	        }
@@ -481,6 +494,7 @@ public class VisitorBoogie extends BoogieBaseVisitor<Object> implements BoogieVi
 	public Object visitAssume_cmd(Assume_cmdContext ctx) {
 		if(ctx.getText().contains("sourceloc")) {
 			String line = ctx.getText();
+			sourceCodeFile = line.substring(line.lastIndexOf('/') + 1, line.indexOf(',') - 1);
 			currentLine = Integer.parseInt(line.substring(line.indexOf(',') + 1, line.lastIndexOf(',')));
 		}
 		// We can get rid of all the "assume true" statements
@@ -631,7 +645,7 @@ public class VisitorBoogie extends BoogieBaseVisitor<Object> implements BoogieVi
 		}
 		if(constantsTypeMap.containsKey(name)) {
 			// Dummy register needed to parse axioms
-			return new Register(name, -1, constantsTypeMap.get(name));
+			return new Register(name, Register.NO_THREAD, constantsTypeMap.get(name));
 		}
         Register register = programBuilder.getRegister(threadCount, currentScope.getID() + ":" + name);
         if(register != null){
@@ -677,8 +691,10 @@ public class VisitorBoogie extends BoogieBaseVisitor<Object> implements BoogieVi
 				programBuilder.getOrNewObject(text).appendInitialValue(rhs,value.reduce());
 				return null;
 			}
-			Store child = EventFactory.newStore(address, value, null, currentLine);
-			programBuilder.addChild(threadCount, child);	
+			// These events are eventually compiled and we need to compare its mo, thus it cannot be null
+			programBuilder.addChild(threadCount, EventFactory.newStore(address, value, ""))
+					.setCLine(currentLine)
+					.setSourceCodeFile(sourceCodeFile);	
 			return null;
 		}
 		// push currentCall to the call stack
@@ -732,7 +748,7 @@ public class VisitorBoogie extends BoogieBaseVisitor<Object> implements BoogieVi
 
 	@Override
 	public Object visitInt_expr(Int_exprContext ctx) {
-		return new IValue(new BigInteger(ctx.getText()),-1);
+		return new IValue(new BigInteger(ctx.getText()), ARCH_PRECISION);
 	}
 	
 	@Override

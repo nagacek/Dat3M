@@ -8,17 +8,18 @@ import org.sosy_lab.java_smt.SolverContextFactory.Solvers;
 
 import static com.dat3m.dartagnan.configuration.OptionNames.*;
 
+import java.util.EnumSet;
+
 @Options
 public abstract class BaseOptions {
 
-	@Option(
-		name= PROPERTY,
-		description="Property to be checked.",
-		secure=true,
-		toUppercase=true)
-	private Property property = Property.getDefault();
+    @Option(
+    	name = PROPERTY,
+    	description = "The property to check for: reachability (default), liveness, races.",
+    	toUppercase=true)
+    private EnumSet<Property> property = Property.getDefault();
 
-	public Property getProperty() { return property; }
+	public EnumSet<Property> getProperty() { return property; }
 
 	@Option(
 		name=VALIDATE,
@@ -58,4 +59,12 @@ public abstract class BaseOptions {
 	private boolean phantomReferences = true;
 	
 	public boolean usePhantomReferences() { return phantomReferences; }
+
+	@Option(
+		name=WITNESS_GRAPHVIZ,
+		description="Generates a violation graph in /output.")
+	private boolean generateGraphviz = false;
+		
+	public boolean generateGraphviz() { return generateGraphviz; }
+
 }

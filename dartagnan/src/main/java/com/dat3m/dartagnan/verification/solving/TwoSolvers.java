@@ -1,6 +1,5 @@
 package com.dat3m.dartagnan.verification.solving;
 
-import com.dat3m.dartagnan.asserts.AssertTrue;
 import com.dat3m.dartagnan.encoding.ProgramEncoder;
 import com.dat3m.dartagnan.encoding.PropertyEncoder;
 import com.dat3m.dartagnan.encoding.SymmetryEncoder;
@@ -27,11 +26,6 @@ public class TwoSolvers {
     	Result res = Result.UNKNOWN;
     	
     	task.preprocessProgram();
-       	if(task.getProgram().getAss() instanceof AssertTrue) {
-            logger.info("Verification finished: assertion trivially holds");
-       		return PASS;
-       	}
-
         task.performStaticProgramAnalyses();
         task.performStaticWmmAnalyses();
         task.initializeEncoders(ctx);
@@ -40,6 +34,12 @@ public class TwoSolvers {
         PropertyEncoder propertyEncoder = task.getPropertyEncoder();
         WmmEncoder wmmEncoder = task.getWmmEncoder();
         SymmetryEncoder symmEncoder = task.getSymmetryEncoder();
+
+        BooleanFormula propertyEncoding = propertyEncoder.encodeSpecification(task.getProperty(), ctx);
+        if(ctx.getFormulaManager().getBooleanFormulaManager().isFalse(propertyEncoding)) {
+            logger.info("Verification finished: property trivially holds");
+       		return PASS;        	
+        }
 
         logger.info("Starting encoding using " + ctx.getVersion());
         BooleanFormula encodeProg = programEncoder.encodeFullProgram(ctx);
@@ -60,7 +60,7 @@ public class TwoSolvers {
         prover1.addConstraint(encodeSymm);
         prover2.addConstraint(encodeSymm);
 
-        prover1.addConstraint(propertyEncoder.encodeAssertions(ctx));
+        prover1.addConstraint(propertyEncoding);
 
         logger.info("Starting first solver.check()");
         if(prover1.isUnsat()) {
@@ -70,7 +70,15 @@ public class TwoSolvers {
         } else {
         	res = FAIL;
         }
-        
+
+        if(logger.isDebugEnabled()) {        	
+    		String smtStatistics = "\n ===== SMT Statistics ===== \n";
+    		for(String key : prover1.getStatistics().keySet()) {
+    			smtStatistics += String.format("\t%s -> %s\n", key, prover1.getStatistics().get(key));
+    		}
+    		logger.debug(smtStatistics);
+        }
+
         res = task.getProgram().getAss().getInvert() ? res.invert() : res;
         logger.info("Verification finished with result " + res);
         return res;

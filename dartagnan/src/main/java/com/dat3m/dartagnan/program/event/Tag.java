@@ -22,6 +22,10 @@ public final class Tag {
     public static final String REG_READER   = "rR";
     public static final String ASSERTION    = "ASS";
     public static final String BOUND   		= "BOUND";
+    public static final String SPINLOOP   	= "SPINLOOP";
+    // Some events should not be optimized (e.g. fake dependencies) or deleted (e.g. bounds)
+    public static final String NOOPT   		= "NOOPT";
+    public static final String ANNOTATION   = "ANNOTATION";
 
     // =============================================================================================
     // =========================================== ARMv8 ===========================================
@@ -43,6 +47,15 @@ public final class Tag {
             //TODO: What about MO_CONSUME loads?
             return cMo.equals(C11.MO_SC) || cMo.equals(C11.MO_ACQUIRE) || cMo.equals(C11.MO_ACQUIRE_RELEASE) ? MO_ACQ : MO_RX;
         }
+
+        public static String extractStoreMoFromLKMo(String lkMo) {
+            return lkMo.equals(Tag.Linux.MO_RELEASE) || lkMo.equals(Tag.Linux.MO_MB) ? Tag.ARMv8.MO_REL : null;
+        }
+
+        public static String extractLoadMoFromLKMo(String lkMo) {
+            return lkMo.equals(Tag.Linux.MO_ACQUIRE) ? Tag.ARMv8.MO_ACQ : null;
+        }
+
     }
 
     // =============================================================================================
@@ -62,16 +75,42 @@ public final class Tag {
     public static final class C11 {
         private C11() {}
 
+        public static final String ATOMIC    	= "A";
+        public static final String NONATOMIC    = "NA";
+        
         public static final String PTHREAD    	= "PTHREAD";
         public static final String LOCK    		= "LOCK";
 
-        public static final String MO_RELAXED           = "memory_order_relaxed";
-        public static final String MO_CONSUME           = "memory_order_consume";
-        public static final String MO_ACQUIRE           = "memory_order_acquire";
-        public static final String MO_RELEASE           = "memory_order_release";
-        public static final String MO_ACQUIRE_RELEASE   = "memory_order_acq_rel";
-        public static final String MO_SC                = "memory_order_seq_cst";
+        public static final String MO_RELAXED           = "RLX";
+        public static final String MO_CONSUME           = "CON";
+        public static final String MO_ACQUIRE           = "ACQ";
+        public static final String MO_RELEASE           = "REL";
+        public static final String MO_ACQUIRE_RELEASE   = "ACQ_REL";
+        public static final String MO_SC                = "SC";
 
+        public static String extractStoreMo(String cMo) {
+        	switch(cMo) {
+        		case C11.MO_SC:
+        		case C11.MO_ACQUIRE_RELEASE:
+        			return C11.MO_RELEASE;
+        		case C11.MO_ACQUIRE:
+        			return C11.MO_RELAXED;
+        		default:
+        			return cMo;
+        	}
+        }
+
+        public static String extractLoadMo(String cMo) {
+        	switch(cMo) {
+    			case C11.MO_SC:
+    			case C11.MO_ACQUIRE_RELEASE:
+    				return C11.MO_ACQUIRE;
+    			case C11.MO_RELEASE:
+    				return C11.MO_RELAXED;
+    			default:
+    				return cMo;
+        	}
+        }
         public static String intToMo(int i) {
             switch(i) {
                 case 0: return MO_RELAXED;
@@ -94,31 +133,43 @@ public final class Tag {
     public static final class Linux {
         private Linux() {}
 
-        public static final String NORETURN     = "Noreturn";
-        public static final String RCU_SYNC     = "Sync-rcu";
-        public static final String RCU_LOCK     = "Rcu-lock";
-        public static final String RCU_UNLOCK   = "Rcu-unlock";
-        public static final String MO_MB        = "Mb";
-        public static final String MO_RMB		= "Rmb";
-        public static final String MO_WMB		= "Wmb";
-        public static final String MO_RELAXED   = "Relaxed";
-        public static final String MO_RELEASE   = "Release";
-        public static final String MO_ACQUIRE   = "Acquire";
+        public static final String NORETURN           = "Noreturn";
+        public static final String RCU_SYNC           = "Sync-rcu";
+        public static final String SRCU_SYNC          = "Sync-srcu";
+        public static final String RCU_LOCK           = "Rcu-lock";
+        public static final String RCU_UNLOCK         = "Rcu-unlock";
+        public static final String MO_MB              = "Mb";
+        public static final String MO_RMB		      = "Rmb";
+        public static final String MO_WMB		      = "Wmb";
+        public static final String MO_RELAXED         = "Relaxed";
+        public static final String MO_RELEASE         = "Release";
+        public static final String MO_ACQUIRE         = "Acquire";
+        public static final String MO_ONCE            = "Once";
+        public static final String LOCK_READ          = "LKR";
+        public static final String LOCK_WRITE         = "LKW";
+        public static final String UNLOCK             = "UL";
+        public static final String LOCK_FAIL          = "UL";
+        public static final String READ_LOCKED        = "LF";
+        public static final String READ_UNLOCKED      = "RU";
+        public static final String BEFORE_ATOMIC      = "Before-atomic";
+        public static final String AFTER_ATOMIC       = "After-atomic";
+        public static final String AFTER_SPINLOCK     = "After-spinlock";
+        public static final String AFTER_UNLOCK_LOCK  = "After-unlock-lock";
 
         public static String loadMO(String mo){
-            return mo.equals(MO_ACQUIRE) ? MO_ACQUIRE : MO_RELAXED;
+            return mo.equals(MO_ACQUIRE) ? MO_ACQUIRE : MO_ONCE;
         }
 
         public static String storeMO(String mo){
-            return mo.equals(MO_RELEASE) ? MO_RELEASE : MO_RELAXED;
+            return mo.equals(MO_RELEASE) ? MO_RELEASE : MO_ONCE;
         }
 
         public static String toText(String mo){
             switch (mo){
-                case MO_RELAXED:
-                    return "_relaxed";
-                case MO_ACQUIRE:
-                    return "_acquire";
+            	case MO_RELAXED:
+                	return "_relaxed";
+            	case MO_ACQUIRE:
+            		return "_acquire";
                 case MO_RELEASE:
                     return "_release";
                 case MO_MB:
@@ -136,5 +187,15 @@ public final class Tag {
         private SVCOMP() {}
 
         public static final String SVCOMPATOMIC	= "A-SVCOMP";
+    }
+
+    // =============================================================================================
+    // =========================================== IMM =============================================
+    // =============================================================================================
+
+    public static final class IMM {
+        private IMM() {}
+
+        public static final String CASDEPORIGIN = "CASDEPORIGIN";
     }
 }

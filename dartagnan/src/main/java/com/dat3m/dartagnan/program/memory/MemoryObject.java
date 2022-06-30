@@ -10,6 +10,7 @@ import org.sosy_lab.java_smt.api.SolverContext;
 import java.math.BigInteger;
 import java.util.HashMap;
 
+import static com.dat3m.dartagnan.GlobalSettings.ARCH_PRECISION;
 import static com.dat3m.dartagnan.expression.op.IOpBin.PLUS;
 import static com.google.common.base.Preconditions.checkArgument;
 
@@ -21,6 +22,11 @@ public class MemoryObject extends IConst implements ExprInterface, LastValueInte
     private final int index;
     private int size;
     BigInteger address;
+    // TODO
+    // Right now we assume that either the whole object is atomic or it is not.
+    // Generally, this is no necessarily true for structs, but right now we
+    // don't have a way of marking anything as atomic for bpl files. 
+    private boolean atomic = false;
 
     private final HashMap<Integer,IConst> initialValues = new HashMap<>();
 
@@ -103,7 +109,19 @@ public class MemoryObject extends IConst implements ExprInterface, LastValueInte
     public Formula getLastMemValueExpr(SolverContext ctx, int offset) {
         checkArgument(0<=offset && offset<size, "array index out of bounds");
         String name = String.format("last_val_at_memory_%d_%d",index,offset);
-        return ctx.getFormulaManager().getIntegerFormulaManager().makeVariable(name);
+        if(ARCH_PRECISION > -1) {
+        	return ctx.getFormulaManager().getBitvectorFormulaManager().makeVariable(ARCH_PRECISION, name);
+        } else {
+        	return ctx.getFormulaManager().getIntegerFormulaManager().makeVariable(name);
+        }
+    }
+
+    public boolean isAtomic() {
+        return atomic;
+    }
+
+    public void markAsAtomic() {
+        this.atomic = true;
     }
 
     @Override
@@ -113,7 +131,7 @@ public class MemoryObject extends IConst implements ExprInterface, LastValueInte
 
     @Override
     public int getPrecision() {
-        return -1;
+        return ARCH_PRECISION;
     }
 
     @Override

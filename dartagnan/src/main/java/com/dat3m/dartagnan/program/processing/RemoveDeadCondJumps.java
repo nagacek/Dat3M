@@ -59,8 +59,7 @@ public class RemoveDeadCondJumps implements ProgramProcessor {
         	if(current instanceof CondJump) {
         		CondJump jump = (CondJump)current;
         		// After constant propagation some jumps have False as condition and are dead
-        		// But we still need to keep BOUND events
-        		if(jump.isDead() && !jump.is(Tag.BOUND)) {
+        		if(jump.isDead()) {
         			removed.add(jump);
         		} else {
                     immediateLabelPredecessors.computeIfAbsent(jump.getLabel(), key -> new ArrayList<>()).add(jump);
@@ -75,10 +74,11 @@ public class RemoveDeadCondJumps implements ProgramProcessor {
         for(Event label : immediateLabelPredecessors.keySet()) {
         	Event next = label.getSuccessor();
             List<Event> preds = immediateLabelPredecessors.get(label);
-        	// We never remove BOUND events
-			if(next instanceof CondJump && !next.is(Tag.BOUND) && preds.stream().allMatch(e -> mutuallyExclusiveIfs((CondJump)next, e))) {
+        	// BOUND events
+			if(next instanceof CondJump && preds.stream().allMatch(e -> mutuallyExclusiveIfs((CondJump)next, e))) {
 				removed.add(next);
 			}
+        	// SPINLOOP events
             if (next != null && preds.size() == 1 && preds.get(0).getSuccessor().equals(label)) {
                 removed.add(label);
             }
@@ -86,10 +86,23 @@ public class RemoveDeadCondJumps implements ProgramProcessor {
         // Here is the actual removal
         pred = null;
         Event cur = thread.getEntry();
+        boolean dead = false;
         while (cur != null) {
-            if (removed.contains(cur)) {
-                cur.delete(pred);
+            if(dead && cur instanceof Label && !immediateLabelPredecessors.getOrDefault(cur,List.of()).isEmpty()) {
+                dead = false;
+            }
+            if(dead && cur instanceof CondJump && immediateLabelPredecessors.containsKey(((CondJump) cur).getLabel())) {
+                immediateLabelPredecessors.get(((CondJump) cur).getLabel()).remove(cur);
+            }
+            if(dead && immediateLabelPredecessors.containsKey(cur.getSuccessor())) {
+                immediateLabelPredecessors.get(cur.getSuccessor()).remove(cur);
+            }
+            if((dead || removed.contains(cur)) && !cur.is(Tag.NOOPT)) {
+                cur.delete();
                 cur = pred;
+            }
+            if(cur instanceof CondJump && ((CondJump) cur).isGoto()) {
+                dead = true;
             }
             pred = cur;
             cur = cur.getSuccessor();

@@ -26,7 +26,7 @@ class VisitorTso extends VisitorBase implements EventVisitor<List<Event>> {
 
 	@Override
 	public List<Event> visitCreate(Create e) {
-        Store store = newStore(e.getAddress(), e.getMemValue(), e.getMo(), e.getCLine());
+        Store store = newStore(e.getAddress(), e.getMemValue(), e.getMo());
         store.addFilters(C11.PTHREAD);
         
         return eventSequence(
@@ -51,7 +51,7 @@ class VisitorTso extends VisitorBase implements EventVisitor<List<Event>> {
         
         return eventSequence(
         		load,
-        		newJumpUnless(new Atom(resultRegister, EQ, IValue.ZERO), e.getLabel())
+        		newJumpUnless(new Atom(resultRegister, EQ, IValue.ZERO), (Label) e.getThread().getExit())
         );
 	}
 
@@ -61,7 +61,7 @@ class VisitorTso extends VisitorBase implements EventVisitor<List<Event>> {
 
         return eventSequence(
         		newLoad(resultRegister, e.getAddress(), e.getMo()),
-        		newJumpUnless(new Atom(resultRegister, EQ, IValue.ONE), e.getLabel())
+        		newJumpUnless(new Atom(resultRegister, EQ, IValue.ONE), (Label) e.getThread().getExit())
         );
 	}
 
@@ -70,7 +70,7 @@ class VisitorTso extends VisitorBase implements EventVisitor<List<Event>> {
         Register resultRegister = e.getResultRegister();
         IExpr address = e.getAddress();
 
-        Register dummyReg = new Register(null, resultRegister.getThreadId(), resultRegister.getPrecision());
+        Register dummyReg = e.getThread().newRegister(resultRegister.getPrecision());
 		Load load = newRMWLoad(dummyReg, address, null);
         load.addFilters(Tag.TSO.ATOM);
 
@@ -91,12 +91,11 @@ class VisitorTso extends VisitorBase implements EventVisitor<List<Event>> {
 		ExprInterface value = e.getMemValue();
 		String mo = e.getMo();
 		IExpr expectedAddr = e.getExpectedAddr();
-        int threadId = resultRegister.getThreadId();
 		int precision = resultRegister.getPrecision();
 
-		Register regExpected = new Register(null, threadId, precision);
+		Register regExpected = e.getThread().newRegister(precision);
         Load loadExpected = newLoad(regExpected, expectedAddr, null);
-        Register regValue = new Register(null, threadId, precision);
+        Register regValue = e.getThread().newRegister(precision);
         Load loadValue = newRMWLoad(regValue, address, mo);
         Local casCmpResult = newLocal(resultRegister, new Atom(regValue, EQ, regExpected));
         Label casFail = newLabel("CAS_fail");
@@ -126,7 +125,7 @@ class VisitorTso extends VisitorBase implements EventVisitor<List<Event>> {
 		IExpr address = e.getAddress();
 		String mo = e.getMo();
 		
-        Register dummyReg = new Register(null, resultRegister.getThreadId(), resultRegister.getPrecision());
+        Register dummyReg = e.getThread().newRegister(resultRegister.getPrecision());
         Load load = newRMWLoad(resultRegister, address, mo);
         
         return eventSequence(
@@ -183,7 +182,7 @@ class VisitorTso extends VisitorBase implements EventVisitor<List<Event>> {
 		IExpr address = e.getAddress();
 		String mo = e.getMo();
 
-        Register regValue = new Register(null, resultRegister.getThreadId(), resultRegister.getPrecision());
+        Register regValue = e.getThread().newRegister(resultRegister.getPrecision());
         Local casCmpResult = newLocal(resultRegister, new Atom(regValue, EQ, e.getExpectedValue()));
         Label casEnd = newLabel("CAS_end");
         CondJump branchOnCasCmpResult = newJump(new Atom(resultRegister, NEQ, IValue.ONE), casEnd);

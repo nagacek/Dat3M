@@ -1,17 +1,21 @@
 package com.dat3m.dartagnan;
 
+import com.dat3m.dartagnan.configuration.Property;
 import com.dat3m.dartagnan.parsers.cat.ParserCat;
 import com.dat3m.dartagnan.parsers.program.ProgramParser;
 import com.dat3m.dartagnan.parsers.witness.ParserWitness;
 import com.dat3m.dartagnan.program.Program;
+import com.dat3m.dartagnan.program.Program.SourceLanguage;
 import com.dat3m.dartagnan.utils.Result;
 import com.dat3m.dartagnan.utils.options.BaseOptions;
 import com.dat3m.dartagnan.verification.RefinementTask;
 import com.dat3m.dartagnan.verification.VerificationTask;
+import com.dat3m.dartagnan.verification.model.ExecutionModel;
 import com.dat3m.dartagnan.verification.solving.*;
 import com.dat3m.dartagnan.witness.WitnessBuilder;
 import com.dat3m.dartagnan.witness.WitnessGraph;
 import com.dat3m.dartagnan.wmm.Wmm;
+import com.dat3m.dartagnan.wmm.axiom.Axiom;
 import com.google.common.collect.ImmutableSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -27,14 +31,16 @@ import org.sosy_lab.java_smt.api.SolverContext.ProverOptions;
 
 import java.io.File;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.Set;
 
 import static com.dat3m.dartagnan.configuration.OptionInfo.collectOptions;
 import static com.dat3m.dartagnan.configuration.OptionNames.PHANTOM_REFERENCES;
-import static com.dat3m.dartagnan.configuration.Property.RACES;
+import static com.dat3m.dartagnan.configuration.Property.*;
 import static com.dat3m.dartagnan.utils.GitInfo.CreateGitInfo;
-import static com.dat3m.dartagnan.utils.Result.FAIL;
-import static com.dat3m.dartagnan.utils.Result.UNKNOWN;
+import static com.dat3m.dartagnan.utils.Result.*;
+import static com.dat3m.dartagnan.utils.visualization.ExecutionGraphVisualizer.generateGraphvizFile;
+import static java.lang.Boolean.TRUE;
 import static java.lang.String.valueOf;
 
 @Options
@@ -80,6 +86,7 @@ public class Dartagnan extends BaseOptions {
         
 		Wmm mcm = new ParserCat().parse(fileModel);
         Program p = new ProgramParser().parse(fileProgram);
+        EnumSet<Property> properties = o.getProperty();
         
         WitnessGraph witness = new WitnessGraph();
         if(o.runValidator()) {
@@ -87,10 +94,10 @@ public class Dartagnan extends BaseOptions {
         	witness = new ParserWitness().parse(new File(o.getWitnessPath()));
         }
 
-        VerificationTask task = VerificationTask.builder()
+		VerificationTask task = VerificationTask.builder()
                 .withConfig(config)
                 .withWitness(witness)
-                .build(p, mcm);
+                .build(p, mcm, properties);
 
         ShutdownManager sdm = ShutdownManager.create();
     	Thread t = new Thread(() -> {
@@ -118,49 +125,74 @@ public class Dartagnan extends BaseOptions {
                  ProverEnvironment prover = ctx.newProverEnvironment(ProverOptions.GENERATE_MODELS))
             {
                 Result result = UNKNOWN;
-                switch (o.getProperty()) {
-                	case RACES:
-                    	result = DataRaceSolver.run(ctx, prover, task);
-                        break;
-                    case REACHABILITY:
-                    	switch (o.getMethod()) {
-                        	case TWO:
-                            	try (ProverEnvironment prover2 = ctx.newProverEnvironment(ProverOptions.GENERATE_MODELS)) {
-                                	result = TwoSolvers.run(ctx, prover, prover2, task);
-                                }
-                                break;
-                            case INCREMENTAL:
-                            	result = IncrementalSolver.run(ctx, prover, task);
-                                break;
-                            case ASSUME:
-                            	result = AssumeSolver.run(ctx, prover, task);
-                            	break;
-                            case CAAT:
-                            	result = RefinementSolver.run(ctx, prover,
-                            			RefinementTask.fromVerificationTaskWithDefaultBaselineWMM(task));
-                                break;
-                        }
-                        break;
+                if(properties.contains(RACES)) {
+                	if(properties.size() > 1) {
+                    	System.out.println("Data race detection cannot be combined with other properties");
+                    	System.exit(1);
+                	}
+                	result = DataRaceSolver.run(ctx, prover, task);
+                } else {
+                	// Property is either LIVENESS and/or REACHABILITY
+                	switch (o.getMethod()) {
+                		case TWO:
+                			try (ProverEnvironment prover2 = ctx.newProverEnvironment(ProverOptions.GENERATE_MODELS)) {
+                				result = TwoSolvers.run(ctx, prover, prover2, task);
+                			}
+                			break;
+                		case INCREMENTAL:
+                			result = IncrementalSolver.run(ctx, prover, task);
+                			break;
+                		case ASSUME:
+                			result = AssumeSolver.run(ctx, prover, task);
+                			break;
+                		case CAAT:
+                			result = RefinementSolver.run(ctx, prover,
+                					RefinementTask.fromVerificationTaskWithDefaultBaselineWMM(task));
+                			break;
+                	}
                 }
 
                 // Verification ended, we can interrupt the timeout Thread
                 t.interrupt();
 
-                if (fileProgram.getName().endsWith(".litmus")) {
+            	if(result.equals(FAIL) && o.generateGraphviz()) {
+                	ExecutionModel m = new ExecutionModel(task);
+                	m.initialize(prover.getModel(), ctx);
+    				String name = task.getProgram().getName().substring(0, task.getProgram().getName().lastIndexOf('.'));
+    				generateGraphvizFile(m, 1, (x, y) -> true, System.getenv("DAT3M_HOME") + "/output/", name);        		
+            	}
+
+            	boolean safetyViolationFound = false;
+            	if((result == FAIL && !p.getAss().getInvert()) || 
+            			(result == PASS && p.getAss().getInvert())) {
+            		if(TRUE.equals(prover.getModel().evaluate(REACHABILITY.getSMTVariable(ctx)))) {
+            			safetyViolationFound = true;
+            			System.out.println("Safety violation found");
+            		}
+            		if(TRUE.equals(prover.getModel().evaluate(LIVENESS.getSMTVariable(ctx)))) {
+            			System.out.println("Liveness violation found");
+            		}
+            		for(Axiom ax : task.getMemoryModel().getAxioms()) {
+                		if(ax.isFlagged() && TRUE.equals(prover.getModel().evaluate(CAT.getSMTVariable(ax, ctx)))) {
+                			System.out.println("Flag " + (ax.getName() != null ? ax.getName() : ax.getRelation().getName()));
+                		}                			
+            		}
+                }
+                if (p.getFormat().equals(SourceLanguage.LITMUS)) {
                     if (p.getAssFilter() != null) {
                         System.out.println("Filter " + (p.getAssFilter()));
                     }
                     System.out.println("Condition " + p.getAss().toStringWithType());
-                    System.out.println(result == FAIL ? "Ok" : "No");
+                    System.out.println(safetyViolationFound ? "Ok" : "No");
                 } else {
-                    System.out.println(result);
+                    System.out.println(result);                	
                 }
 
 				try {
 					WitnessBuilder w = new WitnessBuilder(task, ctx, prover, result);
 	                // We only write witnesses for REACHABILITY (if the path to the original C file was given) 
 					// and if we are not doing witness validation
-	                if (!o.getProperty().equals(RACES) && w.canBeBuilt() && !o.runValidator()) {
+	                if (properties.contains(REACHABILITY) && w.canBeBuilt() && !o.runValidator()) {
 						w.build().write();
 	                }
 				} catch(InvalidConfigurationException e) {

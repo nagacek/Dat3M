@@ -5,7 +5,7 @@ import com.dat3m.dartagnan.parsers.LitmusCParser;
 import com.dat3m.dartagnan.parsers.program.utils.ProgramBuilder;
 import com.dat3m.dartagnan.parsers.program.visitors.VisitorLitmusC;
 import com.dat3m.dartagnan.program.Program;
-import com.dat3m.dartagnan.configuration.Arch;
+import com.dat3m.dartagnan.program.Program.SourceLanguage;
 
 import org.antlr.v4.runtime.*;
 
@@ -18,12 +18,13 @@ class ParserLitmusC implements ParserInterface {
 
         LitmusCParser parser = new LitmusCParser(tokenStream);
         parser.setErrorHandler(new BailErrorStrategy());
-        ProgramBuilder pb = new ProgramBuilder();
+        ProgramBuilder pb = new ProgramBuilder(SourceLanguage.LITMUS);
         ParserRuleContext parserEntryPoint = parser.main();
         VisitorLitmusC visitor = new VisitorLitmusC(pb);
 
         Program program = (Program) parserEntryPoint.accept(visitor);
-        program.setArch(Arch.NONE);
+        // C programs can be compiled to different targets,
+        // thus we don't set the architectures.
         return program;
     }
 }

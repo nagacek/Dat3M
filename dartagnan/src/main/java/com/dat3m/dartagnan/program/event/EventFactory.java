@@ -9,14 +9,15 @@ import com.dat3m.dartagnan.program.event.arch.aarch64.StoreExclusive;
 import com.dat3m.dartagnan.program.event.arch.lisa.RMW;
 import com.dat3m.dartagnan.program.event.arch.tso.Xchg;
 import com.dat3m.dartagnan.program.event.core.*;
+import com.dat3m.dartagnan.program.event.core.annotations.FunCall;
+import com.dat3m.dartagnan.program.event.core.annotations.FunRet;
 import com.dat3m.dartagnan.program.event.core.rmw.RMWStore;
 import com.dat3m.dartagnan.program.event.core.rmw.RMWStoreExclusive;
 import com.dat3m.dartagnan.program.event.lang.catomic.*;
 import com.dat3m.dartagnan.program.event.lang.linux.*;
 import com.dat3m.dartagnan.program.event.lang.linux.cond.*;
 import com.dat3m.dartagnan.program.event.lang.pthread.*;
-import com.dat3m.dartagnan.program.event.lang.svcomp.BeginAtomic;
-import com.dat3m.dartagnan.program.event.lang.svcomp.EndAtomic;
+import com.dat3m.dartagnan.program.event.lang.svcomp.*;
 import com.dat3m.dartagnan.program.memory.MemoryObject;
 
 import java.util.Arrays;
@@ -46,24 +47,12 @@ public class EventFactory {
 
     // ------------------------------------------ Memory events ------------------------------------------
 
-    public static Load newLoad(Register register, IExpr address, String mo, int cLine) {
-        Load load = new Load(register, address, mo);
-        load.setCLine(cLine);
-        return load;
-    }
-
     public static Load newLoad(Register register, IExpr address, String mo) {
-        return newLoad(register, address, mo, -1);
-    }
-
-    public static Store newStore(IExpr address, ExprInterface value, String mo, int cLine) {
-        Store store = new Store(address, value, mo);
-        store.setCLine(cLine);
-        return store;
+        return new Load(register, address, mo);
     }
 
     public static Store newStore(IExpr address, ExprInterface value, String mo) {
-        return newStore(address, value, mo, -1);
+        return new Store(address, value, mo);
     }
 
     public static Fence newFence(String name) {
@@ -90,26 +79,16 @@ public class EventFactory {
         return new Skip();
     }
 
-    public static FunCall newFunctionCall(String funName, int cLine) {
-        FunCall funCall = new FunCall(funName);
-        funCall.setCLine(cLine);
-        return funCall;
+    public static FunCall newFunctionCall(String funName) {
+        return new FunCall(funName);
     }
 
-    public static FunRet newFunctionReturn(String funName, int cLine) {
-        FunRet funRet = new FunRet(funName);
-        funRet.setCLine(cLine);
-        return funRet;
-    }
-
-    public static Local newLocal(Register register, ExprInterface expr, int cLine) {
-        Local local = new Local(register, expr);
-        local.setCLine(cLine);
-        return local;
+    public static FunRet newFunctionReturn(String funName) {
+        return new FunRet(funName);
     }
 
     public static Local newLocal(Register register, ExprInterface expr) {
-        return newLocal(register, expr, -1);
+        return new Local(register, expr);
     }
 
     public static Label newLabel(String name) {
@@ -137,7 +116,9 @@ public class EventFactory {
     }
 
     public static CondJump newFakeCtrlDep(Register reg, Label target) {
-        return newJump(new Atom(reg, COpBin.EQ, reg), target);
+        CondJump jump = newJump(new Atom(reg, COpBin.EQ, reg), target);
+        jump.addFilters(Tag.NOOPT);
+		return jump;
     }
 
     public static Assume newAssume(ExprInterface expr) {
@@ -182,10 +163,8 @@ public class EventFactory {
     public static class Pthread {
         private Pthread() {}
 
-        public static Create newCreate(Register pthread_t, String routine, MemoryObject address, int cLine) {
-            Create create = new Create(pthread_t, routine, address);
-            create.setCLine(cLine);
-            return create;
+        public static Create newCreate(Register pthread_t, String routine, MemoryObject address) {
+            return new Create(pthread_t, routine, address);
         }
 
         public static End newEnd(MemoryObject address){
@@ -196,20 +175,20 @@ public class EventFactory {
             return new InitLock(name, address, value);
         }
 
-        public static Join newJoin(Register pthread_t, Register reg, MemoryObject address, Label label) {
-            return new Join(pthread_t, reg, address, label);
+        public static Join newJoin(Register pthread_t, Register reg, MemoryObject address) {
+            return new Join(pthread_t, reg, address);
         }
 
-        public static Lock newLock(String name, IExpr address, Register reg, Label label) {
-            return new Lock(name, address, reg, label);
+        public static Lock newLock(String name, IExpr address, Register reg) {
+            return new Lock(name, address, reg);
         }
 
-        public static Start newStart(Register reg, MemoryObject address, Label label) {
-            return new Start(reg, address, label);
+        public static Start newStart(Register reg, MemoryObject address) {
+            return new Start(reg, address);
         }
 
-        public static Unlock newUnlock(String name, IExpr address, Register reg, Label label) {
-            return new Unlock(name, address, reg, label);
+        public static Unlock newUnlock(String name, IExpr address, Register reg) {
+            return new Unlock(name, address, reg);
         }
     }
 
@@ -275,8 +254,19 @@ public class EventFactory {
         public static EndAtomic newEndAtomic(BeginAtomic begin) {
             return new EndAtomic(begin);
         }
-    }
 
+        public static LoopBegin newLoopBegin() {
+            return new LoopBegin();
+        }
+
+        public static LoopStart newLoopStart() {
+            return new LoopStart();
+        }
+
+        public static LoopEnd newLoopEnd() {
+            return new LoopEnd();
+        }
+    }
 
     // =============================================================================================
     // ============================================ ARM ============================================
@@ -323,6 +313,11 @@ public class EventFactory {
             public static Fence newISHLDBarrier() {
                 return new Fence ("DSB.ISHLD");
             }
+
+            public static Fence newISHSTBarrier() {
+                return new Fence("DMB.ISHST");
+            }
+
         }
 
     }
@@ -333,6 +328,14 @@ public class EventFactory {
     public static class Linux {
         private Linux() {}
 
+        public static LKMMLoad newLKMMLoad(Register reg, IExpr address, String mo) {
+        	return new LKMMLoad(reg, address, mo);
+        }
+        
+        public static LKMMStore newLKMMStore(IExpr address, ExprInterface value, String mo) {
+        	return new LKMMStore(address, value, mo);
+        }
+        
         public static RMWReadCondCmp newRMWReadCondCmp(Register reg, ExprInterface cmp, IExpr address, String atomic) {
             return new RMWReadCondCmp(reg, cmp, address, atomic);
         }
@@ -378,11 +381,31 @@ public class EventFactory {
         }
 
         public static Fence newMemoryBarrier() {
-            return newFence("Mb");
+            return new LKMMFence(Tag.Linux.MO_MB);
+        }
+
+        public static Fence newLKMMFence(String name) {
+            return new LKMMFence(name);
         }
 
         public static Fence newConditionalMemoryBarrier(RMWReadCond loadEvent) {
             return newConditionalBarrier(loadEvent, "Mb");
+        }
+
+        public static LKMMLockRead newLockRead(Register register, IExpr address) {
+            return new LKMMLockRead(register, address);
+        }
+
+        public static LKMMLockWrite newLockWrite(IExpr address) {
+            return new LKMMLockWrite(address);
+        }
+
+        public static LKMMLock newLock(IExpr address) {
+            return new LKMMLock(address);
+        }
+
+        public static LKMMUnlock newUnlock(IExpr address) {
+            return new LKMMUnlock(address);
         }
 
     }

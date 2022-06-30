@@ -1,6 +1,5 @@
 package com.dat3m.dartagnan.verification.solving;
 
-import com.dat3m.dartagnan.asserts.AssertTrue;
 import com.dat3m.dartagnan.encoding.ProgramEncoder;
 import com.dat3m.dartagnan.encoding.PropertyEncoder;
 import com.dat3m.dartagnan.encoding.SymmetryEncoder;
@@ -25,10 +24,6 @@ public class AssumeSolver {
         Result res = Result.UNKNOWN;
         
         task.preprocessProgram();
-       	if(task.getProgram().getAss() instanceof AssertTrue) {
-            logger.info("Verification finished: assertion trivially holds");
-       		return PASS;
-       	}
        	task.performStaticProgramAnalyses();
        	task.performStaticWmmAnalyses();
 
@@ -37,6 +32,12 @@ public class AssumeSolver {
         PropertyEncoder propertyEncoder = task.getPropertyEncoder();
         WmmEncoder wmmEncoder = task.getWmmEncoder();
         SymmetryEncoder symmEncoder = task.getSymmetryEncoder();
+
+        BooleanFormula propertyEncoding = propertyEncoder.encodeSpecification(task.getProperty(), ctx);
+        if(ctx.getFormulaManager().getBooleanFormulaManager().isFalse(propertyEncoding)) {
+            logger.info("Verification finished: property trivially holds");
+       		return PASS;        	
+        }
 
         logger.info("Starting encoding using " + ctx.getVersion());
         prover.addConstraint(programEncoder.encodeFullProgram(ctx));
@@ -47,9 +48,9 @@ public class AssumeSolver {
         prover.addConstraint(symmEncoder.encodeFullSymmetry(ctx));
 
         BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
-        BooleanFormula assumptionLiteral = bmgr.makeVariable("DAT3M_assertion_assumption");
-        BooleanFormula assumedAssertion = bmgr.implication(assumptionLiteral, propertyEncoder.encodeAssertions(ctx));
-        prover.addConstraint(assumedAssertion);
+        BooleanFormula assumptionLiteral = bmgr.makeVariable("DAT3M_spec_assumption");
+        BooleanFormula assumedSpec = bmgr.implication(assumptionLiteral, propertyEncoding);
+        prover.addConstraint(assumedSpec);
         
         logger.info("Starting first solver.check()");
         if(prover.isUnsatWithAssumptions(singletonList(assumptionLiteral))) {
@@ -60,6 +61,14 @@ public class AssumeSolver {
         	res = FAIL;
         }
     
+        if(logger.isDebugEnabled()) {        	
+    		String smtStatistics = "\n ===== SMT Statistics ===== \n";
+    		for(String key : prover.getStatistics().keySet()) {
+    			smtStatistics += String.format("\t%s -> %s\n", key, prover.getStatistics().get(key));
+    		}
+    		logger.debug(smtStatistics);
+        }
+
         res = task.getProgram().getAss().getInvert() ? res.invert() : res;
         logger.info("Verification finished with result " + res);        
         return res;

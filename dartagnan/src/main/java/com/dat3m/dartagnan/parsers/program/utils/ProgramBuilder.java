@@ -4,18 +4,24 @@ import com.dat3m.dartagnan.asserts.AbstractAssert;
 import com.dat3m.dartagnan.exception.MalformedProgramException;
 import com.dat3m.dartagnan.expression.IConst;
 import com.dat3m.dartagnan.program.Program;
+import com.dat3m.dartagnan.program.Program.SourceLanguage;
 import com.dat3m.dartagnan.program.Register;
 import com.dat3m.dartagnan.program.Thread;
 import com.dat3m.dartagnan.program.event.EventFactory;
+import com.dat3m.dartagnan.program.event.Tag;
 import com.dat3m.dartagnan.program.event.core.CondJump;
 import com.dat3m.dartagnan.program.event.core.Event;
 import com.dat3m.dartagnan.program.event.core.Label;
 import com.dat3m.dartagnan.program.event.core.Skip;
-import com.dat3m.dartagnan.program.memory.MemoryObject;
 import com.dat3m.dartagnan.program.memory.Memory;
+import com.dat3m.dartagnan.program.memory.MemoryObject;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
+import static com.dat3m.dartagnan.program.Program.SourceLanguage.LITMUS;
 import static com.google.common.base.Preconditions.checkArgument;
 
 public class ProgramBuilder {
@@ -32,14 +38,21 @@ public class ProgramBuilder {
     private AbstractAssert assFilter;
 
     private int lastOrigId = 0;
+    
+    private SourceLanguage format;
 
+    public ProgramBuilder(SourceLanguage format) {
+    	this.format = format;
+    }
+    
     public Program build(){
-        Program program = new Program(memory);
+        Program program = new Program(memory, format);
         buildInitThreads();
         for(Thread thread : threads.values()){
         	addChild(thread.getId(), getOrCreateLabel("END_OF_T" + thread.getId()));
             validateLabels(thread);
             program.add(thread);
+            thread.setProgram(program);
         }
         program.setAss(ass);
         program.setAssFilter(assFilter);
@@ -64,6 +77,10 @@ public class ProgramBuilder {
         }
         child.setOId(lastOrigId++);
         threads.get(thread).append(child);
+        // Every event in litmus tests is no-optimisable
+        if(format.equals(LITMUS)) {
+            child.addFilters(Tag.NOOPT);
+        }
         return child;
     }
 
@@ -141,9 +158,12 @@ public class ProgramBuilder {
     public Register getOrCreateRegister(int threadId, String name, int precision){
         initThread(threadId);
         Thread thread = threads.get(threadId);
+        if(name == null) {
+            return thread.newRegister(precision);
+        }
         Register register = thread.getRegister(name);
         if(register == null){
-            return thread.addRegister(name, precision);
+            return thread.newRegister(name, precision);
         }
         return register;
     }

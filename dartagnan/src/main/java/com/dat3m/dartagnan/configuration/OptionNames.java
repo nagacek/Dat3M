@@ -11,12 +11,16 @@ public class OptionNames {
 	public static final String TIMEOUT = "timeout";
 	public static final String VALIDATE = "validate";
 	
+	// Compilation Options
+	public static final String USE_RC11_TO_ARCH_SCHEME = "compilation.rc11ToArch";
+	public static final String C_TO_POWER_SCHEME = "compilation.cToPower";
+	
 	// Encoding Options
 	public static final String LOCALLY_CONSISTENT = "encoding.locallyConsistent";
 	public static final String ALLOW_PARTIAL_EXECUTIONS = "encoding.allowPartialExecutions";
 	public static final String MERGE_CF_VARS = "encoding.mergeCFVars";
+	public static final String INITIALIZE_REGISTERS = "encoding.initializeRegisters";
 	public static final String CO_ANTISYMMETRY = "encoding.co.antiSymm";
-	public static final String ENCODE_FINAL_MEMVALUES = "encoding.encodeFinalMemoryValues";
 	public static final String PRECISION = "encoding.precision";
 	public static final String BREAK_SYMMETRY_ON_RELATION = "encoding.symmetry.breakOnRelation";
 	public static final String BREAK_SYMMETRY_BY_SYNC_DEGREE = "encoding.symmetry.orderBySyncDegree";
@@ -40,7 +44,8 @@ public class OptionNames {
 
 	// Witness Options
 	public static final String WITNESS_ORIGINAL_PROGRAM_PATH = "witness.originalProgramFilePath";
-	
+	public static final String WITNESS_GRAPHVIZ = "witness.graphviz";
+
 	// SVCOMP Options
 	public static final String PROPERTYPATH = "svcomp.property";
 	public static final String UMIN = "svcomp.umin";
