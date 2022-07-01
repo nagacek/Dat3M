@@ -30,7 +30,7 @@ public class Compilation {
     	cflags = cflags.equals("") ? System.getenv().getOrDefault("CFLAGS", "") : cflags; 
         cmd.add("--clang-options=-I" + System.getenv("DAT3M_HOME") + "/include/smack -I" + 
         								System.getenv("DAT3M_HOME") + "/include/clang " + cflags);
-    	cmd.addAll(asList("-bpl", System.getenv("DAT3M_HOME") + "/output/" + name + ".bpl"));
+    	cmd.addAll(asList("-bpl", System.getenv("DAT3M_OUTPUT") + "/" + name + ".bpl"));
     	cmd.add(file.getAbsolutePath());
     	
 		logger.info("Compiling with smack");
@@ -57,7 +57,7 @@ public class Compilation {
 	public static void compileWithClang(File file, String cflags) throws Exception {
 		ArrayList<String> cmd = new ArrayList<String>();
     	cmd.addAll(asList("clang", "-S", "-I" + System.getenv("DAT3M_HOME") + "/include/clang", 
-    			"-o", System.getenv("DAT3M_HOME") + "/output/test.s"));
+    			"-o", System.getenv("DAT3M_OUTPUT") + "/test.s"));
     	// Needed to handle more than one flag in CFLAGS
     	cflags = cflags.equals("") ? System.getenv().getOrDefault("CFLAGS", "") : cflags;
     	for(String option : cflags.split(" ")) {
@@ -73,7 +73,7 @@ public class Compilation {
     		String errorString = CharStreams.toString(new InputStreamReader(proc.getErrorStream(), Charsets.UTF_8));
 			throw new Exception(errorString);
     	}
-    	File testFile = new File(System.getenv("DAT3M_HOME") + "/output/test.s");
+    	File testFile = new File(System.getenv("DAT3M_OUTPUT") + "/test.s");
     	testFile.delete();
 	}	
 
