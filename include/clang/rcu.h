@@ -53,8 +53,8 @@ void synchronize_rcu(void) {
     smp_mb();
 }
 #else
-#define rcu_read_lock() __LKMM_FENCE(RCU_LOCK)
-#define rcu_read_unlock() __LKMM_FENCE(RCU_UNLOCK)
-#define synchronize_rcu() __LKMM_FENCE(RCU_SYNC)
+#define rcu_read_lock() __LKMM_FENCE(rcu_lock)
+#define rcu_read_unlock() __LKMM_FENCE(rcu_unlock)
+#define synchronize_rcu() __LKMM_FENCE(rcu_sync)
 #define init_rcu()
 #endif
