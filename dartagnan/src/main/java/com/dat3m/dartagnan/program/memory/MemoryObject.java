@@ -150,7 +150,7 @@ public class MemoryObject extends IConst implements ExprInterface, LastValueInte
 
     @Override
     public String toString(){
-        return cVar != null ? cVar : "&mem" + index;
+        return cVar != null ? cVar : ("&mem" + index);
     }
 
     @Override

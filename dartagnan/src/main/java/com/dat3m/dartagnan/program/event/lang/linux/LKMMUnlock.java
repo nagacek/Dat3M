@@ -35,9 +35,6 @@ public class LKMMUnlock extends Store {
 	// Visitor
 	// -----------------------------------------------------------------------------------------------------------------
 
-	// Visitor
-	// -----------------------------------------------------------------------------------------------------------------
-
 	@Override
 	public <T> T accept(EventVisitor<T> visitor) {
 		return visitor.visitLKMMUnlock(this);

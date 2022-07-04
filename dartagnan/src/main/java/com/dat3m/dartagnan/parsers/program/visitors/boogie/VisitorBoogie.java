@@ -369,7 +369,7 @@ public class VisitorBoogie extends BoogieBaseVisitor<Object> implements BoogieVi
 			handleStdFunction(this, ctx);
 			return null;
 		}
-		if(LKMMPROCEDURES.stream().anyMatch(name::startsWith)) {
+		if(LKMMPROCEDURES.stream().anyMatch(name::equals)) {
 			handleLkmmFunction(this, ctx);
 			return null;
 		}
