@@ -20,6 +20,7 @@ RUN apt-get update && \
     apt-get install -y libcap-dev && \
     apt-get install -y cmake && \
     apt-get install -y udev && \
+    apt-get install -y graphviz && \
     apt-get install --no-install-recommends -y benchexec
 
 # Install SMACK
@@ -40,5 +41,6 @@ RUN cd home && \
 RUN ln -s clang-12 /usr/bin/clang
 
 ENV DAT3M_HOME=/home/Dat3M
+ENV DAT3M_OUTPUT=$DAT3M_HOME/output
 ENV CFLAGS="-I$DAT3M_HOME/include"
 ENV SMACK_FLAGS="-q -t --no-memory-splitting"
