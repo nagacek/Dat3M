@@ -187,6 +187,9 @@ public class ConstantPropagation implements ProgramProcessor {
     		ExprInterface lhs = evaluate(atom.getLHS(), map);
     		ExprInterface rhs = evaluate(atom.getRHS(), map);
 			COpBin op = atom.getOp();
+			// TODO the use of isSigned() makes the unit test ttas-5 fail under Power fail
+			// with bound 1 (a bound=2 is required for finding the violation). This is a bug
+			// because without CP the bug is found with bound=1 
 			return (lhs == TOP | rhs == TOP || op.isSigned()) ? TOP : new Atom(lhs, op, rhs).visit(simplifier);
     	}
     	if(input instanceof BExprUn) {
