@@ -3,29 +3,32 @@ package com.dat3m.dartagnan.program.event;
 public final class Tag {
     private Tag() { }
 
-    public static final String ANY          = "_";
-    public static final String INIT         = "IW";
-    public static final String READ         = "R";
-    public static final String WRITE        = "W";
-    public static final String MEMORY       = "M";
-    public static final String FENCE        = "F";
-    public static final String RMW          = "RMW";
-    public static final String EXCL         = "EXCL";
-    public static final String STRONG       = "STRONG";
-    public static final String LOCAL        = "T";
-    public static final String LABEL        = "LB";
-    public static final String CMP          = "C";
-    public static final String IFI          = "IFI";	// Internal jump in Ifs to goto end 
-    public static final String JUMP    		= "J";
-    public static final String VISIBLE      = "V";
-    public static final String REG_WRITER   = "rW";
-    public static final String REG_READER   = "rR";
-    public static final String ASSERTION    = "ASS";
-    public static final String BOUND   		= "BOUND";
-    public static final String SPINLOOP   	= "SPINLOOP";
+    public static final String ANY          	= "_";
+    public static final String INIT         	= "IW";
+    public static final String READ         	= "R";
+    public static final String WRITE        	= "W";
+    public static final String MEMORY       	= "M";
+    public static final String FENCE        	= "F";
+    public static final String RMW          	= "RMW";
+    public static final String EXCL         	= "EXCL";
+    public static final String STRONG       	= "STRONG";
+    // For SC events in RISCV and Power, addresses should match
+    public static final String MATCHADDRESS     = "MATCHADDRESS";
+    public static final String LOCAL        	= "T";
+    public static final String LABEL        	= "LB";
+    public static final String CMP          	= "C";
+    public static final String IFI          	= "IFI";	// Internal jump in Ifs to goto end 
+    public static final String JUMP    			= "J";
+    public static final String VISIBLE      	= "V";
+    public static final String REG_WRITER   	= "rW";
+    public static final String REG_READER   	= "rR";
+    public static final String ASSERTION    	= "ASS";
+    public static final String BOUND   			= "BOUND";
+    public static final String EARLYTERMINATION	= "EARLYTERMINATION";
+    public static final String SPINLOOP   		= "SPINLOOP";
     // Some events should not be optimized (e.g. fake dependencies) or deleted (e.g. bounds)
-    public static final String NOOPT   		= "NOOPT";
-    public static final String ANNOTATION   = "ANNOTATION";
+    public static final String NOOPT   			= "NOOPT";
+    public static final String ANNOTATION   	= "ANNOTATION";
 
     // =============================================================================================
     // =========================================== ARMv8 ===========================================
@@ -54,6 +57,44 @@ public final class Tag {
 
         public static String extractLoadMoFromLKMo(String lkMo) {
             return lkMo.equals(Tag.Linux.MO_ACQUIRE) ? Tag.ARMv8.MO_ACQ : null;
+        }
+
+    }
+
+    // =============================================================================================
+    // =========================================== RISCV ===========================================
+    // =============================================================================================
+
+    public static final class RISCV {
+        private RISCV() { }
+
+        public static final String MO_ACQ 		= "Acq";
+        public static final String MO_REL 		= "Rel";
+        public static final String MO_ACQ_REL 	= "AcqRel";
+
+        // Store conditional
+        public static final String STCOND	 	= "X";
+        
+        public static String fromC11Mo(String cMo) {
+        	switch (cMo) {
+			case C11.MO_ACQUIRE:
+				return MO_ACQ;
+			case C11.MO_RELEASE:
+				return MO_REL;
+			case C11.MO_ACQUIRE_RELEASE:
+			case C11.MO_SC:
+				return MO_ACQ_REL;
+			default:
+				return null;
+			}
+        }
+        
+        public static String extractStoreMoFromCMo(String cMo) {
+            return cMo.equals(C11.MO_SC) || cMo.equals(C11.MO_RELEASE) || cMo.equals(C11.MO_ACQUIRE_RELEASE) ? MO_REL : null;
+        }
+
+        public static String extractLoadMoFromCMo(String cMo) {
+            return cMo.equals(C11.MO_SC) || cMo.equals(C11.MO_ACQUIRE) || cMo.equals(C11.MO_ACQUIRE_RELEASE) ? MO_ACQ : null;
         }
 
     }
