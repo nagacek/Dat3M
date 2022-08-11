@@ -44,7 +44,7 @@ for METHOD in ${METHODS[@]}; do
             start=`python3 -c 'import time; print(int(time.time() * 1000))'`
             for i in 1 2 3
             do
-                OUTPUT=$(timeout $TIMEOUT java -Xmx2048m -jar dartagnan/target/dartagnan-3.0.0.jar cat/$CAT --bound=2 --target=imm --method=$MOPT --solver=$SOLVER $BPL_PATH$BENCHMARK.bpl)
+                OUTPUT=$(timeout $TIMEOUT java -Xmx4g -jar dartagnan/target/dartagnan-3.0.0.jar cat/$CAT --bound=2 --target=imm --method=$MOPT --solver=$SOLVER $BPL_PATH$BENCHMARK.bpl)
             done
             end=`python3 -c 'import time; print(int(time.time() * 1000))'`
             TIME=$(($((end-start))/3))
