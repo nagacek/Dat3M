@@ -26,10 +26,15 @@ for METHOD in ${METHODS[@]}; do
     ## We use METHOD for file names and MOPT to call the tool
     MOPT=$METHOD
 
-    ## Update memory model for cutting
+    ## Update memory model for caat
     if [[ "$METHOD" == "caat" ]]
     then
         CAT=riscv.cat
+    fi
+
+    ## Update method for cutting
+    if [[ "$METHOD" == "cutting" ]]
+    then
         MOPT="caat"
     fi
 
