@@ -19,7 +19,7 @@ NIDHUGG_FAIL="Assertion violation"
 declare -a BENCHMARKS=( "locks/ttas-5" "locks/ticketlock-6" "locks/mutex-4" "locks/spinlock-5" "locks/linuxrwlock-3" "locks/mutex_musl-4" "lfds/safe_stack-3" "lfds/chase-lev-5" "lfds/dglm-3" "lfds/harris-3" "lfds/ms-3" "lfds/treiber-3" )
 declare -a METHODS=( "caat assume cutting" )
 
-CAT=riscv.cat
+CAT=riscv-orig.cat
 
 for METHOD in ${METHODS[@]}; do
 
@@ -27,9 +27,9 @@ for METHOD in ${METHODS[@]}; do
     MOPT=$METHOD
 
     ## Update memory model for cutting
-    if [[ "$METHOD" == "cutting" ]]
+    if [[ "$METHOD" == "caat" ]]
     then
-        CAT=riscv-orig.cat
+        CAT=riscv.cat
         MOPT="caat"
     fi
 
