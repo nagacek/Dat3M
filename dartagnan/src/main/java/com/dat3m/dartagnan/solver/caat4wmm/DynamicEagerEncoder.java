@@ -12,6 +12,18 @@ import java.util.List;
 
 public class DynamicEagerEncoder {
 
+    public static TupleSetMap determineEncodedTuples(TupleSetMap chosen, DependencyGraph<Relation> rels) {
+        TupleSetMap toEncode = new TupleSetMap();
+        for (var entry : chosen.getEntries()) {
+            Relation next = getRelationFromName(rels.getNodeContents(), entry.getKey());
+            // TODO: Find out what is going on with RelTransRef
+            if (next != null && next.getDependencies() != null && next.getDependencies().size() > 0 && !(next instanceof RelTransRef)) {
+                toEncode.merge(next.addEncodeTupleSet(entry.getValue()));
+            }
+        }
+        return toEncode;
+    }
+
     public static BooleanFormula encodeEagerly(TupleSetMap toEncode, DependencyGraph<Relation> rels, SolverContext ctx) {
         BooleanFormulaManager manager = ctx.getFormulaManager().getBooleanFormulaManager();
         BooleanFormula eagerEncoding = manager.makeTrue();

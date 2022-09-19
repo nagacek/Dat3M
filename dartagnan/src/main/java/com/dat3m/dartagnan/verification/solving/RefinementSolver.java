@@ -34,6 +34,7 @@ import com.dat3m.dartagnan.wmm.relation.binary.RelIntersection;
 import com.dat3m.dartagnan.wmm.relation.binary.RelMinus;
 import com.dat3m.dartagnan.wmm.relation.binary.RelUnion;
 import com.dat3m.dartagnan.wmm.utils.RelationRepository;
+import com.dat3m.dartagnan.wmm.utils.TupleSet;
 import com.dat3m.dartagnan.wmm.utils.TupleSetMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -204,9 +205,10 @@ public class RefinementSolver extends ModelChecker {
                 prover.addConstraint(refinement);
                 globalRefinement = bmgr.and(globalRefinement, refinement); // Track overall refinement progress
                 // handle edges used natively in CAAT (aka edges in non-semi-positive relations)
-                TupleSetMap edgesToBeEncoded = solverResult.getDynamicallyCut();
-                refiner.permute(edgesToBeEncoded);
+                TupleSetMap permutedEdges = solverResult.getDynamicallyCut();
+                refiner.permute(permutedEdges);
                 DependencyGraph<Relation> rels = memoryModel.getRelationDependencyGraph();
+                TupleSetMap edgesToBeEncoded = DynamicEagerEncoder.determineEncodedTuples(permutedEdges, rels);
                 BooleanFormula dynamicCut = DynamicEagerEncoder.encodeEagerly(edgesToBeEncoded.difference(encodedEagerly), rels, ctx);
                 prover.addConstraint(dynamicCut);
                 globalRefinement = bmgr.and(globalRefinement, dynamicCut);
