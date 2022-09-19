@@ -8,6 +8,7 @@ import com.dat3m.dartagnan.verification.VerificationTask;
 import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
+import com.dat3m.dartagnan.wmm.utils.TupleSetMap;
 import com.google.common.collect.Sets;
 import org.sosy_lab.java_smt.api.BooleanFormula;
 import org.sosy_lab.java_smt.api.BooleanFormulaManager;
@@ -76,7 +77,7 @@ public class RelTransRef extends RelTrans {
     // However, the encoding does not care about the encodeSet and instead encodes (transEncode + identityEncode)
     // which is what the encodeSet of this relation should be
     @Override
-    public void addEncodeTupleSet(TupleSet tuples){
+    public TupleSetMap addEncodeTupleSet(TupleSet tuples){
         TupleSet activeSet = new TupleSet(Sets.intersection(Sets.difference(tuples, encodeTupleSet), maxTupleSet));
         encodeTupleSet.addAll(activeSet);
 
@@ -89,15 +90,27 @@ public class RelTransRef extends RelTrans {
 
         TupleSet temp = encodeTupleSet;
         encodeTupleSet = transEncodeTupleSet;
-        super.addEncodeTupleSet(activeSet);
+        TupleSetMap map = super.addEncodeTupleSet(activeSet);
         encodeTupleSet = temp;
+
+        return map;
+    }
+    @Override
+    protected BooleanFormula encodeApprox(SolverContext ctx) {
+        return invokeEncode(super::encodeApprox, ctx);
     }
 
     @Override
-    protected BooleanFormula encodeApprox(SolverContext ctx) {
-    	return invokeEncode(super::encodeApprox, ctx);
-    }
+    public BooleanFormula encodeApprox(SolverContext ctx, TupleSet toEncode) {
+        BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
+        BooleanFormula enc = super.encodeApprox(ctx, toEncode);
 
+        // As identityEncodeTupleSet is not tracked
+        for(Tuple tuple : identityEncodeTupleSet){
+            enc = bmgr.and(enc, bmgr.equivalence(tuple.getFirst().exec(), this.getSMTVar(tuple, ctx)));
+        }
+        return enc;
+    }
     private BooleanFormula invokeEncode(Function<SolverContext, BooleanFormula> originalMethod, SolverContext ctx) {
         BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
 

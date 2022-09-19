@@ -58,12 +58,17 @@ public class RelLoc extends Relation {
 
     @Override
     protected BooleanFormula encodeApprox(SolverContext ctx) {
-    	FormulaManager fmgr = ctx.getFormulaManager();
-		BooleanFormulaManager bmgr = fmgr.getBooleanFormulaManager();
+        return encodeApprox(ctx, encodeTupleSet);
+    }
 
-    	BooleanFormula enc = bmgr.makeTrue();
-        for(Tuple tuple : encodeTupleSet) {
-        	BooleanFormula rel = this.getSMTVar(tuple, ctx);
+    @Override
+    public BooleanFormula encodeApprox(SolverContext ctx, TupleSet toEncode) {
+        FormulaManager fmgr = ctx.getFormulaManager();
+        BooleanFormulaManager bmgr = fmgr.getBooleanFormulaManager();
+
+        BooleanFormula enc = bmgr.makeTrue();
+        for(Tuple tuple : toEncode) {
+            BooleanFormula rel = this.getSMTVar(tuple, ctx);
             enc = bmgr.and(enc, bmgr.equivalence(rel, bmgr.and(
                     getExecPair(tuple, ctx),
                     Utils.generalEqual(

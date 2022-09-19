@@ -18,9 +18,12 @@ import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.relation.base.stat.RelFencerel;
 import com.dat3m.dartagnan.wmm.utils.RelationRepository;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
+import com.dat3m.dartagnan.wmm.utils.TupleSet;
+import com.dat3m.dartagnan.wmm.utils.TupleSetMap;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static com.dat3m.dartagnan.wmm.relation.RelationNameRepository.*;
 
@@ -38,7 +41,7 @@ public class CoreReasoner {
     }
 
 
-    public Conjunction<CoreLiteral> toCoreReason(Conjunction<CAATLiteral> baseReason) {
+    public Conjunction<CoreLiteral> toCoreReason(Conjunction<CAATLiteral> baseReason, Set<String> dynamicallyCut, TupleSetMap notBase) {
 
         RelationRepository repo = memoryModel.getRelationRepository();
         EventDomain domain = executionGraph.getDomain();
@@ -67,6 +70,11 @@ public class CoreReasoner {
                     if (rel.getName().equals(RF) || rel.getName().equals(CO)
                             || executionGraph.getCutRelations().contains(rel)) {
                         coreReason.add(new RelLiteral(rel.getName(), tuple, lit.isNegative()));
+                    } else if (dynamicallyCut != null && dynamicallyCut.contains(rel.getName())) {
+                        coreReason.add(new RelLiteral(rel.getName(), tuple, lit.isNegative()));
+                        TupleSet set = new TupleSet();
+                        set.add(tuple);
+                        notBase.merge(new TupleSetMap(rel.getName(), set));
                     } else if (rel.getName().equals(LOC)) {
                         coreReason.add(new AddressLiteral(tuple, lit.isNegative()));
                     } else if (rel instanceof RelFencerel) {

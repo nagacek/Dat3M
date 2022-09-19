@@ -63,12 +63,17 @@ public class RelIntersection extends BinaryRelation {
     }
 
     @Override
-    public BooleanFormula encodeApprox(SolverContext ctx) {
-    	BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
-		BooleanFormula enc = bmgr.makeTrue();
+    protected BooleanFormula encodeApprox(SolverContext ctx) {
+        return encodeApprox(ctx, encodeTupleSet);
+    }
+
+    @Override
+    public BooleanFormula encodeApprox(SolverContext ctx, TupleSet toEncode) {
+        BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
+        BooleanFormula enc = bmgr.makeTrue();
 
         TupleSet min = getMinTupleSet();
-        for(Tuple tuple : encodeTupleSet){
+        for(Tuple tuple : toEncode){
             if (min.contains(tuple)) {
                 enc = bmgr.and(enc, bmgr.equivalence(this.getSMTVar(tuple, ctx), getExecPair(tuple, ctx)));
                 continue;

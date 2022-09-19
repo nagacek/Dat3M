@@ -7,11 +7,13 @@ import com.dat3m.dartagnan.encoding.SymmetryEncoder;
 import com.dat3m.dartagnan.encoding.WmmEncoder;
 import com.dat3m.dartagnan.program.Program;
 import com.dat3m.dartagnan.solver.caat.CAATSolver;
+import com.dat3m.dartagnan.solver.caat4wmm.DynamicEagerEncoder;
 import com.dat3m.dartagnan.solver.caat4wmm.Refiner;
 import com.dat3m.dartagnan.solver.caat4wmm.WMMSolver;
 import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.CoreLiteral;
 import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.RelLiteral;
 import com.dat3m.dartagnan.utils.Result;
+import com.dat3m.dartagnan.utils.dependable.DependencyGraph;
 import com.dat3m.dartagnan.utils.logic.Conjunction;
 import com.dat3m.dartagnan.utils.logic.DNF;
 import com.dat3m.dartagnan.verification.Context;
@@ -32,6 +34,7 @@ import com.dat3m.dartagnan.wmm.relation.binary.RelIntersection;
 import com.dat3m.dartagnan.wmm.relation.binary.RelMinus;
 import com.dat3m.dartagnan.wmm.relation.binary.RelUnion;
 import com.dat3m.dartagnan.wmm.utils.RelationRepository;
+import com.dat3m.dartagnan.wmm.utils.TupleSetMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.sosy_lab.common.configuration.Configuration;
@@ -108,11 +111,16 @@ public class RefinementSolver extends ModelChecker {
                 .withConfig(task.getConfig()).build(program, baselineModel, task.getProperty());
 
         preprocessProgram(task, config);
+        // TODO: Check whether static cutting is still necessary and remove artifacts if it is not.
         // We cut the rhs of differences to get a semi-positive model, if possible.
         // This call modifies the baseline model!
-        Set<Relation> cutRelations = cutRelationDifferences(memoryModel, baselineModel);
+        //Set<Relation> cutRelations = cutRelationDifferences(memoryModel, baselineModel);
+        Set<Relation> cutRelations = new HashSet<>();
         memoryModel.configureAll(config);
         baselineModel.configureAll(config); // Configure after cutting!
+
+        // Keep track of edges that have been encoded eagerly
+        TupleSetMap encodedEagerly = new TupleSetMap();
 
         performStaticProgramAnalyses(task, analysisContext, config);
         Context baselineContext = Context.createCopyFrom(analysisContext);
@@ -130,7 +138,6 @@ public class RefinementSolver extends ModelChecker {
 
         BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
         BooleanFormula globalRefinement = bmgr.makeTrue();
-
         WMMSolver solver = new WMMSolver(task, analysisContext, cutRelations);
         Refiner refiner = new Refiner(memoryModel, analysisContext);
         CAATSolver.Status status = INCONSISTENT;
@@ -196,6 +203,13 @@ public class RefinementSolver extends ModelChecker {
                 BooleanFormula refinement = refiner.refine(reasons, ctx);
                 prover.addConstraint(refinement);
                 globalRefinement = bmgr.and(globalRefinement, refinement); // Track overall refinement progress
+                // handle edges used natively in CAAT (aka edges in non-semi-positive relations)
+                TupleSetMap edgesToBeEncoded = solverResult.getDynamicallyCut();
+                refiner.permute(edgesToBeEncoded);
+                DependencyGraph<Relation> rels = memoryModel.getRelationDependencyGraph();
+                BooleanFormula dynamicCut = DynamicEagerEncoder.encodeEagerly(edgesToBeEncoded.difference(encodedEagerly), rels, ctx);
+                prover.addConstraint(dynamicCut);
+                globalRefinement = bmgr.and(globalRefinement, dynamicCut);
                 totalRefiningTime += (System.currentTimeMillis() - refineTime);
 
                 if (REFINEMENT_GENERATE_GRAPHVIZ_DEBUG_FILES) {

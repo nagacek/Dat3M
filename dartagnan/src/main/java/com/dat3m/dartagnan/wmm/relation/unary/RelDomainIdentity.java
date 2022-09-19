@@ -5,6 +5,7 @@ import com.dat3m.dartagnan.program.event.core.Event;
 import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
+import com.dat3m.dartagnan.wmm.utils.TupleSetMap;
 import com.google.common.collect.Sets;
 import org.sosy_lab.java_smt.api.BooleanFormula;
 import org.sosy_lab.java_smt.api.BooleanFormulaManager;
@@ -46,11 +47,13 @@ public class RelDomainIdentity extends UnaryRelation {
         }
         return maxTupleSet;
     }
-
     @Override
-    public void addEncodeTupleSet(TupleSet tuples){
+    public TupleSetMap addEncodeTupleSet(TupleSet tuples){
         TupleSet activeSet = new TupleSet(Sets.intersection(Sets.difference(tuples, encodeTupleSet), maxTupleSet));
+        TupleSet oldEncodeSet = new TupleSet(encodeTupleSet);
         encodeTupleSet.addAll(activeSet);
+        TupleSet difference = new TupleSet(Sets.difference(encodeTupleSet, oldEncodeSet));
+        TupleSetMap map = new TupleSetMap(getName(), difference);
         activeSet.removeAll(getMinTupleSet());
 
         //TODO: Optimize using minSets (but no CAT uses this anyway)
@@ -60,16 +63,22 @@ public class RelDomainIdentity extends UnaryRelation {
                 r1Set.addAll(r1.getMaxTupleSet().getByFirst(tuple.getFirst()));
 
             }
-            r1.addEncodeTupleSet(r1Set);
+            map.merge(r1.addEncodeTupleSet(r1Set));
         }
+        return map;
     }
 
     @Override
     protected BooleanFormula encodeApprox(SolverContext ctx) {
-    	BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
-		BooleanFormula enc = bmgr.makeTrue();
+        return encodeApprox(ctx, encodeTupleSet);
+    }
 
-        for(Tuple tuple1 : encodeTupleSet){
+    @Override
+    public BooleanFormula encodeApprox(SolverContext ctx, TupleSet toEncode) {
+        BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
+        BooleanFormula enc = bmgr.makeTrue();
+
+        for(Tuple tuple1 : toEncode){
             Event e = tuple1.getFirst();
             BooleanFormula opt = bmgr.makeFalse();
             //TODO: Optimize using minSets (but no CAT uses this anyway)

@@ -38,11 +38,16 @@ public abstract class StaticRelation extends Relation {
 
     @Override
     protected BooleanFormula encodeApprox(SolverContext ctx) {
-    	BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
-		BooleanFormula enc = bmgr.makeTrue();
+        return encodeApprox(ctx, encodeTupleSet);
+    }
 
-        for(Tuple tuple : encodeTupleSet) {
-        	BooleanFormula rel = this.getSMTVar(tuple, ctx);
+    @Override
+    public BooleanFormula encodeApprox(SolverContext ctx, TupleSet toEncode) {
+        BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
+        BooleanFormula enc = bmgr.makeTrue();
+
+        for(Tuple tuple : toEncode) {
+            BooleanFormula rel = this.getSMTVar(tuple, ctx);
             enc = bmgr.and(enc, bmgr.equivalence(rel, bmgr.and(getExecPair(tuple, ctx))));
         }
         return enc;

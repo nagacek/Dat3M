@@ -14,6 +14,9 @@ import com.dat3m.dartagnan.utils.logic.DNF;
 import com.dat3m.dartagnan.verification.Context;
 import com.dat3m.dartagnan.wmm.Wmm;
 import com.dat3m.dartagnan.wmm.relation.Relation;
+import com.dat3m.dartagnan.wmm.utils.Tuple;
+import com.dat3m.dartagnan.wmm.utils.TupleSet;
+import com.dat3m.dartagnan.wmm.utils.TupleSetMap;
 import org.sosy_lab.java_smt.api.BooleanFormula;
 import org.sosy_lab.java_smt.api.BooleanFormulaManager;
 import org.sosy_lab.java_smt.api.SolverContext;
@@ -74,6 +77,32 @@ public class Refiner {
             }
         }
         return refinement;
+    }
+
+    public void permute(TupleSetMap edges) {
+        for (String name : edges.getRelationNames()) {
+            TupleSet permuted = applyAll(edges.get(name));
+            TupleSetMap add = new TupleSetMap(name, permuted);
+            edges.merge(add);
+        }
+    }
+
+    private TupleSet applyAll(TupleSet tuples) {
+        TupleSet returnSet = new TupleSet();
+        for (Tuple tuple : tuples) {
+            returnSet.addAll(applyAll(tuple));
+        }
+        return returnSet;
+    }
+
+    private TupleSet applyAll(Tuple tuple) {
+        TupleSet set = new TupleSet();
+        for (Function<Event, Event> perm : symmPermutations) {
+            Event ev1 = perm.apply(tuple.getFirst());
+            Event ev2 = perm.apply(tuple.getSecond());
+            set.add(new Tuple(ev1, ev2));
+        }
+        return set;
     }
 
     // Computes a list of permutations allowed by the program.

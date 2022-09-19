@@ -125,7 +125,10 @@ public class RelRMW extends StaticRelation {
     }
 
     @Override
-    protected BooleanFormula encodeApprox(SolverContext ctx) {
+    protected BooleanFormula encodeApprox(SolverContext ctx) { return encodeApprox(ctx, encodeTupleSet); }
+
+    @Override
+    public BooleanFormula encodeApprox(SolverContext ctx, TupleSet toEncode) {
         FormulaManager fmgr = ctx.getFormulaManager();
 		BooleanFormulaManager bmgr = fmgr.getBooleanFormulaManager();
         BooleanFormula enc = bmgr.makeTrue();
@@ -156,7 +159,7 @@ public class RelRMW extends StaticRelation {
         }
 
         final AliasAnalysis alias = analysisContext.requires(AliasAnalysis.class);
-        for(Tuple tuple : encodeTupleSet) {
+        for(Tuple tuple : toEncode) {
             MemEvent load = (MemEvent) tuple.getFirst();
             MemEvent store = (MemEvent) tuple.getSecond();
             BooleanFormula sameAddress = (alias.mustAlias(load, store) || store.is(Tag.MATCHADDRESS)) ? bmgr.makeTrue()

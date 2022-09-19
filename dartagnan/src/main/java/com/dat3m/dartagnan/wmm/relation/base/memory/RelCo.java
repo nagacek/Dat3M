@@ -120,6 +120,11 @@ public class RelCo extends Relation {
     }
 
     @Override
+    public BooleanFormula encodeApprox(SolverContext ctx, TupleSet toEncode) {
+        return encodeApprox(ctx);
+    }
+
+    @Override
     protected BooleanFormula encodeApprox(SolverContext ctx) {
         final BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
         final boolean doEncodeLastCo = task.getProgram().getFormat().equals(LITMUS) || task.getProperty().contains(LIVENESS);

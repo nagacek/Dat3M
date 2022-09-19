@@ -92,12 +92,16 @@ public class RelFencerel extends StaticRelation {
 
     @Override
     protected BooleanFormula encodeApprox(SolverContext ctx) {
-    	BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
-		BooleanFormula enc = bmgr.makeTrue();
+        return encodeApprox(ctx, encodeTupleSet);
+    }
+    @Override
+    public BooleanFormula encodeApprox(SolverContext ctx, TupleSet toEncode) {
+        BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
+        BooleanFormula enc = bmgr.makeTrue();
 
         List<Event> fences = task.getProgram().getCache().getEvents(FilterBasic.get(fenceName));
 
-        for(Tuple tuple : encodeTupleSet){
+        for(Tuple tuple : toEncode){
             Event e1 = tuple.getFirst();
             Event e2 = tuple.getSecond();
 

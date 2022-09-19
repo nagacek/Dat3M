@@ -12,6 +12,7 @@ import com.dat3m.dartagnan.verification.VerificationTask;
 import com.dat3m.dartagnan.verification.model.ExecutionModel;
 import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import com.dat3m.dartagnan.wmm.relation.Relation;
+import com.dat3m.dartagnan.wmm.utils.TupleSetMap;
 import org.sosy_lab.java_smt.api.Model;
 import org.sosy_lab.java_smt.api.SolverContext;
 
@@ -63,9 +64,12 @@ public class WMMSolver {
             // ============== Compute Core reasons ==============
             curTime = System.currentTimeMillis();
             List<Conjunction<CoreLiteral>> coreReasons = new ArrayList<>(caatResult.getBaseReasons().getNumberOfCubes());
+            Set<String> assumedRelations = caatResult.getAssumedRelations();
+            TupleSetMap edgesToBeEncoded = new TupleSetMap();
             for (Conjunction<CAATLiteral> baseReason : caatResult.getBaseReasons().getCubes()) {
-                coreReasons.add(reasoner.toCoreReason(baseReason));
+                coreReasons.add(reasoner.toCoreReason(baseReason, assumedRelations, edgesToBeEncoded));
             }
+            result.dynamicallyCut = edgesToBeEncoded;
             stats.numComputedCoreReasons = coreReasons.size();
             result.coreReasons = new DNF<>(coreReasons);
             stats.numComputedReducedCoreReasons = result.coreReasons.getNumberOfCubes();
@@ -82,10 +86,12 @@ public class WMMSolver {
         private CAATSolver.Status status;
         private DNF<CoreLiteral> coreReasons;
         private Statistics stats;
+        private TupleSetMap dynamicallyCut;
 
         public CAATSolver.Status getStatus() { return status; }
         public DNF<CoreLiteral> getCoreReasons() { return coreReasons; }
         public Statistics getStatistics() { return stats; }
+        public TupleSetMap getDynamicallyCut() { return dynamicallyCut; }
 
         Result() {
             status = CAATSolver.Status.INCONCLUSIVE;

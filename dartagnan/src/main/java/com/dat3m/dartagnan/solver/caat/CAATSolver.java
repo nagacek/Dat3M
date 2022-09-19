@@ -8,8 +8,11 @@ import com.dat3m.dartagnan.solver.caat.reasoning.Reasoner;
 import com.dat3m.dartagnan.utils.logic.Conjunction;
 import com.dat3m.dartagnan.utils.logic.DNF;
 
+import java.io.StringReader;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static com.dat3m.dartagnan.solver.caat.CAATSolver.Status.CONSISTENT;
 import static com.dat3m.dartagnan.solver.caat.CAATSolver.Status.INCONSISTENT;
@@ -73,7 +76,8 @@ public class CAATSolver {
         if (status == INCONSISTENT) {
             // ============== Compute reasons ===============
             curTime = System.currentTimeMillis();
-            result.setBaseReasons(computeInconsistencyReasons(violatedConstraints));
+            Set<String> assumedAsBaseRelations = new HashSet<>();
+            result.setBaseReasons(computeInconsistencyReasons(violatedConstraints, assumedAsBaseRelations));
             stats.reasonComputationTime += (System.currentTimeMillis() - curTime);
         }
 
@@ -82,10 +86,10 @@ public class CAATSolver {
 
     // ======================================== Reason computation ==============================================
 
-    private DNF<CAATLiteral> computeInconsistencyReasons(List<Constraint> violatedConstraints) {
+    private DNF<CAATLiteral> computeInconsistencyReasons(List<Constraint> violatedConstraints, Set<String> toCut) {
         List<Conjunction<CAATLiteral>> reasons = new ArrayList<>();
         for (Constraint constraint : violatedConstraints) {
-            reasons.addAll(reasoner.computeViolationReasons(constraint).getCubes());
+            reasons.addAll(reasoner.computeViolationReasons(constraint, toCut).getCubes());
         }
         stats.numComputedReasons += reasons.size();
         DNF<CAATLiteral> result = new DNF<>(reasons); // The conversion to DNF removes duplicates and dominated clauses
@@ -100,10 +104,12 @@ public class CAATSolver {
         private Status status;
         private DNF<CAATLiteral> baseReasons;
         private final Statistics stats;
+        private Set<String> assumeAsBaseRelations;
 
         public Status getStatus() { return status; }
         public DNF<CAATLiteral> getBaseReasons() { return baseReasons; }
         public Statistics getStatistics() { return stats; }
+        public Set<String> getAssumedRelations() { return assumeAsBaseRelations; }
 
         void setStatus(Status status) { this.status = status; }
         void setBaseReasons(DNF<CAATLiteral> reasons) {

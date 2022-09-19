@@ -166,6 +166,11 @@ public class RelRf extends Relation {
     }
 
     @Override
+    public BooleanFormula encodeApprox(SolverContext ctx, TupleSet toEncode) {
+        return encodeApprox(ctx);
+    }
+
+    @Override
     protected BooleanFormula encodeApprox(SolverContext ctx) {
     	FormulaManager fmgr = ctx.getFormulaManager();
 		BooleanFormulaManager bmgr = fmgr.getBooleanFormulaManager();

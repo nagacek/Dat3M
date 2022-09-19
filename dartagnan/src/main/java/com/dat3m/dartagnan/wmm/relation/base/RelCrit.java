@@ -2,11 +2,13 @@ package com.dat3m.dartagnan.wmm.relation.base;
 
 import com.dat3m.dartagnan.program.Thread;
 import com.dat3m.dartagnan.program.analysis.ExecutionAnalysis;
+import com.dat3m.dartagnan.program.event.Tag;
 import com.dat3m.dartagnan.program.event.core.Event;
 import com.dat3m.dartagnan.program.filter.FilterBasic;
 import com.dat3m.dartagnan.wmm.relation.base.stat.StaticRelation;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
+import com.dat3m.dartagnan.wmm.utils.TupleSetMap;
 import org.sosy_lab.java_smt.api.BooleanFormula;
 import org.sosy_lab.java_smt.api.BooleanFormulaManager;
 import org.sosy_lab.java_smt.api.SolverContext;
@@ -77,12 +79,15 @@ public class RelCrit extends StaticRelation {
     }
 
     @Override
-    public void addEncodeTupleSet(TupleSet tuples) {
+    public TupleSetMap addEncodeTupleSet(TupleSet tuples) {
         Queue<Tuple> queue = new ArrayDeque<>(intersection(tuples, maxTupleSet));
+        TupleSet newEntries = new TupleSet();
         while (!queue.isEmpty()) {
             Tuple tuple = queue.remove();
             if (!encodeTupleSet.add(tuple)) {
                 continue;
+            } else {
+                newEntries.add(tuple);
             }
             Event lock = tuple.getFirst();
             Event unlock = tuple.getSecond();
@@ -97,13 +102,19 @@ public class RelCrit extends StaticRelation {
                 }
             }
         }
+        return new TupleSetMap(getName(), newEntries);
     }
 
     @Override
     protected BooleanFormula encodeApprox(SolverContext ctx) {
+        return encodeApprox(ctx, encodeTupleSet);
+    }
+
+    @Override
+    public BooleanFormula encodeApprox(SolverContext ctx, TupleSet toEncode) {
     	BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
 		BooleanFormula enc = bmgr.makeTrue();
-        for (Tuple tuple : encodeTupleSet) {
+        for (Tuple tuple : toEncode) {
             Event lock = tuple.getFirst();
             Event unlock = tuple.getSecond();
             BooleanFormula relation = getExecPair(tuple, ctx);

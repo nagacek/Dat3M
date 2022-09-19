@@ -28,7 +28,7 @@ public class Reasoner {
 
     // ========================== Reason computation ==========================
 
-    public DNF<CAATLiteral> computeViolationReasons(Constraint constraint) {
+    public DNF<CAATLiteral> computeViolationReasons(Constraint constraint, Set<String> toCut) {
         if (!constraint.checkForViolations()) {
             return DNF.FALSE();
         }
@@ -47,14 +47,14 @@ public class Reasoner {
 
             for (Collection<Edge> violation : (Collection<Collection<Edge>>)violations) {
                 Conjunction<CAATLiteral> reason = violation.stream()
-                        .map(edge -> reasonMap.computeIfAbsent(edge, key -> computeReason(constrainedGraph, key)))
+                        .map(edge -> reasonMap.computeIfAbsent(edge, key -> computeReason(constrainedGraph, key, toCut)))
                         .reduce(Conjunction.TRUE(), Conjunction::and);
                 reasonList.add(reason);
             }
         } else {
             for (Collection<? extends Derivable> violation : violations) {
                 Conjunction<CAATLiteral> reason = violation.stream()
-                        .map(edge -> computeReason(pred, edge))
+                        .map(edge -> computeReason(pred, edge, toCut))
                         .reduce(Conjunction.TRUE(), Conjunction::and);
                 reasonList.add(reason);
             }
@@ -63,9 +63,9 @@ public class Reasoner {
         return new DNF<>(reasonList);
     }
 
-    public Conjunction<CAATLiteral> computeReason(CAATPredicate pred, Derivable prop) {
+    public Conjunction<CAATLiteral> computeReason(CAATPredicate pred, Derivable prop, Set<String> toCut) {
         if (pred instanceof RelationGraph && prop instanceof Edge) {
-            return computeReason((RelationGraph) pred, (Edge) prop);
+            return computeReason((RelationGraph) pred, (Edge) prop, toCut);
         } else if (pred instanceof SetPredicate && prop instanceof Element) {
             return computeReason((SetPredicate) pred, (Element) prop);
         } else {
@@ -74,12 +74,12 @@ public class Reasoner {
     }
 
 
-    public Conjunction<CAATLiteral> computeReason(RelationGraph graph, Edge edge) {
+    public Conjunction<CAATLiteral> computeReason(RelationGraph graph, Edge edge, Set<String> toCut) {
         if (!graph.contains(edge)) {
             return Conjunction.FALSE();
         }
 
-        Conjunction<CAATLiteral> reason = graph.accept(graphVisitor, edge, null);
+        Conjunction<CAATLiteral> reason = graph.accept(graphVisitor, edge, toCut);
         assert !reason.isFalse();
         return reason;
     }
@@ -100,15 +100,15 @@ public class Reasoner {
         and compute reasons for each predicate
      */
 
-    private class GraphVisitor implements PredicateVisitor<Conjunction<CAATLiteral>, Edge, Void> {
+    private class GraphVisitor implements PredicateVisitor<Conjunction<CAATLiteral>, Edge, Set<String>> {
 
         @Override
-        public Conjunction<CAATLiteral> visit(CAATPredicate predicate, Edge edge, Void unused) {
+        public Conjunction<CAATLiteral> visit(CAATPredicate predicate, Edge edge, Set<String> toCut) {
             throw new IllegalArgumentException(predicate.getName() + " is not supported in reasoning computation");
         }
 
         @Override
-        public Conjunction<CAATLiteral> visitGraphUnion(RelationGraph graph, Edge edge, Void unused) {
+        public Conjunction<CAATLiteral> visitGraphUnion(RelationGraph graph, Edge edge, Set<String> toCut) {
             // We try to compute a shortest reason based on the distance to the base graphs
             Edge min = edge;
             RelationGraph next = graph;
@@ -121,25 +121,25 @@ public class Reasoner {
             }
 
             assert next != graph;
-            Conjunction<CAATLiteral> reason = computeReason(next, min);
+            Conjunction<CAATLiteral> reason = computeReason(next, min, toCut);
             assert !reason.isFalse();
             return reason;
 
         }
 
         @Override
-        public Conjunction<CAATLiteral> visitGraphIntersection(RelationGraph graph, Edge edge, Void unused) {
+        public Conjunction<CAATLiteral> visitGraphIntersection(RelationGraph graph, Edge edge, Set<String> toCut) {
             Conjunction<CAATLiteral> reason = Conjunction.TRUE();
             for (RelationGraph g : (List<RelationGraph>) graph.getDependencies()) {
                 Edge e = g.get(edge);
-                reason = reason.and(computeReason(g, e));
+                reason = reason.and(computeReason(g, e, toCut));
             }
             assert !reason.isFalse();
             return reason;
         }
 
         @Override
-        public Conjunction<CAATLiteral> visitGraphComposition(RelationGraph graph, Edge edge, Void unused) {
+        public Conjunction<CAATLiteral> visitGraphComposition(RelationGraph graph, Edge edge, Set<String> toCut) {
             RelationGraph first = (RelationGraph) graph.getDependencies().get(0);
             RelationGraph second = (RelationGraph) graph.getDependencies().get(1);
 
@@ -152,7 +152,7 @@ public class Reasoner {
                     }
                     Edge e2 = second.get(new Edge(e1.getSecond(), edge.getSecond()));
                     if (e2 != null && e2.getDerivationLength() < edge.getDerivationLength()) {
-                        Conjunction<CAATLiteral> reason = computeReason(first, e1).and(computeReason(second, e2));
+                        Conjunction<CAATLiteral> reason = computeReason(first, e1, toCut).and(computeReason(second, e2, toCut));
                         assert !reason.isFalse();
                         return reason;
                     }
@@ -164,7 +164,7 @@ public class Reasoner {
                     }
                     Edge e1 = first.get(new Edge(edge.getFirst(), e2.getFirst()));
                     if (e1 != null && e1.getDerivationLength() < edge.getDerivationLength()) {
-                        Conjunction<CAATLiteral> reason = computeReason(first, e1).and(computeReason(second, e2));
+                        Conjunction<CAATLiteral> reason = computeReason(first, e1, toCut).and(computeReason(second, e2, toCut));
                         assert !reason.isFalse();
                         return reason;
                     }
@@ -175,7 +175,7 @@ public class Reasoner {
         }
 
         @Override
-        public Conjunction<CAATLiteral> visitCartesian(RelationGraph graph, Edge edge, Void unused) {
+        public Conjunction<CAATLiteral> visitCartesian(RelationGraph graph, Edge edge, Set<String> toCut) {
             SetPredicate lhs = (SetPredicate) graph.getDependencies().get(0);
             SetPredicate rhs = (SetPredicate) graph.getDependencies().get(1);
 
@@ -186,32 +186,31 @@ public class Reasoner {
         }
 
         @Override
-        public Conjunction<CAATLiteral> visitGraphDifference(RelationGraph graph, Edge edge, Void unused) {
+        public Conjunction<CAATLiteral> visitGraphDifference(RelationGraph graph, Edge edge, Set<String> toCut) {
             RelationGraph lhs = (RelationGraph) graph.getDependencies().get(0);
             RelationGraph rhs = (RelationGraph) graph.getDependencies().get(1);
 
             if (rhs.getDependencies().size() > 0) {
-                throw new IllegalStateException(
-                        String.format("Cannot compute reason of edge %s in difference graph %s because its right-hand side %s " +
-                                "is derived.", edge, graph, rhs));
+                // TODO: Check if rhs is recursive
+                toCut.add(rhs.getName());
             }
 
-            Conjunction<CAATLiteral> reason = computeReason(lhs, edge)
+            Conjunction<CAATLiteral> reason = computeReason(lhs, edge, toCut)
                     .and(new EdgeLiteral(rhs.getName(), edge, true).toSingletonReason());
             assert !reason.isFalse();
             return reason;
         }
 
         @Override
-        public Conjunction<CAATLiteral> visitInverse(RelationGraph graph, Edge edge, Void unused) {
+        public Conjunction<CAATLiteral> visitInverse(RelationGraph graph, Edge edge, Set<String> toCut) {
             Conjunction<CAATLiteral> reason = computeReason((RelationGraph) graph.getDependencies().get(0),
-                    edge.inverse().withDerivationLength(edge.getDerivationLength() - 1));
+                    edge.inverse().withDerivationLength(edge.getDerivationLength() - 1), toCut);
             assert !reason.isFalse();
             return reason;
         }
 
         @Override
-        public Conjunction<CAATLiteral> visitSetIdentity(RelationGraph graph, Edge edge, Void unused) {
+        public Conjunction<CAATLiteral> visitSetIdentity(RelationGraph graph, Edge edge, Set<String> toCut) {
             assert edge.isLoop();
 
             SetPredicate inner = (SetPredicate) graph.getDependencies().get(0);
@@ -220,14 +219,14 @@ public class Reasoner {
         }
 
         @Override
-        public Conjunction<CAATLiteral> visitRangeIdentity(RelationGraph graph, Edge edge, Void unused) {
+        public Conjunction<CAATLiteral> visitRangeIdentity(RelationGraph graph, Edge edge, Set<String> toCut) {
             assert edge.isLoop();
 
             RelationGraph inner = (RelationGraph) graph.getDependencies().get(0);
             for (Edge inEdge : inner.inEdges(edge.getSecond())) {
                 // We use the first edge we find
                 if (inEdge.getDerivationLength() < edge.getDerivationLength()) {
-                    Conjunction<CAATLiteral> reason = computeReason(inner, inEdge);
+                    Conjunction<CAATLiteral> reason = computeReason(inner, inEdge, toCut);
                     assert !reason.isFalse();
                     return reason;
                 }
@@ -236,37 +235,37 @@ public class Reasoner {
         }
 
         @Override
-        public Conjunction<CAATLiteral> visitReflexiveClosure(RelationGraph graph, Edge edge, Void unused) {
+        public Conjunction<CAATLiteral> visitReflexiveClosure(RelationGraph graph, Edge edge, Set<String> toCut) {
             if (edge.isLoop()) {
                 return Conjunction.TRUE();
             } else {
-                Conjunction<CAATLiteral> reason = computeReason((RelationGraph) graph.getDependencies().get(0), edge);
+                Conjunction<CAATLiteral> reason = computeReason((RelationGraph) graph.getDependencies().get(0), edge, toCut);
                 assert !reason.isFalse();
                 return reason;
             }
         }
 
         @Override
-        public Conjunction<CAATLiteral> visitTransitiveClosure(RelationGraph graph, Edge edge, Void unused) {
+        public Conjunction<CAATLiteral> visitTransitiveClosure(RelationGraph graph, Edge edge, Set<String> toCut) {
             RelationGraph inner = (RelationGraph) graph.getDependencies().get(0);
             Conjunction<CAATLiteral> reason = Conjunction.TRUE();
             List<Edge> path = findShortestPath(inner, edge.getFirst(), edge.getSecond(), edge.getDerivationLength() - 1);
             for (Edge e : path) {
-                reason = reason.and(computeReason(inner, e));
+                reason = reason.and(computeReason(inner, e, toCut));
             }
             assert !reason.isFalse();
             return reason;
         }
 
         @Override
-        public Conjunction<CAATLiteral> visitRecursiveGraph(RelationGraph graph, Edge edge, Void unused) {
-            Conjunction<CAATLiteral> reason = computeReason((RelationGraph) graph.getDependencies().get(0), edge);
+        public Conjunction<CAATLiteral> visitRecursiveGraph(RelationGraph graph, Edge edge, Set<String> toCut) {
+            Conjunction<CAATLiteral> reason = computeReason((RelationGraph) graph.getDependencies().get(0), edge, toCut);
             assert !reason.isFalse();
             return reason;
         }
 
         @Override
-        public Conjunction<CAATLiteral> visitBaseGraph(RelationGraph graph, Edge edge, Void unused) {
+        public Conjunction<CAATLiteral> visitBaseGraph(RelationGraph graph, Edge edge, Set<String> toCut) {
             return new EdgeLiteral(graph.getName(), edge, false).toSingletonReason();
         }
     }

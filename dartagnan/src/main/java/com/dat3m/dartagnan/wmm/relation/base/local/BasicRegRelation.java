@@ -93,4 +93,9 @@ abstract class BasicRegRelation extends StaticRelation {
     protected BooleanFormula encodeApprox(SolverContext ctx) {
         return ctx.getFormulaManager().getBooleanFormulaManager().makeTrue();
     }
+
+    @Override
+    public BooleanFormula encodeApprox(SolverContext ctx, TupleSet toEncode) {
+        return encodeApprox(ctx);
+    }
 }
