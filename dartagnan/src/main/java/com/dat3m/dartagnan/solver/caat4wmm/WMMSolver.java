@@ -17,6 +17,7 @@ import org.sosy_lab.java_smt.api.Model;
 import org.sosy_lab.java_smt.api.SolverContext;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -30,12 +31,13 @@ public class WMMSolver {
     private final CAATSolver solver;
     private final CoreReasoner reasoner;
 
-    public WMMSolver(VerificationTask task, Context analysisContext, Set<Relation> cutRelations) {
+    public WMMSolver(VerificationTask task, Context analysisContext, Set<Relation> cutRelations, Set<String> cutRelationNames, EdgeManager manager) {
         analysisContext.requires(RelationAnalysis.class);
         this.executionGraph = new ExecutionGraph(task, cutRelations, true);
         this.executionModel = new ExecutionModel(task);
-        this.reasoner = new CoreReasoner(task, analysisContext, executionGraph);
-        this.solver = CAATSolver.create();
+        manager.setExecutionModel(this.executionModel);
+        this.reasoner = new CoreReasoner(task, analysisContext, executionGraph, manager);
+        this.solver = CAATSolver.create(manager, new HashSet<>(cutRelationNames));
     }
 
     public ExecutionModel getExecution() {

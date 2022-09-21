@@ -45,7 +45,10 @@ public class TupleSetMap {
         TupleSetMap newMap = new TupleSetMap();
         for (var entry : map.entrySet()) {
             TupleSet difference = new TupleSet(entry.getValue());
-            difference.removeAll(other.get(entry.getKey()));
+            TupleSet overlap = other.get(entry.getKey());
+            if (overlap != null) {
+                difference.removeAll(overlap);
+            }
             newMap.merge(new TupleSetMap(entry.getKey(), difference));
         }
         return newMap;

@@ -8,6 +8,7 @@ import com.dat3m.dartagnan.encoding.WmmEncoder;
 import com.dat3m.dartagnan.program.Program;
 import com.dat3m.dartagnan.solver.caat.CAATSolver;
 import com.dat3m.dartagnan.solver.caat4wmm.DynamicEagerEncoder;
+import com.dat3m.dartagnan.solver.caat4wmm.EdgeManager;
 import com.dat3m.dartagnan.solver.caat4wmm.Refiner;
 import com.dat3m.dartagnan.solver.caat4wmm.WMMSolver;
 import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.CoreLiteral;
@@ -22,6 +23,7 @@ import com.dat3m.dartagnan.verification.model.EventData;
 import com.dat3m.dartagnan.verification.model.ExecutionModel;
 import com.dat3m.dartagnan.wmm.Wmm;
 import com.dat3m.dartagnan.wmm.axiom.Acyclic;
+import com.dat3m.dartagnan.wmm.axiom.Axiom;
 import com.dat3m.dartagnan.wmm.axiom.Empty;
 import com.dat3m.dartagnan.wmm.axiom.ForceEncodeAxiom;
 import com.dat3m.dartagnan.wmm.relation.RecursiveRelation;
@@ -33,6 +35,7 @@ import com.dat3m.dartagnan.wmm.relation.binary.RelComposition;
 import com.dat3m.dartagnan.wmm.relation.binary.RelIntersection;
 import com.dat3m.dartagnan.wmm.relation.binary.RelMinus;
 import com.dat3m.dartagnan.wmm.relation.binary.RelUnion;
+import com.dat3m.dartagnan.wmm.utils.RecursiveGroup;
 import com.dat3m.dartagnan.wmm.utils.RelationRepository;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
 import com.dat3m.dartagnan.wmm.utils.TupleSetMap;
@@ -117,11 +120,12 @@ public class RefinementSolver extends ModelChecker {
         // This call modifies the baseline model!
         //Set<Relation> cutRelations = cutRelationDifferences(memoryModel, baselineModel);
         Set<Relation> cutRelations = new HashSet<>();
+        Set<String> cutRelationNames = new HashSet<>();
         memoryModel.configureAll(config);
         baselineModel.configureAll(config); // Configure after cutting!
 
         // Keep track of edges that have been encoded eagerly
-        TupleSetMap encodedEagerly = new TupleSetMap();
+        EdgeManager manager = new EdgeManager();
 
         performStaticProgramAnalyses(task, analysisContext, config);
         Context baselineContext = Context.createCopyFrom(analysisContext);
@@ -139,7 +143,19 @@ public class RefinementSolver extends ModelChecker {
 
         BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
         BooleanFormula globalRefinement = bmgr.makeTrue();
-        WMMSolver solver = new WMMSolver(task, analysisContext, cutRelations);
+
+        // init partial relation encoding
+        for(RecursiveGroup recursiveGroup : task.getMemoryModel().getRecursiveGroups()){
+            recursiveGroup.setDoRecurse();
+        }
+        for (Relation rel : memoryModel.getRelationDependencyGraph().getNodeContents()) {
+            rel.initializeEncoding(ctx);
+        }
+        for (Axiom axiom : task.getMemoryModel().getAxioms()) {
+            axiom.initializeEncoding(ctx);
+        }
+
+        WMMSolver solver = new WMMSolver(task, analysisContext, cutRelations, cutRelationNames, manager);
         Refiner refiner = new Refiner(memoryModel, analysisContext);
         CAATSolver.Status status = INCONSISTENT;
 
@@ -205,11 +221,11 @@ public class RefinementSolver extends ModelChecker {
                 prover.addConstraint(refinement);
                 globalRefinement = bmgr.and(globalRefinement, refinement); // Track overall refinement progress
                 // handle edges used natively in CAAT (aka edges in non-semi-positive relations)
-                TupleSetMap permutedEdges = solverResult.getDynamicallyCut();
-                refiner.permute(permutedEdges);
+                TupleSetMap caatEdges = solverResult.getDynamicallyCut();
                 DependencyGraph<Relation> rels = memoryModel.getRelationDependencyGraph();
-                TupleSetMap edgesToBeEncoded = DynamicEagerEncoder.determineEncodedTuples(permutedEdges, rels);
-                BooleanFormula dynamicCut = DynamicEagerEncoder.encodeEagerly(edgesToBeEncoded.difference(encodedEagerly), rels, ctx);
+                TupleSetMap edgesToBeEncoded = DynamicEagerEncoder.determineEncodedTuples(caatEdges, rels);
+                TupleSetMap newEdgesToEncode = manager.addEagerlyEncodedEdges(edgesToBeEncoded);
+                BooleanFormula dynamicCut = DynamicEagerEncoder.encodeEagerly(newEdgesToEncode, rels, ctx);
                 prover.addConstraint(dynamicCut);
                 globalRefinement = bmgr.and(globalRefinement, dynamicCut);
                 totalRefiningTime += (System.currentTimeMillis() - refineTime);

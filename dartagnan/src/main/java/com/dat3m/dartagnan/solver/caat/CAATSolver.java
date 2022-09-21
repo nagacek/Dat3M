@@ -2,9 +2,12 @@ package com.dat3m.dartagnan.solver.caat;
 
 
 import com.dat3m.dartagnan.solver.caat.constraints.Constraint;
+import com.dat3m.dartagnan.solver.caat.misc.EdgeSetMap;
 import com.dat3m.dartagnan.solver.caat.misc.PathAlgorithm;
 import com.dat3m.dartagnan.solver.caat.reasoning.CAATLiteral;
+import com.dat3m.dartagnan.solver.caat.reasoning.Context;
 import com.dat3m.dartagnan.solver.caat.reasoning.Reasoner;
+import com.dat3m.dartagnan.solver.caat4wmm.EdgeManager;
 import com.dat3m.dartagnan.utils.logic.Conjunction;
 import com.dat3m.dartagnan.utils.logic.DNF;
 
@@ -23,18 +26,20 @@ public class CAATSolver {
     // ======================================== Fields  ==============================================
 
     private final Reasoner reasoner;
+    private final EdgeManager manager;
 
     // The statistics of the last call
     private Statistics stats;
 
     // ======================================== Construction ==============================================
 
-    private CAATSolver() {
-        this.reasoner = new Reasoner();
+    private CAATSolver(EdgeManager manager, Set<String> externalCut) {
+        this.reasoner = new Reasoner(externalCut);
+        this.manager = manager;
     }
 
-    public static CAATSolver create() {
-        return new CAATSolver();
+    public static CAATSolver create(EdgeManager manager, Set<String> externalCut) {
+        return new CAATSolver(manager, externalCut);
     }
 
     // ======================================== Accessors ==============================================
@@ -78,6 +83,7 @@ public class CAATSolver {
             curTime = System.currentTimeMillis();
             Set<String> assumedAsBaseRelations = new HashSet<>();
             result.setBaseReasons(computeInconsistencyReasons(violatedConstraints, assumedAsBaseRelations));
+            result.assumeAsBaseRelations = assumedAsBaseRelations;
             stats.reasonComputationTime += (System.currentTimeMillis() - curTime);
         }
 
@@ -87,9 +93,10 @@ public class CAATSolver {
     // ======================================== Reason computation ==============================================
 
     private DNF<CAATLiteral> computeInconsistencyReasons(List<Constraint> violatedConstraints, Set<String> toCut) {
+        EdgeSetMap caatView = manager.initCAATView();
         List<Conjunction<CAATLiteral>> reasons = new ArrayList<>();
         for (Constraint constraint : violatedConstraints) {
-            reasons.addAll(reasoner.computeViolationReasons(constraint, toCut).getCubes());
+            reasons.addAll(reasoner.computeViolationReasons(constraint, new Context(toCut, caatView)).getCubes());
         }
         stats.numComputedReasons += reasons.size();
         DNF<CAATLiteral> result = new DNF<>(reasons); // The conversion to DNF removes duplicates and dominated clauses
