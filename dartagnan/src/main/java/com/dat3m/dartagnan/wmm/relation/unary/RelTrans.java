@@ -91,7 +91,7 @@ public class RelTrans extends UnaryRelation {
         TupleSet oldFullEncodeSet = new TupleSet(fullEncodeTupleSet);
         boolean wasAdded = fullEncodeTupleSet.addAll(fullActiveSet);
         TupleSet difference = new TupleSet(Sets.difference(fullEncodeTupleSet, oldFullEncodeSet));
-        TupleSetMap map = new TupleSetMap(getName(), difference);
+        TupleSetMap map = new TupleSetMap(this, difference);
         if(wasAdded){
             fullActiveSet.removeAll(getMinTupleSet());
             map.merge(r1.addEncodeTupleSet(fullActiveSet));

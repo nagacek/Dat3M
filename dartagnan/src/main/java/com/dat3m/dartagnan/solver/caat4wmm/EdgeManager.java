@@ -2,21 +2,30 @@ package com.dat3m.dartagnan.solver.caat4wmm;
 
 import com.dat3m.dartagnan.solver.caat.misc.EdgeSetMap;
 import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.Edge;
+import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.RelationGraph;
 import com.dat3m.dartagnan.verification.model.ExecutionModel;
+import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
 import com.dat3m.dartagnan.wmm.utils.TupleSetMap;
+import com.google.common.collect.BiMap;
+
+import java.util.HashSet;
+import java.util.Set;
 
 public class EdgeManager {
     private final TupleSetMap edges;
-    //private EdgeSetMap caatEdges;
+    private final Set<Relation> cutRelations;
+    private ExecutionGraph execGraph;
     private ExecutionModel model;
 
-    public EdgeManager() {
+    public EdgeManager(Set<Relation> cutRelations) {
         edges = new TupleSetMap();
+        this.cutRelations = cutRelations;
     }
 
-    public void setExecutionModel(ExecutionModel model) {
+    public void init(ExecutionModel model, ExecutionGraph execGraph) {
         this.model = model;
+        this.execGraph = execGraph;
     }
 
     public TupleSetMap addEagerlyEncodedEdges(TupleSetMap newEdges) {
@@ -33,14 +42,23 @@ public class EdgeManager {
     }
 
     public EdgeSetMap initCAATView() {
-        return EdgeSetMap.fromTupleSetMap(edges, model);
+        return EdgeSetMap.fromTupleSetMap(edges, model, execGraph);
     }
 
-    public boolean isEagerlyEncoded(String name, Tuple edge) {
-        return edges.contains(name, edge);
+    public Set<Relation> getRelations() {
+        return cutRelations;
+    }
+    public Set<RelationGraph> transformCAATRelations(ExecutionGraph graph) {
+        Set<RelationGraph> caatRelations = new HashSet<>();
+        cutRelations.forEach(rel -> caatRelations.add(graph.getRelationGraph(rel)));
+        return caatRelations;
     }
 
-    public boolean isEagerlyEncoded(String name) {
-        return edges.contains(name);
+    public boolean isEagerlyEncoded(Relation rel, Tuple edge) {
+        return edges.contains(rel, edge);
+    }
+
+    public boolean isEagerlyEncoded(Relation rel) {
+        return edges.contains(rel);
     }
 }

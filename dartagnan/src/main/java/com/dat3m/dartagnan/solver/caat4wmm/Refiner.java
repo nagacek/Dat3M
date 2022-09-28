@@ -81,9 +81,9 @@ public class Refiner {
 
     public TupleSetMap permute(TupleSetMap edges) {
         TupleSetMap permutedEdges = new TupleSetMap();
-        for (String name : edges.getRelationNames()) {
-            TupleSet permuted = applyAll(edges.get(name));
-            TupleSetMap add = new TupleSetMap(name, permuted);
+        for (Relation rel : edges.getRelations()) {
+            TupleSet permuted = applyAll(edges.get(rel));
+            TupleSetMap add = new TupleSetMap(rel, permuted);
             permutedEdges.merge(add);
         }
         return permutedEdges;

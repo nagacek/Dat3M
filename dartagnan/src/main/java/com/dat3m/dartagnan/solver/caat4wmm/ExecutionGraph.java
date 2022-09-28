@@ -138,6 +138,8 @@ public class ExecutionGraph {
         return relationGraphMap.get(rel);
     }
 
+    public Relation getRelation(RelationGraph rel) { return relationGraphMap.inverse().get(rel); }
+
     public RelationGraph getRelationGraphByName(String name) {
         return getRelationGraph(verificationTask.getMemoryModel().getRelationRepository().getRelation(name));
     }

@@ -7,7 +7,6 @@ import com.dat3m.dartagnan.encoding.SymmetryEncoder;
 import com.dat3m.dartagnan.encoding.WmmEncoder;
 import com.dat3m.dartagnan.program.Program;
 import com.dat3m.dartagnan.solver.caat.CAATSolver;
-import com.dat3m.dartagnan.solver.caat4wmm.DynamicEagerEncoder;
 import com.dat3m.dartagnan.solver.caat4wmm.EdgeManager;
 import com.dat3m.dartagnan.solver.caat4wmm.Refiner;
 import com.dat3m.dartagnan.solver.caat4wmm.WMMSolver;
@@ -25,19 +24,13 @@ import com.dat3m.dartagnan.wmm.Wmm;
 import com.dat3m.dartagnan.wmm.axiom.Acyclic;
 import com.dat3m.dartagnan.wmm.axiom.Axiom;
 import com.dat3m.dartagnan.wmm.axiom.Empty;
-import com.dat3m.dartagnan.wmm.axiom.ForceEncodeAxiom;
-import com.dat3m.dartagnan.wmm.relation.RecursiveRelation;
 import com.dat3m.dartagnan.wmm.relation.Relation;
-import com.dat3m.dartagnan.wmm.relation.base.stat.RelCartesian;
-import com.dat3m.dartagnan.wmm.relation.base.stat.RelFencerel;
-import com.dat3m.dartagnan.wmm.relation.base.stat.RelSetIdentity;
 import com.dat3m.dartagnan.wmm.relation.binary.RelComposition;
 import com.dat3m.dartagnan.wmm.relation.binary.RelIntersection;
-import com.dat3m.dartagnan.wmm.relation.binary.RelMinus;
 import com.dat3m.dartagnan.wmm.relation.binary.RelUnion;
+import com.dat3m.dartagnan.wmm.relation.unary.RelTransRef;
 import com.dat3m.dartagnan.wmm.utils.RecursiveGroup;
 import com.dat3m.dartagnan.wmm.utils.RelationRepository;
-import com.dat3m.dartagnan.wmm.utils.TupleSet;
 import com.dat3m.dartagnan.wmm.utils.TupleSetMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -117,12 +110,12 @@ public class RefinementSolver extends ModelChecker {
         preprocessProgram(task, config);
 
         // Relations to be cut statically
-        Set<String> cutRelationNames = new HashSet<>();
+        Set<Relation> cutRelations = new HashSet<>();
         memoryModel.configureAll(config);
         baselineModel.configureAll(config);
 
         // Keep track of edges that have been encoded eagerly
-        EdgeManager manager = new EdgeManager();
+        EdgeManager manager = new EdgeManager(cutRelations);
 
         performStaticProgramAnalyses(task, analysisContext, config);
         Context baselineContext = Context.createCopyFrom(analysisContext);
@@ -154,7 +147,7 @@ public class RefinementSolver extends ModelChecker {
             axiom.initializeEncoding(ctx);
         }
 
-        WMMSolver solver = new WMMSolver(task, analysisContext, cutRelationNames, manager);
+        WMMSolver solver = new WMMSolver(task, analysisContext, manager);
         Refiner refiner = new Refiner(memoryModel, analysisContext);
         CAATSolver.Status status = INCONSISTENT;
 
@@ -222,10 +215,9 @@ public class RefinementSolver extends ModelChecker {
                 // handle edges used natively in CAAT
                 TupleSetMap caatEdges = solverResult.getDynamicallyCut();
                 TupleSetMap permutedEdges = refiner.permute(caatEdges);
-                DependencyGraph<Relation> rels = memoryModel.getRelationDependencyGraph();
-                TupleSetMap edgesToBeEncoded = DynamicEagerEncoder.determineEncodedTuples(permutedEdges, rels);
+                TupleSetMap edgesToBeEncoded = determineEncodedTuples(permutedEdges);
                 TupleSetMap newEdgesToEncode = manager.addEagerlyEncodedEdges(edgesToBeEncoded);
-                BooleanFormula dynamicCut = DynamicEagerEncoder.encodeEagerly(newEdgesToEncode, rels, ctx);
+                BooleanFormula dynamicCut = encodeEagerly(newEdgesToEncode, ctx);
                 prover.addConstraint(dynamicCut);
                 globalRefinement = bmgr.and(globalRefinement, dynamicCut);
                 totalRefiningTime += (System.currentTimeMillis() - refineTime);
@@ -317,71 +309,25 @@ public class RefinementSolver extends ModelChecker {
     }
     // ======================= Helper Methods ======================
 
-    // This method cuts off negated relations that are dependencies of some consistency axiom
-    // It ignores dependencies of flagged axioms, as those get eagarly encoded and can be completely
-    // ignored for Refinement.
-    private static Set<Relation> cutRelationDifferences(Wmm targetWmm, Wmm baselineWmm) {
-        // TODO: Add support to move flagged axioms to the baselineWmm
-        RelationRepository repo = baselineWmm.getRelationRepository();
-        Set<Relation> cutRelations = new HashSet<>();
-        Set<Relation> cutCandidates = new HashSet<>();
-        targetWmm.getAxioms().stream().filter(ax -> !ax.isFlagged())
-                .forEach(ax -> collectDependencies(ax.getRelation(), cutCandidates));
-        for (Relation rel : cutCandidates) {
-            if (rel instanceof RelMinus) {
-                Relation sec = rel.getSecond();
-                if (sec.getDependencies().size() != 0 || sec instanceof RelSetIdentity || sec instanceof RelCartesian) {
-                    // NOTE: The check for RelSetIdentity/RelCartesian is needed because they appear non-derived
-                    // in our Wmm but for CAAT they are derived from unary predicates!
-                    logger.info("Found difference {}. Cutting rhs relation {}", rel, sec);
-                    cutRelations.add(sec);
-                    baselineWmm.addAxiom(new ForceEncodeAxiom(getCopyOfRelation(sec, repo)));
-                }
+    public static TupleSetMap determineEncodedTuples(TupleSetMap chosen) {
+        TupleSetMap toEncode = new TupleSetMap();
+        for (var entry : chosen.getEntries()) {
+            Relation next = entry.getKey();
+            if (next != null && next.getDependencies() != null && next.getDependencies().size() > 0) {
+                toEncode.merge(next.addEncodeTupleSet(entry.getValue()));
             }
         }
-        return cutRelations;
+        return toEncode;
     }
 
-    private static void collectDependencies(Relation root, Set<Relation> collected) {
-        if (collected.add(root)) {
-            root.getDependencies().forEach(dep -> collectDependencies(dep, collected));
+    public static BooleanFormula encodeEagerly(TupleSetMap toEncode, SolverContext ctx) {
+        BooleanFormulaManager manager = ctx.getFormulaManager().getBooleanFormulaManager();
+        BooleanFormula eagerEncoding = manager.makeTrue();
+        for (var entry : toEncode.getEntries()) {
+            Relation rel = entry.getKey();
+            eagerEncoding = manager.and(eagerEncoding, rel.encodeApprox(ctx, entry.getValue()));
         }
-    }
-
-    private static Relation getCopyOfRelation(Relation rel, RelationRepository repo) {
-        if (repo.containsRelation(rel.getName())) {
-            return repo.getRelation(rel.getName());
-        }
-
-        if (rel instanceof RecursiveRelation) {
-            throw new IllegalArgumentException(
-                    String.format("Cannot cut recursively defined relation %s from memory model. ", rel));
-        }
-
-        Relation copy = repo.getRelation(rel.getName());
-        if (copy == null) {
-            List<Object> deps = new ArrayList<>(rel.getDependencies().size());
-            if (rel instanceof RelSetIdentity) {
-                deps.add(((RelSetIdentity)rel).getFilter());
-            } else if (rel instanceof RelCartesian) {
-                deps.add(((RelCartesian) rel).getFirstFilter());
-                deps.add(((RelCartesian) rel).getSecondFilter());
-            } else if (rel instanceof RelFencerel) {
-                deps.add(((RelFencerel)rel).getFenceName());
-            } else {
-                for (Relation dep : rel.getDependencies()) {
-                    deps.add(getCopyOfRelation(dep, repo));
-                }
-            }
-
-            copy = repo.getRelation(rel.getClass(), deps.toArray());
-            if (rel.getIsNamed()) {
-                copy.setName(rel.getName());
-                repo.updateRelation(copy);
-            }
-        }
-
-        return copy;
+        return eagerEncoding;
     }
 
     // -------------------- Printing -----------------------------

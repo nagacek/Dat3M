@@ -23,9 +23,9 @@ public class Reasoner {
 
     private final GraphVisitor graphVisitor = new GraphVisitor();
     private final SetVisitor setVisitor = new SetVisitor();
-    private final Set<String> externalCut;
+    private final Set<RelationGraph> externalCut;
 
-    public Reasoner(Set<String> externalCut) {
+    public Reasoner(Set<RelationGraph> externalCut) {
         this.externalCut = externalCut;
     }
 
@@ -83,11 +83,11 @@ public class Reasoner {
         }
 
         // Difference is handled on its own, therefore all literals are positive
-        if (externalCut.contains(graph.getName())) {
-            toCut.chooseRelation(graph.getName());
+        if (externalCut.contains(graph)) {
+            toCut.chooseRelation(graph);
             return new EdgeLiteral(graph.getName(), edge, false).toSingletonReason();
         }
-        if (toCut.isCovered(graph.getName(), edge)) {
+        if (toCut.isCovered(graph, edge)) {
             return new EdgeLiteral(graph.getName(), edge, false).toSingletonReason();
         }
 
@@ -204,7 +204,7 @@ public class Reasoner {
 
             if (rhs.getDependencies().size() > 0) {
                 // TODO: Check if rhs is recursive
-                toCut.chooseRelation(rhs.getName());
+                toCut.chooseRelation(rhs);
             }
 
             Conjunction<CAATLiteral> reason = computeReason(lhs, edge, toCut)

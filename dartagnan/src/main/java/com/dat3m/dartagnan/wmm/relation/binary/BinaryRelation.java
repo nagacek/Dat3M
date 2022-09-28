@@ -49,7 +49,7 @@ public abstract class BinaryRelation extends Relation {
         activeSet.removeAll(getMinTupleSet());
 
         TupleSet difference = new TupleSet(Sets.difference(encodeTupleSet, oldEncodeSet));
-        TupleSetMap map = new TupleSetMap(getName(), difference);
+        TupleSetMap map = new TupleSetMap(this, difference);
         if(!activeSet.isEmpty()){
             map.merge(r1.addEncodeTupleSet(activeSet));
             map.merge(r2.addEncodeTupleSet(activeSet));

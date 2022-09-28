@@ -53,7 +53,7 @@ public class RelInverse extends UnaryRelation {
         TupleSet oldEncodeSet = new TupleSet(encodeTupleSet);
         encodeTupleSet.addAll(activeSet);
         TupleSet difference = new TupleSet(Sets.difference(encodeTupleSet, oldEncodeSet));
-        TupleSetMap map = new TupleSetMap(getName(), difference);
+        TupleSetMap map = new TupleSetMap(this, difference);
         activeSet.removeAll(getMinTupleSet());
 
         if(!activeSet.isEmpty()){

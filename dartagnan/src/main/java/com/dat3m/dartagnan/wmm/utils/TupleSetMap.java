@@ -1,6 +1,7 @@
 package com.dat3m.dartagnan.wmm.utils;
 
 import com.dat3m.dartagnan.program.event.core.Event;
+import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.google.common.collect.Sets;
 
 import java.util.HashMap;
@@ -9,18 +10,18 @@ import java.util.Map;
 import java.util.Set;
 
 public class TupleSetMap {
-    private HashMap<String, TupleSet> map;
+    private final HashMap<Relation, TupleSet> map;
 
     public TupleSetMap(TupleSetMap other) {
         map = new HashMap<>(other.getMap());
     }
 
-    public TupleSetMap(String name, TupleSet set) {
+    public TupleSetMap(Relation rel, TupleSet set) {
         map = new HashMap<>();
-        map.put(name, set);
+        map.put(rel, set);
     }
 
-    public TupleSetMap(HashMap<String, Set<List<Event>>> other) {
+    public TupleSetMap(Map<Relation, Set<List<Event>>> other) {
         map = new HashMap<>();
         for (var entry : other.entrySet()) {
             TupleSet newSet = new TupleSet();
@@ -54,23 +55,23 @@ public class TupleSetMap {
         return newMap;
     }
 
-    public TupleSet get(String name) {
-        return map.get(name);
+    public TupleSet get(Relation rel) {
+        return map.get(rel);
     }
 
 
-    public boolean contains(String name, Tuple tuple) {
-        TupleSet contained = map.get(name);
+    public boolean contains(Relation rel, Tuple tuple) {
+        TupleSet contained = map.get(rel);
         return contained != null && contained.contains(tuple);
     }
 
-    public boolean contains(String name) {
-        return map.get(name) != null;
+    public boolean contains(Relation rel) {
+        return map.containsKey(rel);
     }
 
-    public Set<Map.Entry<String, TupleSet>> getEntries() { return map.entrySet(); }
+    public Set<Map.Entry<Relation, TupleSet>> getEntries() { return map.entrySet(); }
 
-    public Set<String> getRelationNames() { return map.keySet(); }
+    public Set<Relation> getRelations() { return map.keySet(); }
 
     public long getCount() {
         long count = 0;
@@ -84,12 +85,12 @@ public class TupleSetMap {
     public String toString() {
         StringBuilder str = new StringBuilder();
         for (var entry : map.entrySet()) {
-            str.append(entry.getKey()).append(": ").append(entry.getValue()).append("\n");
+            str.append(entry.getKey().getName()).append(": ").append(entry.getValue()).append("\n");
         }
         return str.toString();
     }
 
-    protected HashMap<String, TupleSet> getMap() {
+    protected HashMap<Relation, TupleSet> getMap() {
         return map;
     }
 

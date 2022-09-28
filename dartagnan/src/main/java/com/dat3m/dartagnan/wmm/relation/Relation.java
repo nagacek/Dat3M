@@ -100,7 +100,7 @@ public abstract class Relation implements Encoder, Dependent<Relation> {
     public TupleSetMap addEncodeTupleSet(TupleSet tuples){
         TupleSet oldEncodeSet = new TupleSet(encodeTupleSet);
         encodeTupleSet.addAll(Sets.intersection(tuples, maxTupleSet));
-        TupleSetMap differences = new TupleSetMap(getName(), new TupleSet(Sets.difference(encodeTupleSet, oldEncodeSet)));
+        TupleSetMap differences = new TupleSetMap(this, new TupleSet(Sets.difference(encodeTupleSet, oldEncodeSet)));
         if (this instanceof RelCo || this instanceof RelLoc || this instanceof RelRf) {
             return new TupleSetMap();
         } else {

@@ -87,7 +87,7 @@ public class RelComposition extends BinaryRelation {
         activeSet.removeAll(getMinTupleSet());
 
         TupleSet difference = new TupleSet(Sets.difference(encodeTupleSet, oldEncodeSet));
-        TupleSetMap map = new TupleSetMap(getName(), difference);
+        TupleSetMap map = new TupleSetMap(this, difference);
 
         if(!activeSet.isEmpty()){
             TupleSet r1Set = new TupleSet();

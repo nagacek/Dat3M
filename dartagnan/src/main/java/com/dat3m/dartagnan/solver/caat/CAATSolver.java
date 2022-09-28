@@ -4,6 +4,7 @@ package com.dat3m.dartagnan.solver.caat;
 import com.dat3m.dartagnan.solver.caat.constraints.Constraint;
 import com.dat3m.dartagnan.solver.caat.misc.EdgeSetMap;
 import com.dat3m.dartagnan.solver.caat.misc.PathAlgorithm;
+import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.RelationGraph;
 import com.dat3m.dartagnan.solver.caat.reasoning.CAATLiteral;
 import com.dat3m.dartagnan.solver.caat.reasoning.Context;
 import com.dat3m.dartagnan.solver.caat.reasoning.Reasoner;
@@ -33,13 +34,13 @@ public class CAATSolver {
 
     // ======================================== Construction ==============================================
 
-    private CAATSolver(EdgeManager manager, Set<String> externalCut) {
-        this.reasoner = new Reasoner(externalCut);
+    private CAATSolver(EdgeManager manager, Set<RelationGraph> relations) {
+        this.reasoner = new Reasoner(relations);
         this.manager = manager;
     }
 
-    public static CAATSolver create(EdgeManager manager, Set<String> externalCut) {
-        return new CAATSolver(manager, externalCut);
+    public static CAATSolver create(EdgeManager manager, Set<RelationGraph> relations) {
+        return new CAATSolver(manager, relations);
     }
 
     // ======================================== Accessors ==============================================
@@ -81,7 +82,7 @@ public class CAATSolver {
         if (status == INCONSISTENT) {
             // ============== Compute reasons ===============
             curTime = System.currentTimeMillis();
-            Set<String> assumedAsBaseRelations = new HashSet<>();
+            Set<RelationGraph> assumedAsBaseRelations = new HashSet<>();
             result.setBaseReasons(computeInconsistencyReasons(violatedConstraints, assumedAsBaseRelations));
             result.assumeAsBaseRelations = assumedAsBaseRelations;
             stats.reasonComputationTime += (System.currentTimeMillis() - curTime);
@@ -92,7 +93,7 @@ public class CAATSolver {
 
     // ======================================== Reason computation ==============================================
 
-    private DNF<CAATLiteral> computeInconsistencyReasons(List<Constraint> violatedConstraints, Set<String> toCut) {
+    private DNF<CAATLiteral> computeInconsistencyReasons(List<Constraint> violatedConstraints, Set<RelationGraph> toCut) {
         EdgeSetMap caatView = manager.initCAATView();
         List<Conjunction<CAATLiteral>> reasons = new ArrayList<>();
         for (Constraint constraint : violatedConstraints) {
@@ -111,12 +112,12 @@ public class CAATSolver {
         private Status status;
         private DNF<CAATLiteral> baseReasons;
         private final Statistics stats;
-        private Set<String> assumeAsBaseRelations;
+        private Set<RelationGraph> assumeAsBaseRelations;
 
         public Status getStatus() { return status; }
         public DNF<CAATLiteral> getBaseReasons() { return baseReasons; }
         public Statistics getStatistics() { return stats; }
-        public Set<String> getAssumedRelations() { return assumeAsBaseRelations; }
+        public Set<RelationGraph> getAssumedRelations() { return assumeAsBaseRelations; }
 
         void setStatus(Status status) { this.status = status; }
         void setBaseReasons(DNF<CAATLiteral> reasons) {

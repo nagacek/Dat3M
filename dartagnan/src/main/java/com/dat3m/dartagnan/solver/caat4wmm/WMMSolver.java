@@ -2,6 +2,7 @@ package com.dat3m.dartagnan.solver.caat4wmm;
 
 
 import com.dat3m.dartagnan.solver.caat.CAATSolver;
+import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.RelationGraph;
 import com.dat3m.dartagnan.solver.caat.reasoning.CAATLiteral;
 import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.CoreLiteral;
 import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.CoreReasoner;
@@ -31,13 +32,13 @@ public class WMMSolver {
     private final CAATSolver solver;
     private final CoreReasoner reasoner;
 
-    public WMMSolver(VerificationTask task, Context analysisContext, Set<String> cutRelationNames, EdgeManager manager) {
+    public WMMSolver(VerificationTask task, Context analysisContext, EdgeManager manager) {
         analysisContext.requires(RelationAnalysis.class);
         this.executionGraph = new ExecutionGraph(task, true);
         this.executionModel = new ExecutionModel(task);
-        manager.setExecutionModel(this.executionModel);
+        manager.init(executionModel, executionGraph);
         this.reasoner = new CoreReasoner(task, analysisContext, executionGraph, manager);
-        this.solver = CAATSolver.create(manager, new HashSet<>(cutRelationNames));
+        this.solver = CAATSolver.create(manager, manager.transformCAATRelations(executionGraph));
     }
 
     public ExecutionModel getExecution() {
@@ -66,10 +67,11 @@ public class WMMSolver {
             // ============== Compute Core reasons ==============
             curTime = System.currentTimeMillis();
             List<Conjunction<CoreLiteral>> coreReasons = new ArrayList<>(caatResult.getBaseReasons().getNumberOfCubes());
-            Set<String> assumedRelations = caatResult.getAssumedRelations();
+            Set<RelationGraph> assumedCAATRelations = caatResult.getAssumedRelations();
             TupleSetMap edgesToBeEncoded = new TupleSetMap();
             for (Conjunction<CAATLiteral> baseReason : caatResult.getBaseReasons().getCubes()) {
-                coreReasons.add(reasoner.toCoreReason(baseReason, assumedRelations, edgesToBeEncoded));
+                // TODO: handle edge cases
+                coreReasons.add(reasoner.toCoreReason(baseReason, assumedCAATRelations, edgesToBeEncoded));
             }
             result.dynamicallyCut = edgesToBeEncoded;
             stats.numComputedCoreReasons = coreReasons.size();

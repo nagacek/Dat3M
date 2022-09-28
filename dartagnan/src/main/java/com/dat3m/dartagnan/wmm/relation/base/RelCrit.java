@@ -102,7 +102,7 @@ public class RelCrit extends StaticRelation {
                 }
             }
         }
-        return new TupleSetMap(getName(), newEntries);
+        return new TupleSetMap(this, newEntries);
     }
 
     @Override

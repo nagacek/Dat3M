@@ -105,7 +105,7 @@ public class RecursiveRelation extends Relation {
     public TupleSetMap addEncodeTupleSet(TupleSet tuples){
         TupleSet oldEncodeSet = new TupleSet(encodeTupleSet);
         TupleSet difference = new TupleSet();
-        TupleSetMap map = new TupleSetMap(getName(), difference);
+        TupleSetMap map = new TupleSetMap(this, difference);
         if(encodeTupleSet != tuples){
             encodeTupleSet.addAll(tuples);
             difference.addAll(encodeTupleSet);

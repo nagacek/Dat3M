@@ -3,6 +3,7 @@ package com.dat3m.dartagnan.solver.caat4wmm.coreReasoning;
 import com.dat3m.dartagnan.program.analysis.ExecutionAnalysis;
 import com.dat3m.dartagnan.program.event.core.Event;
 import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.Edge;
+import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.RelationGraph;
 import com.dat3m.dartagnan.solver.caat.reasoning.CAATLiteral;
 import com.dat3m.dartagnan.solver.caat.reasoning.EdgeLiteral;
 import com.dat3m.dartagnan.solver.caat.reasoning.ElementLiteral;
@@ -44,7 +45,7 @@ public class CoreReasoner {
     }
 
 
-    public Conjunction<CoreLiteral> toCoreReason(Conjunction<CAATLiteral> baseReason, Set<String> dynamicallyCut, TupleSetMap notBase) {
+    public Conjunction<CoreLiteral> toCoreReason(Conjunction<CAATLiteral> baseReason, Set<RelationGraph> dynamicallyCut, TupleSetMap notBase) {
 
         RelationRepository repo = memoryModel.getRelationRepository();
         EventDomain domain = executionGraph.getDomain();
@@ -72,13 +73,13 @@ public class CoreReasoner {
                 } else {
                     if (rel.getName().equals(RF) || rel.getName().equals(CO)) {
                         coreReason.add(new RelLiteral(rel.getName(), tuple, lit.isNegative()));
-                    } else if (dynamicallyCut != null && dynamicallyCut.contains(rel.getName())
-                            && !manager.isEagerlyEncoded(rel.getName(), tuple)) { // new dynamically cut edge
+                    } else if (dynamicallyCut != null && dynamicallyCut.contains(executionGraph.getRelationGraph(rel))
+                            && !manager.isEagerlyEncoded(rel, tuple)) { // new dynamically cut edge
                         coreReason.add(new RelLiteral(rel.getName(), tuple, lit.isNegative()));
                         TupleSet set = new TupleSet();
                         set.add(tuple);
-                        notBase.merge(new TupleSetMap(rel.getName(), set));
-                    } else if (manager.isEagerlyEncoded(rel.getName())) { // old dynamically cut edge or intermediate edge
+                        notBase.merge(new TupleSetMap(rel, set));
+                    } else if (manager.isEagerlyEncoded(rel)) { // old dynamically cut edge or intermediate edge
                         coreReason.add(new RelLiteral(rel.getName(), tuple, lit.isNegative()));
                     } else if (rel.getName().equals(LOC)) {
                         coreReason.add(new AddressLiteral(tuple, lit.isNegative()));
@@ -93,7 +94,6 @@ public class CoreReasoner {
                         //TODO: Right now, we assume many relations like Data, Ctrl and Addr to be
                         // static.
                         if (lit.isNegative()) {
-                            // TODO: Support negated literals (cutting dynamically? -> should be covered by case above?)
                             throw new UnsupportedOperationException(String.format("Negated literals of type %s are not supported.", rel));
                         }
                         addExecReason(tuple, coreReason);
