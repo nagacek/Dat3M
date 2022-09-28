@@ -31,9 +31,9 @@ public class WMMSolver {
     private final CAATSolver solver;
     private final CoreReasoner reasoner;
 
-    public WMMSolver(VerificationTask task, Context analysisContext, Set<String> cutRelationNames, EdgeManager manager) {
+    public WMMSolver(VerificationTask task, Context analysisContext, Set<Relation> cutRelations, Set<String> cutRelationNames, EdgeManager manager) {
         analysisContext.requires(RelationAnalysis.class);
-        this.executionGraph = new ExecutionGraph(task, true);
+        this.executionGraph = new ExecutionGraph(task, cutRelations, true);
         this.executionModel = new ExecutionModel(task);
         manager.setExecutionModel(this.executionModel);
         this.reasoner = new CoreReasoner(task, analysisContext, executionGraph, manager);

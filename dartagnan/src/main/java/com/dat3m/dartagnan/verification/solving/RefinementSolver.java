@@ -108,25 +108,34 @@ public class RefinementSolver extends ModelChecker {
 
         Program program = task.getProgram();
         Wmm memoryModel = task.getMemoryModel();
+        Wmm baselineModel = createDefaultWmm();
         Context analysisContext = Context.create();
         Configuration config = task.getConfig();
+        VerificationTask baselineTask = VerificationTask.builder()
+                .withConfig(task.getConfig()).build(program, baselineModel, task.getProperty());
 
         preprocessProgram(task, config);
         // TODO: Check whether static cutting is still necessary and remove artifacts if it is not.
-        // Here we can set additional relations to cut statically
+        // We cut the rhs of differences to get a semi-positive model, if possible.
+        // This call modifies the baseline model!
+        //Set<Relation> cutRelations = cutRelationDifferences(memoryModel, baselineModel);
+        Set<Relation> cutRelations = new HashSet<>();
         Set<String> cutRelationNames = new HashSet<>();
         memoryModel.configureAll(config);
+        baselineModel.configureAll(config); // Configure after cutting!
 
         // Keep track of edges that have been encoded eagerly
         EdgeManager manager = new EdgeManager();
 
         performStaticProgramAnalyses(task, analysisContext, config);
+        Context baselineContext = Context.createCopyFrom(analysisContext);
         performStaticWmmAnalyses(task, analysisContext, config);
+        performStaticWmmAnalyses(baselineTask, baselineContext, config);
 
         ProgramEncoder programEncoder = ProgramEncoder.fromConfig(program, analysisContext, config);
-        PropertyEncoder propertyEncoder = PropertyEncoder.fromConfig(program, memoryModel, analysisContext, config);
-        SymmetryEncoder symmEncoder = SymmetryEncoder.fromConfig(memoryModel, analysisContext, config);
-        WmmEncoder baselineEncoder = WmmEncoder.fromConfig(memoryModel, analysisContext, config);
+        PropertyEncoder propertyEncoder = PropertyEncoder.fromConfig(program, baselineModel, analysisContext, config);
+        SymmetryEncoder symmEncoder = SymmetryEncoder.fromConfig(baselineModel, analysisContext, config);
+        WmmEncoder baselineEncoder = WmmEncoder.fromConfig(baselineModel, baselineContext, config);
         programEncoder.initializeEncoding(ctx);
         propertyEncoder.initializeEncoding(ctx);
         symmEncoder.initializeEncoding(ctx);
@@ -146,7 +155,7 @@ public class RefinementSolver extends ModelChecker {
             axiom.initializeEncoding(ctx);
         }
 
-        WMMSolver solver = new WMMSolver(task, analysisContext, cutRelationNames, manager);
+        WMMSolver solver = new WMMSolver(task, analysisContext, cutRelations, cutRelationNames, manager);
         Refiner refiner = new Refiner(memoryModel, analysisContext);
         CAATSolver.Status status = INCONSISTENT;
 
@@ -211,9 +220,8 @@ public class RefinementSolver extends ModelChecker {
                 BooleanFormula refinement = refiner.refine(reasons, ctx);
                 prover.addConstraint(refinement);
                 globalRefinement = bmgr.and(globalRefinement, refinement); // Track overall refinement progress
-                // handle edges used natively in CAAT
+                // handle edges used natively in CAAT (aka edges in non-semi-positive relations)
                 TupleSetMap caatEdges = solverResult.getDynamicallyCut();
-                refiner.permute(caatEdges);
                 DependencyGraph<Relation> rels = memoryModel.getRelationDependencyGraph();
                 TupleSetMap edgesToBeEncoded = DynamicEagerEncoder.determineEncodedTuples(caatEdges, rels);
                 TupleSetMap newEdgesToEncode = manager.addEagerlyEncodedEdges(edgesToBeEncoded);
@@ -308,6 +316,31 @@ public class RefinementSolver extends ModelChecker {
         return veriResult;
     }
     // ======================= Helper Methods ======================
+
+    // This method cuts off negated relations that are dependencies of some consistency axiom
+    // It ignores dependencies of flagged axioms, as those get eagarly encoded and can be completely
+    // ignored for Refinement.
+    private static Set<Relation> cutRelationDifferences(Wmm targetWmm, Wmm baselineWmm) {
+        // TODO: Add support to move flagged axioms to the baselineWmm
+        RelationRepository repo = baselineWmm.getRelationRepository();
+        Set<Relation> cutRelations = new HashSet<>();
+        Set<Relation> cutCandidates = new HashSet<>();
+        targetWmm.getAxioms().stream().filter(ax -> !ax.isFlagged())
+                .forEach(ax -> collectDependencies(ax.getRelation(), cutCandidates));
+        for (Relation rel : cutCandidates) {
+            if (rel instanceof RelMinus) {
+                Relation sec = rel.getSecond();
+                if (sec.getDependencies().size() != 0 || sec instanceof RelSetIdentity || sec instanceof RelCartesian) {
+                    // NOTE: The check for RelSetIdentity/RelCartesian is needed because they appear non-derived
+                    // in our Wmm but for CAAT they are derived from unary predicates!
+                    logger.info("Found difference {}. Cutting rhs relation {}", rel, sec);
+                    cutRelations.add(sec);
+                    baselineWmm.addAxiom(new ForceEncodeAxiom(getCopyOfRelation(sec, repo)));
+                }
+            }
+        }
+        return cutRelations;
+    }
 
     private static void collectDependencies(Relation root, Set<Relation> collected) {
         if (collected.add(root)) {
