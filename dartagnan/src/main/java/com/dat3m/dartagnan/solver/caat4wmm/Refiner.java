@@ -79,12 +79,14 @@ public class Refiner {
         return refinement;
     }
 
-    public void permute(TupleSetMap edges) {
+    public TupleSetMap permute(TupleSetMap edges) {
+        TupleSetMap permutedEdges = new TupleSetMap();
         for (String name : edges.getRelationNames()) {
             TupleSet permuted = applyAll(edges.get(name));
             TupleSetMap add = new TupleSetMap(name, permuted);
-            edges.merge(add);
+            permutedEdges.merge(add);
         }
+        return permutedEdges;
     }
 
     private TupleSet applyAll(TupleSet tuples) {

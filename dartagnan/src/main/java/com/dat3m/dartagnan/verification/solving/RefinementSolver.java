@@ -115,14 +115,11 @@ public class RefinementSolver extends ModelChecker {
                 .withConfig(task.getConfig()).build(program, baselineModel, task.getProperty());
 
         preprocessProgram(task, config);
-        // TODO: Check whether static cutting is still necessary and remove artifacts if it is not.
-        // We cut the rhs of differences to get a semi-positive model, if possible.
-        // This call modifies the baseline model!
-        //Set<Relation> cutRelations = cutRelationDifferences(memoryModel, baselineModel);
-        Set<Relation> cutRelations = new HashSet<>();
+
+        // Relations to be cut statically
         Set<String> cutRelationNames = new HashSet<>();
         memoryModel.configureAll(config);
-        baselineModel.configureAll(config); // Configure after cutting!
+        baselineModel.configureAll(config);
 
         // Keep track of edges that have been encoded eagerly
         EdgeManager manager = new EdgeManager();
@@ -155,7 +152,7 @@ public class RefinementSolver extends ModelChecker {
             axiom.initializeEncoding(ctx);
         }
 
-        WMMSolver solver = new WMMSolver(task, analysisContext, cutRelations, cutRelationNames, manager);
+        WMMSolver solver = new WMMSolver(task, analysisContext, cutRelationNames, manager);
         Refiner refiner = new Refiner(memoryModel, analysisContext);
         CAATSolver.Status status = INCONSISTENT;
 
@@ -220,10 +217,11 @@ public class RefinementSolver extends ModelChecker {
                 BooleanFormula refinement = refiner.refine(reasons, ctx);
                 prover.addConstraint(refinement);
                 globalRefinement = bmgr.and(globalRefinement, refinement); // Track overall refinement progress
-                // handle edges used natively in CAAT (aka edges in non-semi-positive relations)
+                // handle edges used natively in CAAT
                 TupleSetMap caatEdges = solverResult.getDynamicallyCut();
+                TupleSetMap permutedEdges = refiner.permute(caatEdges);
                 DependencyGraph<Relation> rels = memoryModel.getRelationDependencyGraph();
-                TupleSetMap edgesToBeEncoded = DynamicEagerEncoder.determineEncodedTuples(caatEdges, rels);
+                TupleSetMap edgesToBeEncoded = DynamicEagerEncoder.determineEncodedTuples(permutedEdges, rels);
                 TupleSetMap newEdgesToEncode = manager.addEagerlyEncodedEdges(edgesToBeEncoded);
                 BooleanFormula dynamicCut = DynamicEagerEncoder.encodeEagerly(newEdgesToEncode, rels, ctx);
                 prover.addConstraint(dynamicCut);
