@@ -70,8 +70,7 @@ public class CoreReasoner {
                 } else if (lit.isNegative() && !rel.getMaxTupleSet().contains(tuple)) {
                     // Statically absent edges
                 } else {
-                    if (rel.getName().equals(RF) || rel.getName().equals(CO)
-                            || executionGraph.getCutRelations().contains(rel)) {
+                    if (rel.getName().equals(RF) || rel.getName().equals(CO)) {
                         coreReason.add(new RelLiteral(rel.getName(), tuple, lit.isNegative()));
                     } else if (dynamicallyCut != null && dynamicallyCut.contains(rel.getName())
                             && !manager.isEagerlyEncoded(rel.getName(), tuple)) { // new dynamically cut edge
