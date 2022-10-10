@@ -6,6 +6,7 @@ import com.dat3m.dartagnan.encoding.PropertyEncoder;
 import com.dat3m.dartagnan.encoding.SymmetryEncoder;
 import com.dat3m.dartagnan.encoding.WmmEncoder;
 import com.dat3m.dartagnan.program.Program;
+import com.dat3m.dartagnan.program.filter.FilterAbstract;
 import com.dat3m.dartagnan.solver.caat.CAATSolver;
 import com.dat3m.dartagnan.solver.caat4wmm.EdgeManager;
 import com.dat3m.dartagnan.solver.caat4wmm.Refiner;
@@ -24,14 +25,24 @@ import com.dat3m.dartagnan.wmm.Wmm;
 import com.dat3m.dartagnan.wmm.axiom.Acyclic;
 import com.dat3m.dartagnan.wmm.axiom.Axiom;
 import com.dat3m.dartagnan.wmm.axiom.Empty;
+import com.dat3m.dartagnan.wmm.axiom.ForceEncodeAxiom;
+import com.dat3m.dartagnan.wmm.relation.RecursiveRelation;
 import com.dat3m.dartagnan.wmm.relation.Relation;
+import com.dat3m.dartagnan.wmm.relation.base.stat.RelCartesian;
+import com.dat3m.dartagnan.wmm.relation.base.stat.RelFencerel;
+import com.dat3m.dartagnan.wmm.relation.base.stat.RelSetIdentity;
 import com.dat3m.dartagnan.wmm.relation.binary.RelComposition;
 import com.dat3m.dartagnan.wmm.relation.binary.RelIntersection;
+import com.dat3m.dartagnan.wmm.relation.binary.RelMinus;
 import com.dat3m.dartagnan.wmm.relation.binary.RelUnion;
 import com.dat3m.dartagnan.wmm.relation.unary.RelTransRef;
 import com.dat3m.dartagnan.wmm.utils.RecursiveGroup;
 import com.dat3m.dartagnan.wmm.utils.RelationRepository;
 import com.dat3m.dartagnan.wmm.utils.TupleSetMap;
+import com.dat3m.dartagnan.wmm.relation.unary.RelDomainIdentity;
+import com.dat3m.dartagnan.wmm.relation.unary.RelInverse;
+import com.dat3m.dartagnan.wmm.relation.unary.RelRangeIdentity;
+import com.dat3m.dartagnan.wmm.relation.unary.RelTrans;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.sosy_lab.common.configuration.Configuration;
@@ -50,6 +61,7 @@ import static com.dat3m.dartagnan.solver.caat.CAATSolver.Status.INCONSISTENT;
 import static com.dat3m.dartagnan.utils.Result.*;
 import static com.dat3m.dartagnan.utils.visualization.ExecutionGraphVisualizer.generateGraphvizFile;
 import static com.dat3m.dartagnan.wmm.relation.RelationNameRepository.*;
+import static com.google.common.base.Preconditions.checkArgument;
 
 /*
     Refinement is a custom solving procedure that starts from a weak memory model (possibly the empty model)
@@ -127,7 +139,7 @@ public class RefinementSolver extends ModelChecker {
         // We use the original memory model for symmetry breaking because we need axioms
         // to compute the breaking order.
         SymmetryEncoder symmEncoder = SymmetryEncoder.fromConfig(memoryModel, analysisContext, config);
-        WmmEncoder baselineEncoder = WmmEncoder.fromConfig(baselineModel, baselineContext, config);
+        WmmEncoder baselineEncoder = WmmEncoder.fromConfig(program, baselineModel, baselineContext, config);
         programEncoder.initializeEncoding(ctx);
         propertyEncoder.initializeEncoding(ctx);
         symmEncoder.initializeEncoding(ctx);
@@ -136,6 +148,7 @@ public class RefinementSolver extends ModelChecker {
         BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
         BooleanFormula globalRefinement = bmgr.makeTrue();
 
+        WMMSolver solver = WMMSolver.fromConfig(task, analysisContext, cutRelations, config);
         // init partial relation encoding
         for(RecursiveGroup recursiveGroup : task.getMemoryModel().getRecursiveGroups()){
             recursiveGroup.setDoRecurse();
@@ -330,6 +343,23 @@ public class RefinementSolver extends ModelChecker {
         return eagerEncoding;
     }
 
+    private static final class RelationCopier implements Relation.Visitor<Relation> {
+        final Wmm targetModel;
+        RelationCopier(Wmm m) { targetModel = m; }
+        @Override public Relation visitUnion(Relation rel, Relation... r) { return new RelUnion(copy(r[0]), copy(r[1])); }
+        @Override public Relation visitIntersection(Relation rel, Relation... r) { return new RelIntersection(copy(r[0]), copy(r[1])); }
+        @Override public Relation visitDifference(Relation rel, Relation r1, Relation r2) { return new RelMinus(copy(r1), copy(r2)); }
+        @Override public Relation visitComposition(Relation rel, Relation r1, Relation r2) { return new RelComposition(copy(r1), copy(r2)); }
+        @Override public Relation visitInverse(Relation rel, Relation r1) { return new RelInverse(copy(r1)); }
+        @Override public Relation visitDomainIdentity(Relation rel, Relation r1) { return new RelDomainIdentity(copy(r1)); }
+        @Override public Relation visitRangeIdentity(Relation rel, Relation r1) { return new RelRangeIdentity(copy(r1)); }
+        @Override public Relation visitTransitiveClosure(Relation rel, Relation r1) { return new RelTrans(copy(r1)); }
+        @Override public Relation visitIdentity(Relation rel, FilterAbstract filter) { return new RelSetIdentity(filter); }
+        @Override public Relation visitProduct(Relation rel, FilterAbstract f1, FilterAbstract f2) { return new RelCartesian(f1, f2); }
+        @Override public Relation visitFences(Relation rel, FilterAbstract type) { return new RelFencerel(type); }
+        private Relation copy(Relation r) { return getCopyOfRelation(r, targetModel); }
+    }
+
     // -------------------- Printing -----------------------------
 
     private static CharSequence generateSummary(List<WMMSolver.Statistics> statList, int iterationCount,
@@ -413,43 +443,42 @@ public class RefinementSolver extends ModelChecker {
 
     private Wmm createDefaultWmm() {
         Wmm baseline = new Wmm();
-        RelationRepository repo = baseline.getRelationRepository();
-        Relation rf = repo.getRelation(RF);
+        Relation rf = baseline.getRelation(RF);
         if(baselines.contains(Baseline.UNIPROC)) {
             // ---- acyclic(po-loc | rf) ----
-            Relation poloc = repo.getRelation(POLOC);
-            Relation co = repo.getRelation(CO);
-            Relation fr = repo.getRelation(FR);
+            Relation poloc = baseline.getRelation(POLOC);
+            Relation co = baseline.getRelation(CO);
+            Relation fr = baseline.getRelation(FR);
             Relation porf = new RelUnion(poloc, rf);
-            repo.addRelation(porf);
+            baseline.addRelation(porf);
             Relation porfco = new RelUnion(porf, co);
-            repo.addRelation(porfco);
+            baseline.addRelation(porfco);
             Relation porfcofr = new RelUnion(porfco, fr);
-            repo.addRelation(porfcofr);
+            baseline.addRelation(porfcofr);
             baseline.addAxiom(new Acyclic(porfcofr));
         }
         if(baselines.contains(Baseline.NO_OOTA)) {
             // ---- acyclic (dep | rf) ----
-            Relation data = repo.getRelation(DATA);
-            Relation ctrl = repo.getRelation(CTRL);
-            Relation addr = repo.getRelation(ADDR);
+            Relation data = baseline.getRelation(DATA);
+            Relation ctrl = baseline.getRelation(CTRL);
+            Relation addr = baseline.getRelation(ADDR);
             Relation dep = new RelUnion(data, addr);
-            repo.addRelation(dep);
+            baseline.addRelation(dep);
             dep = new RelUnion(ctrl, dep);
-            repo.addRelation(dep);
+            baseline.addRelation(dep);
             Relation hb = new RelUnion(dep, rf);
-            repo.addRelation(hb);
+            baseline.addRelation(hb);
             baseline.addAxiom(new Acyclic(hb));
         }
         if(baselines.contains(Baseline.ATOMIC_RMW)) {
             // ---- empty (rmw & fre;coe) ----
-            Relation rmw = repo.getRelation(RMW);
-            Relation coe = repo.getRelation(COE);
-            Relation fre = repo.getRelation(FRE);
+            Relation rmw = baseline.getRelation(RMW);
+            Relation coe = baseline.getRelation(COE);
+            Relation fre = baseline.getRelation(FRE);
             Relation frecoe = new RelComposition(fre, coe);
-            repo.addRelation(frecoe);
+            baseline.addRelation(frecoe);
             Relation rmwANDfrecoe = new RelIntersection(rmw, frecoe);
-            repo.addRelation(rmwANDfrecoe);
+            baseline.addRelation(rmwANDfrecoe);
             baseline.addAxiom(new Empty(rmwANDfrecoe));
         }
         return baseline;

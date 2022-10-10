@@ -1,11 +1,8 @@
 package com.dat3m.dartagnan.wmm.relation.base.memory;
 
-import com.dat3m.dartagnan.expression.IExpr;
 import com.dat3m.dartagnan.program.analysis.ExecutionAnalysis;
 import com.dat3m.dartagnan.program.analysis.alias.AliasAnalysis;
-import com.dat3m.dartagnan.program.event.EventCache;
 import com.dat3m.dartagnan.program.event.core.Event;
-import com.dat3m.dartagnan.program.event.core.Init;
 import com.dat3m.dartagnan.program.event.core.MemEvent;
 import com.dat3m.dartagnan.program.filter.FilterBasic;
 import com.dat3m.dartagnan.program.filter.FilterMinus;
@@ -13,55 +10,25 @@ import com.dat3m.dartagnan.wmm.analysis.WmmAnalysis;
 import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
-import com.google.common.base.Preconditions;
-import com.google.common.base.Predicate;
-import com.google.common.collect.Lists;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.sosy_lab.common.configuration.Configuration;
-import org.sosy_lab.common.configuration.InvalidConfigurationException;
-import org.sosy_lab.common.configuration.Option;
-import org.sosy_lab.common.configuration.Options;
-import org.sosy_lab.java_smt.api.*;
-import org.sosy_lab.java_smt.api.NumeralFormula.IntegerFormula;
 
 import java.util.*;
-import java.util.stream.Collectors;
-
-import static com.dat3m.dartagnan.configuration.OptionNames.IDL_TO_SAT;
-import static com.dat3m.dartagnan.configuration.Property.LIVENESS;
-import static com.dat3m.dartagnan.expression.utils.Utils.generalEqual;
-import static com.dat3m.dartagnan.program.Program.SourceLanguage.LITMUS;
 import static com.dat3m.dartagnan.program.event.Tag.INIT;
 import static com.dat3m.dartagnan.program.event.Tag.WRITE;
 import static com.dat3m.dartagnan.wmm.relation.RelationNameRepository.CO;
-import static com.dat3m.dartagnan.wmm.utils.Utils.intVar;
-import static org.sosy_lab.java_smt.api.FormulaType.BooleanType;
 
-@Options
 public class RelCo extends Relation {
 
 	private static final Logger logger = LogManager.getLogger(RelCo.class);
-
-    // =========================== Configurables ===========================
-
-    @Option(
-            name=IDL_TO_SAT,
-            description = "Use SAT-based encoding for totality and acyclicity.",
-            secure = true)
-    private boolean useSATEncoding = false;
-
-    public boolean usesSATEncoding() { return useSATEncoding; }
-
-	// =====================================================================
 
     public RelCo(){
         term = CO;
     }
 
     @Override
-    public void configure(Configuration config) throws InvalidConfigurationException {
-        config.inject(this);
+    public <T> T accept(Visitor<? extends T> v) {
+        return v.visitMemoryOrder(this);
     }
 
     @Override

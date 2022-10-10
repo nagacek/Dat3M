@@ -12,23 +12,15 @@ import com.dat3m.dartagnan.program.filter.FilterBasic;
 import com.dat3m.dartagnan.program.filter.FilterIntersection;
 import com.dat3m.dartagnan.program.filter.FilterUnion;
 import com.dat3m.dartagnan.wmm.relation.base.stat.StaticRelation;
-import com.dat3m.dartagnan.wmm.utils.Flag;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
-import org.sosy_lab.java_smt.api.BooleanFormula;
-import org.sosy_lab.java_smt.api.BooleanFormulaManager;
-import org.sosy_lab.java_smt.api.FormulaManager;
-import org.sosy_lab.java_smt.api.SolverContext;
 
 import java.util.List;
 
-import static com.dat3m.dartagnan.expression.utils.Utils.generalEqual;
 import static com.dat3m.dartagnan.program.event.Tag.SVCOMP.SVCOMPATOMIC;
 import static com.dat3m.dartagnan.wmm.relation.RelationNameRepository.RMW;
-import static com.google.common.base.Preconditions.checkState;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.IntStream.iterate;
-import static org.sosy_lab.java_smt.api.FormulaType.BooleanType;
 
 /*
     NOTE: Changes to the semantics of this class may need to be reflected
@@ -38,6 +30,11 @@ public class RelRMW extends StaticRelation {
 
     public RelRMW(){
         term = RMW;
+    }
+
+    @Override
+    public <T> T accept(Visitor<? extends T> v) {
+        return v.visitReadModifyWrites(this);
     }
 
     @Override

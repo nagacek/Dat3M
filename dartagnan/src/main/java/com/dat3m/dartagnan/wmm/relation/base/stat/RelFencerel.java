@@ -8,9 +8,6 @@ import com.dat3m.dartagnan.program.filter.FilterAbstract;
 import com.dat3m.dartagnan.program.filter.FilterBasic;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
-import org.sosy_lab.java_smt.api.BooleanFormula;
-import org.sosy_lab.java_smt.api.BooleanFormulaManager;
-import org.sosy_lab.java_smt.api.SolverContext;
 
 import java.util.List;
 
@@ -35,6 +32,11 @@ public class RelFencerel extends StaticRelation {
 
     public String getFenceName() { return name != null ? name : filter.getName(); }
     public FilterAbstract getFilter() { return filter; }
+
+    @Override
+    public <T> T accept(Visitor<? extends T> v) {
+        return v.visitFences(this, filter);
+    }
 
     @Override
     public TupleSet getMinTupleSet(){

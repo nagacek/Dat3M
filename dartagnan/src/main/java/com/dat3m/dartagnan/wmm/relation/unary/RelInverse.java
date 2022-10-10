@@ -1,13 +1,9 @@
 package com.dat3m.dartagnan.wmm.relation.unary;
 
 import com.dat3m.dartagnan.wmm.relation.Relation;
-import com.dat3m.dartagnan.wmm.utils.Tuple;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
 import com.dat3m.dartagnan.wmm.utils.TupleSetMap;
 import com.google.common.collect.Sets;
-import org.sosy_lab.java_smt.api.BooleanFormula;
-import org.sosy_lab.java_smt.api.BooleanFormulaManager;
-import org.sosy_lab.java_smt.api.SolverContext;
 
 /**
  *
@@ -29,6 +25,11 @@ public class RelInverse extends UnaryRelation {
     public RelInverse(Relation r1, String name) {
         super(r1, name);
         term = makeTerm(r1);
+    }
+
+    @Override
+    public <T> T accept(Visitor<? extends T> v) {
+        return v.visitInverse(this, r1);
     }
 
     @Override

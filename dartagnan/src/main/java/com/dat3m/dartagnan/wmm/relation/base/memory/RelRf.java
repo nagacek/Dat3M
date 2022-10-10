@@ -1,6 +1,5 @@
 package com.dat3m.dartagnan.wmm.relation.base.memory;
 
-import com.dat3m.dartagnan.GlobalSettings;
 import com.dat3m.dartagnan.program.analysis.ExecutionAnalysis;
 import com.dat3m.dartagnan.program.analysis.alias.AliasAnalysis;
 import com.dat3m.dartagnan.program.event.core.Event;
@@ -17,15 +16,12 @@ import com.dat3m.dartagnan.wmm.utils.Tuple;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.sosy_lab.java_smt.api.*;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static com.dat3m.dartagnan.expression.utils.Utils.generalEqual;
 import static com.dat3m.dartagnan.program.event.Tag.*;
 import static com.dat3m.dartagnan.wmm.relation.RelationNameRepository.RF;
-import static org.sosy_lab.java_smt.api.FormulaType.BooleanType;
 
 public class RelRf extends Relation {
 
@@ -35,6 +31,10 @@ public class RelRf extends Relation {
         term = RF;
     }
 
+    @Override
+    public <T> T accept(Visitor<? extends T> v) {
+        return v.visitReadFrom(this);
+    }
 
     @Override
     public TupleSet getMinTupleSet(){

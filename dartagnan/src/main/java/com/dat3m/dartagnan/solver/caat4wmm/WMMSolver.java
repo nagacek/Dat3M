@@ -14,6 +14,8 @@ import com.dat3m.dartagnan.verification.model.ExecutionModel;
 import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.utils.TupleSetMap;
+import org.sosy_lab.common.configuration.Configuration;
+import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.java_smt.api.Model;
 import org.sosy_lab.java_smt.api.SolverContext;
 
@@ -32,13 +34,17 @@ public class WMMSolver {
     private final CAATSolver solver;
     private final CoreReasoner reasoner;
 
-    public WMMSolver(VerificationTask task, Context analysisContext, EdgeManager manager) {
+    private WMMSolver(VerificationTask task, Context analysisContext, EdgeManager manager, ExecutionModel m) {
         analysisContext.requires(RelationAnalysis.class);
         this.executionGraph = new ExecutionGraph(task, true);
-        this.executionModel = new ExecutionModel(task);
+        this.executionModel = m;
         manager.init(executionModel, executionGraph);
         this.reasoner = new CoreReasoner(task, analysisContext, executionGraph, manager);
         this.solver = CAATSolver.create(manager, manager.transformCAATRelations(executionGraph));
+    }
+
+    public static WMMSolver fromConfig(VerificationTask task, Context analysisContext, EdgeManager manager, Configuration config) throws InvalidConfigurationException {
+        return new WMMSolver(task, analysisContext, manager, ExecutionModel.fromConfig(task, config));
     }
 
     public ExecutionModel getExecution() {
