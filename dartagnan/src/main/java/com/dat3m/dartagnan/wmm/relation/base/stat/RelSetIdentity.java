@@ -31,7 +31,11 @@ public class RelSetIdentity extends StaticRelation {
 
     @Override
     public <T> T accept(Visitor<? extends T> v) {
-        return v.visitIdentity(this, filter);
+        return v.visitIdentity(encodeTupleSet, this, filter);
+    }
+    @Override
+    public <T> T accept(Visitor<? extends T> v, TupleSet toEncode) {
+        return v.visitIdentity(toEncode, this, filter);
     }
 
     @Override

@@ -24,6 +24,7 @@ import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.java_smt.api.BooleanFormula;
 import org.sosy_lab.java_smt.api.SolverContext;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -56,7 +57,11 @@ public abstract class Relation implements Constraint, Encoder, Dependent<Relatio
     }
 
     public <T> T accept(Visitor<? extends T> visitor) {
-        return visitor.visitDefinition(this, List.of());
+        return visitor.visitDefinition(encodeTupleSet, this, List.of());
+    }
+
+    public <T> T accept(Visitor<? extends T> visitor, TupleSet toEncode) {
+        return visitor.visitDefinition(toEncode,this, List.of());
     }
 
     @Override
@@ -106,12 +111,7 @@ public abstract class Relation implements Constraint, Encoder, Dependent<Relatio
     public TupleSetMap addEncodeTupleSet(TupleSet tuples){
         TupleSet oldEncodeSet = new TupleSet(encodeTupleSet);
         encodeTupleSet.addAll(Sets.intersection(tuples, maxTupleSet));
-        TupleSetMap differences = new TupleSetMap(this, new TupleSet(Sets.difference(encodeTupleSet, oldEncodeSet)));
-        if (this instanceof RelCo || this instanceof RelLoc || this instanceof RelRf) {
-            return new TupleSetMap();
-        } else {
-            return differences;
-        }
+        return new TupleSetMap(this, new TupleSet(Sets.difference(encodeTupleSet, oldEncodeSet)));
     }
 
     public String getName() {
@@ -140,7 +140,7 @@ public abstract class Relation implements Constraint, Encoder, Dependent<Relatio
     public List<Relation> getConstrainedRelations() {
         return accept(new Visitor<>() {
             @Override
-            public List<Relation> visitDefinition(Relation rel, List<? extends Relation> dependencies) {
+            public List<Relation> visitDefinition(TupleSet toEncode, Relation rel, List<? extends Relation> dependencies) {
                 List<Relation> relations = new ArrayList<>(dependencies.size() + 1);
                 relations.add(rel);
                 relations.addAll(dependencies);
@@ -172,14 +172,6 @@ public abstract class Relation implements Constraint, Encoder, Dependent<Relatio
 
         return getName().equals(((Relation)obj).getName());
     }
-
-    public BooleanFormula encode(SolverContext ctx) {
-        return encodeApprox(ctx);
-    }
-
-    protected abstract BooleanFormula encodeApprox(SolverContext ctx);
-
-    public abstract BooleanFormula encodeApprox(SolverContext ctx, TupleSet toEncode);
 
     public BooleanFormula getSMTVar(Tuple edge, SolverContext ctx) {
         return !getMaxTupleSet().contains(edge) ?
@@ -227,31 +219,31 @@ public abstract class Relation implements Constraint, Encoder, Dependent<Relatio
     }
 
     public interface Visitor <T> {
-        default T visitDefinition(Relation rel, List<? extends Relation> dependencies) { throw new UnsupportedOperationException("applying" + getClass().getSimpleName() + " to relation " + rel); }
-        default T visitUnion(Relation rel, Relation... operands) { return visitDefinition(rel, List.of(operands)); }
-        default T visitIntersection(Relation rel, Relation... operands) { return visitDefinition(rel, List.of(operands)); }
-        default T visitDifference(Relation rel, Relation superset, Relation complement) { return visitDefinition(rel, List.of(superset, complement)); }
-        default T visitComposition(Relation rel, Relation front, Relation back) { return visitDefinition(rel, List.of(front, back)); }
-        default T visitDomainIdentity(Relation rel, Relation operand) { return visitDefinition(rel, List.of(operand)); }
-        default T visitRangeIdentity(Relation rel, Relation operand) { return visitDefinition(rel, List.of(operand)); }
-        default T visitInverse(Relation rel, Relation operand) { return visitDefinition(rel, List.of(operand)); }
-        default T visitRecursive(Relation rel, Relation other) { return visitDefinition(rel, List.of(other)); }
-        default T visitTransitiveClosure(Relation rel, Relation operand) { return visitDefinition(rel, List.of(operand)); }
-        default T visitEmpty(Relation rel) { return visitDefinition(rel, List.of()); }
-        default T visitIdentity(Relation id, FilterAbstract set) { return visitDefinition(id, List.of()); }
-        default T visitProduct(Relation rel, FilterAbstract domain, FilterAbstract range) { return visitDefinition(rel, List.of()); }
-        default T visitExternal(Relation ext) { return visitDefinition(ext, List.of()); }
-        default T visitInternal(Relation int_) { return visitDefinition(int_, List.of()); }
-        default T visitProgramOrder(Relation po, FilterAbstract type) { return visitDefinition(po, List.of()); }
-        default T visitControl(Relation ctrlDirect) { return visitDefinition(ctrlDirect, List.of()); }
-        default T visitFences(Relation fence, FilterAbstract type) { return visitDefinition(fence, List.of()); }
-        default T visitInternalDataDependency(Relation idd) { return visitDefinition(idd, List.of()); }
-        default T visitCompareAndSwapDependency(Relation casDep) { return visitDefinition(casDep, List.of()); }
-        default T visitAddressDependency(Relation addrDirect) { return visitDefinition(addrDirect, List.of()); }
-        default T visitCriticalSections(Relation rscs) { return visitDefinition(rscs, List.of()); }
-        default T visitReadModifyWrites(Relation rmw) { return visitDefinition(rmw, List.of()); }
-        default T visitMemoryOrder(Relation co) { return visitDefinition(co, List.of()); }
-        default T visitSameAddress(Relation loc) { return visitDefinition(loc, List.of()); }
-        default T visitReadFrom(Relation rf) { return visitDefinition(rf, List.of()); }
+        default T visitDefinition(TupleSet toEncode, Relation rel, List<? extends Relation> dependencies) { throw new UnsupportedOperationException("applying" + getClass().getSimpleName() + " to relation " + rel); }
+        default T visitUnion(TupleSet toEncode, Relation rel, Relation... operands) { return visitDefinition(toEncode, rel, List.of(operands)); }
+        default T visitIntersection(TupleSet toEncode, Relation rel, Relation... operands) { return visitDefinition(toEncode, rel, List.of(operands)); }
+        default T visitDifference(TupleSet toEncode, Relation rel, Relation superset, Relation complement) { return visitDefinition(toEncode, rel, List.of(superset, complement)); }
+        default T visitComposition(TupleSet toEncode, Relation rel, Relation front, Relation back) { return visitDefinition(toEncode, rel, List.of(front, back)); }
+        default T visitDomainIdentity(TupleSet toEncode, Relation rel, Relation operand) { return visitDefinition(toEncode, rel, List.of(operand)); }
+        default T visitRangeIdentity(TupleSet toEncode, Relation rel, Relation operand) { return visitDefinition(toEncode, rel, List.of(operand)); }
+        default T visitInverse(TupleSet toEncode, Relation rel, Relation operand) { return visitDefinition(toEncode, rel, List.of(operand)); }
+        default T visitRecursive(TupleSet toEncode, Relation rel, Relation other) { return visitDefinition(toEncode, rel, List.of(other)); }
+        default T visitTransitiveClosure(TupleSet toEncode, Relation rel, Relation operand) { return visitDefinition(toEncode, rel, List.of(operand)); }
+        default T visitEmpty(TupleSet toEncode, Relation rel) { return visitDefinition(toEncode, rel, List.of()); }
+        default T visitIdentity(TupleSet toEncode, Relation id, FilterAbstract set) { return visitDefinition(toEncode, id, List.of()); }
+        default T visitProduct(TupleSet toEncode, Relation rel, FilterAbstract domain, FilterAbstract range) { return visitDefinition(toEncode, rel, List.of()); }
+        default T visitExternal(TupleSet toEncode, Relation ext) { return visitDefinition(toEncode, ext, List.of()); }
+        default T visitInternal(TupleSet toEncode, Relation int_) { return visitDefinition(toEncode, int_, List.of()); }
+        default T visitProgramOrder(TupleSet toEncode, Relation po, FilterAbstract type) { return visitDefinition(toEncode, po, List.of()); }
+        default T visitControl(TupleSet toEncode, Relation ctrlDirect) { return visitDefinition(toEncode, ctrlDirect, List.of()); }
+        default T visitFences(TupleSet toEncode, Relation fence, FilterAbstract type) { return visitDefinition(toEncode, fence, List.of()); }
+        default T visitInternalDataDependency(TupleSet toEncode, Relation idd) { return visitDefinition(toEncode, idd, List.of()); }
+        default T visitCompareAndSwapDependency(TupleSet toEncode, Relation casDep) { return visitDefinition(toEncode, casDep, List.of()); }
+        default T visitAddressDependency(TupleSet toEncode, Relation addrDirect) { return visitDefinition(toEncode, addrDirect, List.of()); }
+        default T visitCriticalSections(TupleSet toEncode, Relation rscs) { return visitDefinition(toEncode, rscs, List.of()); }
+        default T visitReadModifyWrites(TupleSet toEncode, Relation rmw) { return visitDefinition(toEncode, rmw, List.of()); }
+        default T visitMemoryOrder(TupleSet toEncode, Relation co) { return visitDefinition(toEncode, co, List.of()); }
+        default T visitSameAddress(TupleSet toEncode, Relation loc) { return visitDefinition(toEncode, loc, List.of()); }
+        default T visitReadFrom(TupleSet toEncode, Relation rf) { return visitDefinition(toEncode, rf, List.of()); }
     }
 }

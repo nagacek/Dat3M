@@ -24,7 +24,11 @@ public class RelCtrlDirect extends StaticRelation {
 
     @Override
     public <T> T accept(Visitor<? extends T> v) {
-        return v.visitControl(this);
+        return v.visitControl(encodeTupleSet, this);
+    }
+    @Override
+    public <T> T accept(Visitor<? extends T> v, TupleSet toEncode) {
+        return v.visitControl(toEncode, this);
     }
 
     @Override

@@ -25,7 +25,11 @@ public class RelRangeIdentity extends UnaryRelation {
 
     @Override
     public <T> T accept(Visitor<? extends T> v) {
-        return v.visitRangeIdentity(this, r1);
+        return v.visitRangeIdentity(encodeTupleSet, this, r1);
+    }
+    @Override
+    public <T> T accept(Visitor<? extends T> v, TupleSet toEncode) {
+        return v.visitRangeIdentity(toEncode, this, r1);
     }
 
     @Override
@@ -69,25 +73,4 @@ public class RelRangeIdentity extends UnaryRelation {
         return map;
     }
 
-    @Override
-    protected BooleanFormula encodeApprox(SolverContext ctx) {
-        return encodeApprox(ctx, encodeTupleSet);
-    }
-
-    @Override
-    public BooleanFormula encodeApprox(SolverContext ctx, TupleSet toEncode) {
-        BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
-        BooleanFormula enc = bmgr.makeTrue();
-
-        //TODO: Optimize using minSets (but no CAT uses this anyway)
-        for(Tuple tuple1 : toEncode){
-            Event e = tuple1.getFirst();
-            BooleanFormula opt = bmgr.makeFalse();
-            for(Tuple tuple2 : r1.getMaxTupleSet().getBySecond(e)){
-                opt = bmgr.or(r1.getSMTVar(tuple2.getFirst(), e, ctx));
-            }
-            enc = bmgr.and(enc, bmgr.equivalence(this.getSMTVar(e, e, ctx), opt));
-        }
-        return enc;
-    }
 }

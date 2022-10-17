@@ -39,7 +39,11 @@ public class RelCartesian extends StaticRelation {
 
     @Override
     public <T> T accept(Visitor<? extends T> v) {
-        return v.visitProduct(this, filter1, filter2);
+        return v.visitProduct(encodeTupleSet, this, filter1, filter2);
+    }
+    @Override
+    public <T> T accept(Visitor<? extends T> v, TupleSet toEncode) {
+        return v.visitProduct(toEncode, this, filter1, filter2);
     }
 
     @Override

@@ -29,7 +29,11 @@ public class RelInverse extends UnaryRelation {
 
     @Override
     public <T> T accept(Visitor<? extends T> v) {
-        return v.visitInverse(this, r1);
+        return v.visitInverse(encodeTupleSet, this, r1);
+    }
+    @Override
+    public <T> T accept(Visitor<? extends T> v, TupleSet toEncode) {
+        return v.visitInverse(toEncode, this, r1);
     }
 
     @Override
@@ -64,22 +68,4 @@ public class RelInverse extends UnaryRelation {
         return map;
     }
 
-    @Override
-    protected BooleanFormula encodeApprox(SolverContext ctx) {
-        return encodeApprox(ctx, encodeTupleSet);
-    }
-
-    @Override
-    public BooleanFormula encodeApprox(SolverContext ctx, TupleSet toEncode) {
-        BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
-        BooleanFormula enc = bmgr.makeTrue();
-
-
-        TupleSet minSet = getMinTupleSet();
-        for(Tuple tuple : toEncode){
-            BooleanFormula opt = minSet.contains(tuple) ? getExecPair(tuple, ctx) : r1.getSMTVar(tuple.getInverse(), ctx);
-            enc = bmgr.and(enc, bmgr.equivalence(this.getSMTVar(tuple, ctx), opt));
-        }
-        return enc;
-    }
 }

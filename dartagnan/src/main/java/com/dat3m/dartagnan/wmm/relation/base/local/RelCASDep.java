@@ -17,7 +17,11 @@ public class RelCASDep extends StaticRelation {
 
     @Override
     public <T> T accept(Visitor<? extends T> v) {
-        return v.visitCompareAndSwapDependency(this);
+        return v.visitCompareAndSwapDependency(encodeTupleSet, this);
+    }
+    @Override
+    public <T> T accept(Visitor<? extends T> v, TupleSet toEncode) {
+        return v.visitCompareAndSwapDependency(toEncode, this);
     }
 
     @Override

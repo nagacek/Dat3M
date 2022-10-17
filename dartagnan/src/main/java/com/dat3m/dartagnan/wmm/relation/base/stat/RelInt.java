@@ -19,7 +19,11 @@ public class RelInt extends StaticRelation {
 
     @Override
     public <T> T accept(Visitor<? extends T> v) {
-        return v.visitInternal(this);
+        return v.visitInternal(encodeTupleSet, this);
+    }
+    @Override
+    public <T> T accept(Visitor<? extends T> v, TupleSet toEncode) {
+        return v.visitInternal(toEncode, this);
     }
 
     @Override

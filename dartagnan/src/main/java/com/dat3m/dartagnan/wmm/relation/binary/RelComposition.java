@@ -33,7 +33,12 @@ public class RelComposition extends BinaryRelation {
 
     @Override
     public <T> T accept(Visitor<? extends T> v) {
-        return v.visitComposition(this, r1, r2);
+        return v.visitComposition(encodeTupleSet, this, r1, r2);
+    }
+
+    @Override
+    public <T> T accept(Visitor<? extends T> v, TupleSet toEncode) {
+        return v.visitComposition(toEncode, this, r1, r2);
     }
 
     @Override
@@ -117,35 +122,4 @@ public class RelComposition extends BinaryRelation {
         return map;
     }
 
-    @Override
-    protected BooleanFormula encodeApprox(SolverContext ctx) {
-        return encodeApprox(ctx, encodeTupleSet);
-    }
-
-    @Override
-    public BooleanFormula encodeApprox(SolverContext ctx, TupleSet toEncode) {
-        BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
-        BooleanFormula enc = bmgr.makeTrue();
-
-        TupleSet r1Set = r1.getEncodeTupleSet();
-        TupleSet r2Set = r2.getEncodeTupleSet();
-        TupleSet minSet = getMinTupleSet();
-
-        for(Tuple tuple : toEncode) {
-            BooleanFormula expr = bmgr.makeFalse();
-            if (minSet.contains(tuple)) {
-                expr = getExecPair(tuple, ctx);
-            } else {
-                for (Tuple t1 : r1Set.getByFirst(tuple.getFirst())) {
-                    Tuple t2 = new Tuple(t1.getSecond(), tuple.getSecond());
-                    if (r2Set.contains(t2)) {
-                        expr = bmgr.or(expr, bmgr.and(r1.getSMTVar(t1, ctx), r2.getSMTVar(t2, ctx)));
-                    }
-                }
-            }
-
-            enc = bmgr.and(enc, bmgr.equivalence(this.getSMTVar(tuple, ctx), expr));
-        }
-        return enc;
-    }
 }

@@ -33,7 +33,11 @@ public class RelPo extends StaticRelation {
 
     @Override
     public <T> T accept(Visitor<? extends T> v) {
-        return v.visitProgramOrder(this, filter);
+        return v.visitProgramOrder(encodeTupleSet, this, filter);
+    }
+    @Override
+    public <T> T accept(Visitor<? extends T> v, TupleSet toEncode) {
+        return v.visitProgramOrder(toEncode, this, filter);
     }
 
     @Override

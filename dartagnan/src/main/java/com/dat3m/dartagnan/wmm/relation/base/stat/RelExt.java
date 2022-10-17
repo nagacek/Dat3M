@@ -19,7 +19,11 @@ public class RelExt extends StaticRelation {
 
     @Override
     public <T> T accept(Visitor<? extends T> v) {
-        return v.visitExternal(this);
+        return v.visitExternal(encodeTupleSet, this);
+    }
+    @Override
+    public <T> T accept(Visitor<? extends T> v, TupleSet toEncode) {
+        return v.visitExternal(toEncode, this);
     }
 
     @Override

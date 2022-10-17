@@ -7,6 +7,8 @@ import com.dat3m.dartagnan.program.filter.FilterBasic;
 import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
+import com.dat3m.dartagnan.wmm.utils.TupleSetMap;
+import com.google.common.collect.Sets;
 
 import java.util.Collection;
 
@@ -21,7 +23,11 @@ public class RelLoc extends Relation {
 
     @Override
     public <T> T accept(Visitor<? extends T> v) {
-        return v.visitSameAddress(this);
+        return v.visitSameAddress(encodeTupleSet, this);
+    }
+    @Override
+    public <T> T accept(Visitor<? extends T> v, TupleSet toEncode) {
+        return v.visitSameAddress(toEncode, this);
     }
 
     @Override
@@ -54,28 +60,5 @@ public class RelLoc extends Relation {
             removeMutuallyExclusiveTuples(maxTupleSet);
         }
         return maxTupleSet;
-    }
-
-    @Override
-    protected BooleanFormula encodeApprox(SolverContext ctx) {
-        return encodeApprox(ctx, encodeTupleSet);
-    }
-
-    @Override
-    public BooleanFormula encodeApprox(SolverContext ctx, TupleSet toEncode) {
-        FormulaManager fmgr = ctx.getFormulaManager();
-        BooleanFormulaManager bmgr = fmgr.getBooleanFormulaManager();
-
-        BooleanFormula enc = bmgr.makeTrue();
-        for(Tuple tuple : toEncode) {
-            BooleanFormula rel = this.getSMTVar(tuple, ctx);
-            enc = bmgr.and(enc, bmgr.equivalence(rel, bmgr.and(
-                    getExecPair(tuple, ctx),
-                    Utils.generalEqual(
-                            ((MemEvent)tuple.getFirst()).getMemAddressExpr(),
-                            ((MemEvent)tuple.getSecond()).getMemAddressExpr(), ctx)
-            )));
-        }
-        return enc;
     }
 }

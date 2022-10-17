@@ -35,7 +35,11 @@ public class RelFencerel extends StaticRelation {
 
     @Override
     public <T> T accept(Visitor<? extends T> v) {
-        return v.visitFences(this, filter);
+        return v.visitFences(encodeTupleSet, this, filter);
+    }
+    @Override
+    public <T> T accept(Visitor<? extends T> v, TupleSet toEncode) {
+        return v.visitFences(toEncode, this, filter);
     }
 
     @Override
@@ -94,34 +98,4 @@ public class RelFencerel extends StaticRelation {
         return maxTupleSet;
     }
 
-    @Override
-    protected BooleanFormula encodeApprox(SolverContext ctx) {
-        return encodeApprox(ctx, encodeTupleSet);
-    }
-    @Override
-    public BooleanFormula encodeApprox(SolverContext ctx, TupleSet toEncode) {
-        BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
-        BooleanFormula enc = bmgr.makeTrue();
-
-        List<Event> fences = task.getProgram().getCache().getEvents(filter);
-
-        for(Tuple tuple : toEncode){
-            Event e1 = tuple.getFirst();
-            Event e2 = tuple.getSecond();
-
-            BooleanFormula orClause;
-            if(minTupleSet.contains(tuple)) {
-                orClause = bmgr.makeTrue();
-            } else {
-                orClause = fences.stream()
-                        .filter(f -> e1.getCId() < f.getCId() && f.getCId() < e2.getCId())
-                        .map(Event::exec).reduce(bmgr.makeFalse(), bmgr::or);
-            }
-
-            BooleanFormula rel = this.getSMTVar(tuple, ctx);
-            enc = bmgr.and(enc, bmgr.equivalence(rel, bmgr.and(getExecPair(tuple, ctx), orClause)));
-        }
-
-        return enc;
-    }
 }

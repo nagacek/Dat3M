@@ -5,6 +5,7 @@ import com.dat3m.dartagnan.program.event.Tag;
 import com.dat3m.dartagnan.program.event.core.Event;
 import com.dat3m.dartagnan.program.event.core.MemEvent;
 import com.dat3m.dartagnan.program.filter.FilterBasic;
+import com.dat3m.dartagnan.wmm.utils.TupleSet;
 
 import java.util.Collection;
 
@@ -18,7 +19,11 @@ public class RelAddrDirect extends BasicRegRelation {
 
     @Override
     public <T> T accept(Visitor<? extends T> v) {
-        return v.visitAddressDependency(this);
+        return v.visitAddressDependency(encodeTupleSet, this);
+    }
+    @Override
+    public <T> T accept(Visitor<? extends T> v, TupleSet toEncode) {
+        return v.visitAddressDependency(toEncode, this);
     }
 
     @Override

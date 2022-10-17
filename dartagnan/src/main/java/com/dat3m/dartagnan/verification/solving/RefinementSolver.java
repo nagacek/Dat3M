@@ -1,10 +1,7 @@
 package com.dat3m.dartagnan.verification.solving;
 
 import com.dat3m.dartagnan.configuration.Baseline;
-import com.dat3m.dartagnan.encoding.ProgramEncoder;
-import com.dat3m.dartagnan.encoding.PropertyEncoder;
-import com.dat3m.dartagnan.encoding.SymmetryEncoder;
-import com.dat3m.dartagnan.encoding.WmmEncoder;
+import com.dat3m.dartagnan.encoding.*;
 import com.dat3m.dartagnan.program.Program;
 import com.dat3m.dartagnan.program.filter.FilterAbstract;
 import com.dat3m.dartagnan.solver.caat.CAATSolver;
@@ -35,9 +32,9 @@ import com.dat3m.dartagnan.wmm.relation.binary.RelComposition;
 import com.dat3m.dartagnan.wmm.relation.binary.RelIntersection;
 import com.dat3m.dartagnan.wmm.relation.binary.RelMinus;
 import com.dat3m.dartagnan.wmm.relation.binary.RelUnion;
-import com.dat3m.dartagnan.wmm.relation.unary.RelTransRef;
 import com.dat3m.dartagnan.wmm.utils.RecursiveGroup;
-import com.dat3m.dartagnan.wmm.utils.RelationRepository;
+import com.dat3m.dartagnan.wmm.utils.Tuple;
+import com.dat3m.dartagnan.wmm.utils.TupleSet;
 import com.dat3m.dartagnan.wmm.utils.TupleSetMap;
 import com.dat3m.dartagnan.wmm.relation.unary.RelDomainIdentity;
 import com.dat3m.dartagnan.wmm.relation.unary.RelInverse;
@@ -123,6 +120,7 @@ public class RefinementSolver extends ModelChecker {
 
         // Relations to be cut statically
         Set<Relation> cutRelations = new HashSet<>();
+        //cutRelations.add(memoryModel.getRelation("fr"));
         memoryModel.configureAll(config);
         baselineModel.configureAll(config);
 
@@ -148,19 +146,18 @@ public class RefinementSolver extends ModelChecker {
         BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
         BooleanFormula globalRefinement = bmgr.makeTrue();
 
-        WMMSolver solver = WMMSolver.fromConfig(task, analysisContext, cutRelations, config);
+        WMMSolver solver = WMMSolver.fromConfig(task, analysisContext, manager, config);
         // init partial relation encoding
         for(RecursiveGroup recursiveGroup : task.getMemoryModel().getRecursiveGroups()){
             recursiveGroup.setDoRecurse();
         }
-        for (Relation rel : memoryModel.getRelationDependencyGraph().getNodeContents()) {
+        for (Relation rel : memoryModel.getRelations()) {
             rel.initializeEncoding(ctx);
         }
         for (Axiom axiom : task.getMemoryModel().getAxioms()) {
             axiom.initializeEncoding(ctx);
         }
 
-        WMMSolver solver = new WMMSolver(task, analysisContext, manager);
         Refiner refiner = new Refiner(memoryModel, analysisContext);
         CAATSolver.Status status = INCONSISTENT;
 
@@ -222,6 +219,10 @@ public class RefinementSolver extends ModelChecker {
             if (status == INCONSISTENT) {
                 long refineTime = System.currentTimeMillis();
                 DNF<CoreLiteral> reasons = solverResult.getCoreReasons();
+                System.out.println("Reason is ");
+                for (var reason : reasons.getCubes()) {
+                    System.out.println("    " + reason);
+                }
                 BooleanFormula refinement = refiner.refine(reasons, ctx);
                 prover.addConstraint(refinement);
                 globalRefinement = bmgr.and(globalRefinement, refinement); // Track overall refinement progress
@@ -230,7 +231,18 @@ public class RefinementSolver extends ModelChecker {
                 TupleSetMap permutedEdges = refiner.permute(caatEdges);
                 TupleSetMap edgesToBeEncoded = determineEncodedTuples(permutedEdges);
                 TupleSetMap newEdgesToEncode = manager.addEagerlyEncodedEdges(edgesToBeEncoded);
-                BooleanFormula dynamicCut = encodeEagerly(newEdgesToEncode, ctx);
+                System.out.println("===========================\nEncode edges dynamically: ");
+                for (Relation relation: newEdgesToEncode.getRelations()) {
+                    System.out.println("    " + relation.getName() + ":");
+                    for (Tuple edge : newEdgesToEncode.get(relation)) {
+                        System.out.print("(" + edge.getFirst().getCId() + "," + edge.getSecond().getCId() + "), ");
+                    }
+                    System.out.println();
+                }
+                System.out.println("===========================");
+                //System.out.println(manager);
+                BooleanFormula dynamicCut = encodeEagerly(newEdgesToEncode, ctx, analysisContext, program);
+                System.out.println("Encoding is: " + dynamicCut);
                 prover.addConstraint(dynamicCut);
                 globalRefinement = bmgr.and(globalRefinement, dynamicCut);
                 totalRefiningTime += (System.currentTimeMillis() - refineTime);
@@ -326,37 +338,51 @@ public class RefinementSolver extends ModelChecker {
         TupleSetMap toEncode = new TupleSetMap();
         for (var entry : chosen.getEntries()) {
             Relation next = entry.getKey();
-            if (next != null && next.getDependencies() != null && next.getDependencies().size() > 0) {
+            if (next != null) { // && next.getDependencies() != null && next.getDependencies().size() > 0
                 toEncode.merge(next.addEncodeTupleSet(entry.getValue()));
             }
         }
         return toEncode;
     }
 
-    public static BooleanFormula encodeEagerly(TupleSetMap toEncode, SolverContext ctx) {
+    public static BooleanFormula encodeEagerly(TupleSetMap toEncode, SolverContext ctx, Context analysisContext, Program program) {
+        RelationEncoder encoder = new RelationEncoder(ctx, analysisContext, program, false);
         BooleanFormulaManager manager = ctx.getFormulaManager().getBooleanFormulaManager();
         BooleanFormula eagerEncoding = manager.makeTrue();
         for (var entry : toEncode.getEntries()) {
             Relation rel = entry.getKey();
-            eagerEncoding = manager.and(eagerEncoding, rel.encodeApprox(ctx, entry.getValue()));
+            eagerEncoding = manager.and(eagerEncoding, rel.accept(encoder, entry.getValue()));
         }
         return eagerEncoding;
+    }
+    private static Relation getCopyOfRelation(Relation rel, Wmm m) {
+        checkArgument(!(rel instanceof RecursiveRelation), "Cannot cut recursively defined relation %s from memory model. ", rel);
+        Relation namedCopy = m.getRelation(rel.getName());
+        if (namedCopy != null) {
+            return namedCopy;
+        }
+        Relation copy = rel.accept(new RelationCopier(m));
+        if (rel.getIsNamed()) {
+            copy.setName(rel.getName());
+        }
+        m.addRelation(copy);
+        return copy;
     }
 
     private static final class RelationCopier implements Relation.Visitor<Relation> {
         final Wmm targetModel;
         RelationCopier(Wmm m) { targetModel = m; }
-        @Override public Relation visitUnion(Relation rel, Relation... r) { return new RelUnion(copy(r[0]), copy(r[1])); }
-        @Override public Relation visitIntersection(Relation rel, Relation... r) { return new RelIntersection(copy(r[0]), copy(r[1])); }
-        @Override public Relation visitDifference(Relation rel, Relation r1, Relation r2) { return new RelMinus(copy(r1), copy(r2)); }
-        @Override public Relation visitComposition(Relation rel, Relation r1, Relation r2) { return new RelComposition(copy(r1), copy(r2)); }
-        @Override public Relation visitInverse(Relation rel, Relation r1) { return new RelInverse(copy(r1)); }
-        @Override public Relation visitDomainIdentity(Relation rel, Relation r1) { return new RelDomainIdentity(copy(r1)); }
-        @Override public Relation visitRangeIdentity(Relation rel, Relation r1) { return new RelRangeIdentity(copy(r1)); }
-        @Override public Relation visitTransitiveClosure(Relation rel, Relation r1) { return new RelTrans(copy(r1)); }
-        @Override public Relation visitIdentity(Relation rel, FilterAbstract filter) { return new RelSetIdentity(filter); }
-        @Override public Relation visitProduct(Relation rel, FilterAbstract f1, FilterAbstract f2) { return new RelCartesian(f1, f2); }
-        @Override public Relation visitFences(Relation rel, FilterAbstract type) { return new RelFencerel(type); }
+        @Override public Relation visitUnion(TupleSet toEncode, Relation rel, Relation... r) { return new RelUnion(copy(r[0]), copy(r[1])); }
+        @Override public Relation visitIntersection(TupleSet toEncode, Relation rel, Relation... r) { return new RelIntersection(copy(r[0]), copy(r[1])); }
+        @Override public Relation visitDifference(TupleSet toEncode, Relation rel, Relation r1, Relation r2) { return new RelMinus(copy(r1), copy(r2)); }
+        @Override public Relation visitComposition(TupleSet toEncode, Relation rel, Relation r1, Relation r2) { return new RelComposition(copy(r1), copy(r2)); }
+        @Override public Relation visitInverse(TupleSet toEncode, Relation rel, Relation r1) { return new RelInverse(copy(r1)); }
+        @Override public Relation visitDomainIdentity(TupleSet toEncode, Relation rel, Relation r1) { return new RelDomainIdentity(copy(r1)); }
+        @Override public Relation visitRangeIdentity(TupleSet toEncode, Relation rel, Relation r1) { return new RelRangeIdentity(copy(r1)); }
+        @Override public Relation visitTransitiveClosure(TupleSet toEncode, Relation rel, Relation r1) { return new RelTrans(copy(r1)); }
+        @Override public Relation visitIdentity(TupleSet toEncode, Relation rel, FilterAbstract filter) { return new RelSetIdentity(filter); }
+        @Override public Relation visitProduct(TupleSet toEncode, Relation rel, FilterAbstract f1, FilterAbstract f2) { return new RelCartesian(f1, f2); }
+        @Override public Relation visitFences(TupleSet toEncode, Relation rel, FilterAbstract type) { return new RelFencerel(type); }
         private Relation copy(Relation r) { return getCopyOfRelation(r, targetModel); }
     }
 

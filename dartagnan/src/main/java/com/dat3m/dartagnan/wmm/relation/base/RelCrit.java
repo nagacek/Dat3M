@@ -9,6 +9,7 @@ import com.dat3m.dartagnan.wmm.relation.base.stat.StaticRelation;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
 import com.dat3m.dartagnan.wmm.utils.TupleSetMap;
+import com.google.common.collect.Sets;
 import org.sosy_lab.java_smt.api.BooleanFormula;
 import org.sosy_lab.java_smt.api.BooleanFormulaManager;
 import org.sosy_lab.java_smt.api.SolverContext;
@@ -32,7 +33,11 @@ public class RelCrit extends StaticRelation {
 
     @Override
     public <T> T accept(Visitor<? extends T> v) {
-        return v.visitCriticalSections(this);
+        return v.visitCriticalSections(encodeTupleSet, this);
+    }
+    @Override
+    public <T> T accept(Visitor<? extends T> v, TupleSet toEncode) {
+        return v.visitCriticalSections(toEncode, this);
     }
 
     @Override
@@ -108,34 +113,6 @@ public class RelCrit extends StaticRelation {
             }
         }
         return new TupleSetMap(this, newEntries);
-    }
-
-    @Override
-    protected BooleanFormula encodeApprox(SolverContext ctx) {
-        return encodeApprox(ctx, encodeTupleSet);
-    }
-
-    @Override
-    public BooleanFormula encodeApprox(SolverContext ctx, TupleSet toEncode) {
-    	BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
-		BooleanFormula enc = bmgr.makeTrue();
-        for (Tuple tuple : toEncode) {
-            Event lock = tuple.getFirst();
-            Event unlock = tuple.getSecond();
-            BooleanFormula relation = getExecPair(tuple, ctx);
-            for (Tuple t : maxTupleSet.getBySecond(unlock)) {
-                if (isOrdered(lock, t.getFirst(), unlock)) {
-                    relation = bmgr.and(relation, bmgr.not(getSMTVar(t, ctx)));
-                }
-            }
-            for (Tuple t : maxTupleSet.getByFirst(lock)) {
-                if (isOrdered(lock, t.getSecond(), unlock)) {
-                    relation = bmgr.and(relation, bmgr.not(getSMTVar(t, ctx)));
-                }
-            }
-            enc = bmgr.and(enc, bmgr.equivalence(getSMTVar(tuple, ctx), relation));
-        }
-        return enc;
     }
 
     private boolean isOrdered(Event x, Event y, Event z) {

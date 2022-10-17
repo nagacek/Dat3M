@@ -59,7 +59,11 @@ public class RecursiveRelation extends Relation {
 
     @Override
     public <T> T accept(Visitor<? extends T> v) {
-        return v.visitRecursive(this, r1);
+        return v.visitRecursive(encodeTupleSet, this, r1);
+    }
+    @Override
+    public <T> T accept(Visitor<? extends T> v, TupleSet toEncode) {
+        return v.visitRecursive(toEncode, this, r1);
     }
 
     @Override
@@ -116,15 +120,6 @@ public class RecursiveRelation extends Relation {
         difference.removeAll(oldEncodeSet);
 
         return map;
-    }
-
-    @Override
-    protected BooleanFormula encodeApprox(SolverContext ctx) {
-        return ctx.getFormulaManager().getBooleanFormulaManager().makeTrue();
-    }
-    @Override
-    public BooleanFormula encodeApprox(SolverContext ctx, TupleSet toEncode) {
-        return encodeApprox(ctx);
     }
 
 }

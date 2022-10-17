@@ -5,6 +5,9 @@ import com.dat3m.dartagnan.wmm.utils.TupleSet;
 import com.dat3m.dartagnan.wmm.utils.TupleSetMap;
 import com.google.common.collect.Sets;
 
+import java.util.Arrays;
+import java.util.List;
+
 /**
  *
  * @author Florian Furbach
@@ -40,6 +43,9 @@ public abstract class BinaryRelation extends Relation {
 
     @Override
     public TupleSetMap addEncodeTupleSet(TupleSet tuples){ // Not valid for composition
+        if (getName().equals("po-loc")) {
+            System.out.println("Here!");
+        }
         TupleSet activeSet = new TupleSet(Sets.intersection(Sets.difference(tuples, encodeTupleSet), maxTupleSet));
         TupleSet oldEncodeSet = new TupleSet(encodeTupleSet);
         encodeTupleSet.addAll(activeSet);

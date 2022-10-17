@@ -26,7 +26,12 @@ public class RelIntersection extends BinaryRelation {
 
     @Override
     public <T> T accept(Visitor<? extends T> v) {
-        return v.visitIntersection(this, r1, r2);
+        return v.visitIntersection(encodeTupleSet, this, r1, r2);
+    }
+
+    @Override
+    public <T> T accept(Visitor<? extends T> v, TupleSet toEncode) {
+        return v.visitIntersection(toEncode, this, r1, r2);
     }
 
     @Override
@@ -63,26 +68,4 @@ public class RelIntersection extends BinaryRelation {
         return getMaxTupleSet();
     }
 
-    @Override
-    protected BooleanFormula encodeApprox(SolverContext ctx) {
-        return encodeApprox(ctx, encodeTupleSet);
-    }
-
-    @Override
-    public BooleanFormula encodeApprox(SolverContext ctx, TupleSet toEncode) {
-        BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
-        BooleanFormula enc = bmgr.makeTrue();
-
-        TupleSet min = getMinTupleSet();
-        for(Tuple tuple : toEncode){
-            if (min.contains(tuple)) {
-                enc = bmgr.and(enc, bmgr.equivalence(this.getSMTVar(tuple, ctx), getExecPair(tuple, ctx)));
-                continue;
-            }
-            BooleanFormula opt1 = r1.getSMTVar(tuple, ctx);
-            BooleanFormula opt2 = r2.getSMTVar(tuple, ctx);
-            enc = bmgr.and(enc, bmgr.equivalence(this.getSMTVar(tuple, ctx), bmgr.and(opt1, opt2)));
-        }
-        return enc;
-    }
 }

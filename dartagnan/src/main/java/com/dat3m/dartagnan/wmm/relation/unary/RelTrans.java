@@ -33,7 +33,11 @@ public class RelTrans extends UnaryRelation {
 
     @Override
     public <T> T accept(Visitor<? extends T> v) {
-        return v.visitTransitiveClosure(this, r1);
+        return v.visitTransitiveClosure(encodeTupleSet, this, r1);
+    }
+    @Override
+    public <T> T accept(Visitor<? extends T> v, TupleSet toEncode) {
+        return v.visitTransitiveClosure(toEncode, this, r1);
     }
 
     @Override
@@ -76,7 +80,7 @@ public class RelTrans extends UnaryRelation {
     public TupleSetMap addEncodeTupleSet(TupleSet tuples){
         final TupleSet activeSet = new TupleSet(Sets.intersection(Sets.difference(tuples, encodeTupleSet), maxTupleSet));
         final TupleSet fullActiveSet = getFullEncodeTupleSet(activeSet);
-        TupleSet oldEncodeSet = new TupleSet(fullEncodeTupleSet);
+        TupleSet oldEncodeSet = new TupleSet(encodeTupleSet);
         boolean wasAdded = encodeTupleSet.addAll(fullActiveSet);
         TupleSet difference = new TupleSet(Sets.difference(encodeTupleSet, oldEncodeSet));
         TupleSetMap map = new TupleSetMap(this, difference);
@@ -87,54 +91,6 @@ public class RelTrans extends UnaryRelation {
         return map;
     }
 
-    @Override
-    protected BooleanFormula encodeApprox(SolverContext ctx) {
-        return encodeApprox(ctx, fullEncodeTupleSet);
-    }
-
-    @Override
-    public BooleanFormula encodeApprox(SolverContext ctx, TupleSet toEncode) {
-        BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
-        BooleanFormula enc = bmgr.makeTrue();
-
-        TupleSet minSet = getMinTupleSet();
-        TupleSet r1Max = r1.getMaxTupleSet();
-        for(Tuple tuple : toEncode){
-            if (minSet.contains(tuple)) {
-                if(Relation.PostFixApprox) {
-                    enc = bmgr.and(enc, bmgr.implication(getExecPair(tuple, ctx), this.getSMTVar(tuple, ctx)));
-                } else {
-                    enc = bmgr.and(enc, bmgr.equivalence(this.getSMTVar(tuple, ctx), getExecPair(tuple, ctx)));
-                }
-                continue;
-            }
-
-            BooleanFormula orClause = bmgr.makeFalse();
-            Event e1 = tuple.getFirst();
-            Event e2 = tuple.getSecond();
-
-            if(r1Max.contains(tuple)){
-                orClause = bmgr.or(orClause, r1.getSMTVar(tuple, ctx));
-            }
-
-
-            for(Tuple t : r1Max.getByFirst(e1)){
-                Event e3 = t.getSecond();
-                if(e3.getCId() != e1.getCId() && e3.getCId() != e2.getCId() && transitiveReachabilityMap.get(e3).contains(e2)){
-                    BooleanFormula tVar = minSet.contains(t) ? this.getSMTVar(t, ctx) : r1.getSMTVar(t, ctx);
-                    orClause = bmgr.or(orClause, bmgr.and(tVar, this.getSMTVar(e3, e2, ctx)));
-                }
-            }
-
-            if(Relation.PostFixApprox) {
-                enc = bmgr.and(enc, bmgr.implication(orClause, this.getSMTVar(tuple, ctx)));
-            } else {
-                enc = bmgr.and(enc, bmgr.equivalence(this.getSMTVar(tuple, ctx), orClause));
-            }
-        }
-
-        return enc;
-    }
     private TupleSet getFullEncodeTupleSet(TupleSet tuples){
         TupleSet processNow = new TupleSet(Sets.intersection(tuples, getMaxTupleSet()));
         TupleSet result = new TupleSet();

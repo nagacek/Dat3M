@@ -26,7 +26,11 @@ public class RelUnion extends BinaryRelation {
 
     @Override
     public <T> T accept(Visitor<? extends T> v) {
-        return v.visitUnion(this, r1, r2);
+        return v.visitUnion(encodeTupleSet, this, r1, r2);
+    }
+    @Override
+    public <T> T accept(Visitor<? extends T> v, TupleSet toEncode) {
+        return v.visitUnion(toEncode, this, r1, r2);
     }
 
     @Override
@@ -63,30 +67,4 @@ public class RelUnion extends BinaryRelation {
         return getMaxTupleSet();
     }
 
-    @Override
-    protected BooleanFormula encodeApprox(SolverContext ctx) {
-        return encodeApprox(ctx, encodeTupleSet);
-    }
-
-    @Override
-    public BooleanFormula encodeApprox(SolverContext ctx, TupleSet toEncode) {
-        BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
-        BooleanFormula enc = bmgr.makeTrue();
-
-        TupleSet min = getMinTupleSet();
-        for(Tuple tuple : toEncode){
-            if (min.contains(tuple)) {
-                enc = bmgr.and(enc, bmgr.equivalence(this.getSMTVar(tuple, ctx), getExecPair(tuple, ctx)));
-                continue;
-            }
-            BooleanFormula opt1 = r1.getSMTVar(tuple, ctx);
-            BooleanFormula opt2 = r2.getSMTVar(tuple, ctx);
-            if (Relation.PostFixApprox) {
-                enc = bmgr.and(enc, bmgr.implication(bmgr.or(opt1, opt2), this.getSMTVar(tuple, ctx)));
-            } else {
-                enc = bmgr.and(enc, bmgr.equivalence(this.getSMTVar(tuple, ctx), bmgr.or(opt1, opt2)));
-            }
-        }
-        return enc;
-    }
 }

@@ -61,4 +61,21 @@ public class EdgeManager {
     public boolean isEagerlyEncoded(Relation rel) {
         return edges.contains(rel);
     }
+
+    public String toString() {
+        String output = "EdgeManager is \n";
+        for (Relation rel : edges.getRelations()) {
+            output += rel.getName() + "\n    ";
+            boolean first = true;
+            for (var edge : edges.get(rel)) {
+                if (!first) {
+                    output += ", ";
+                }
+                first = false;
+                output += "(" + edge.getFirst().getCId() + "," + edge.getSecond().getCId() + ")";
+            }
+            output += "\n";
+        }
+        return output;
+    }
 }

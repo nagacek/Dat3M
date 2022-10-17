@@ -18,7 +18,11 @@ public class RelEmpty extends StaticRelation {
 
     @Override
     public <T> T accept(Visitor<? extends T> v) {
-        return v.visitEmpty(this);
+        return v.visitEmpty(encodeTupleSet, this);
+    }
+    @Override
+    public <T> T accept(Visitor<? extends T> v, TupleSet toEncode) {
+        return v.visitEmpty(toEncode, this);
     }
 
     @Override
@@ -35,15 +39,5 @@ public class RelEmpty extends StaticRelation {
             maxTupleSet = new TupleSet();
         }
         return maxTupleSet;
-    }
-
-    @Override
-    protected BooleanFormula encodeApprox(SolverContext ctx) {
-        return ctx.getFormulaManager().getBooleanFormulaManager().makeTrue();
-    }
-
-    @Override
-    public BooleanFormula encodeApprox(SolverContext ctx, TupleSet toEncode) {
-        return encodeApprox(ctx);
     }
 }
