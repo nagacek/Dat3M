@@ -11,7 +11,6 @@ import com.dat3m.dartagnan.solver.caat4wmm.WMMSolver;
 import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.CoreLiteral;
 import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.RelLiteral;
 import com.dat3m.dartagnan.utils.Result;
-import com.dat3m.dartagnan.utils.dependable.DependencyGraph;
 import com.dat3m.dartagnan.utils.logic.Conjunction;
 import com.dat3m.dartagnan.utils.logic.DNF;
 import com.dat3m.dartagnan.verification.Context;
@@ -22,7 +21,6 @@ import com.dat3m.dartagnan.wmm.Wmm;
 import com.dat3m.dartagnan.wmm.axiom.Acyclic;
 import com.dat3m.dartagnan.wmm.axiom.Axiom;
 import com.dat3m.dartagnan.wmm.axiom.Empty;
-import com.dat3m.dartagnan.wmm.axiom.ForceEncodeAxiom;
 import com.dat3m.dartagnan.wmm.relation.RecursiveRelation;
 import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.relation.base.stat.RelCartesian;
@@ -33,7 +31,6 @@ import com.dat3m.dartagnan.wmm.relation.binary.RelIntersection;
 import com.dat3m.dartagnan.wmm.relation.binary.RelMinus;
 import com.dat3m.dartagnan.wmm.relation.binary.RelUnion;
 import com.dat3m.dartagnan.wmm.utils.RecursiveGroup;
-import com.dat3m.dartagnan.wmm.utils.Tuple;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
 import com.dat3m.dartagnan.wmm.utils.TupleSetMap;
 import com.dat3m.dartagnan.wmm.relation.unary.RelDomainIdentity;
@@ -120,7 +117,6 @@ public class RefinementSolver extends ModelChecker {
 
         // Relations to be cut statically
         Set<Relation> cutRelations = new HashSet<>();
-        //cutRelations.add(memoryModel.getRelation("fr"));
         memoryModel.configureAll(config);
         baselineModel.configureAll(config);
 
@@ -183,6 +179,7 @@ public class RefinementSolver extends ModelChecker {
         long totalNativeSolvingTime = 0;
         long totalCaatTime = 0;
         long totalRefiningTime = 0;
+        long totalCuttingTime = 0;
         //  ---------------------------------
 
         logger.info("Refinement procedure started.");
@@ -219,33 +216,21 @@ public class RefinementSolver extends ModelChecker {
             if (status == INCONSISTENT) {
                 long refineTime = System.currentTimeMillis();
                 DNF<CoreLiteral> reasons = solverResult.getCoreReasons();
-                System.out.println("Reason is ");
-                for (var reason : reasons.getCubes()) {
-                    System.out.println("    " + reason);
-                }
                 BooleanFormula refinement = refiner.refine(reasons, ctx);
                 prover.addConstraint(refinement);
                 globalRefinement = bmgr.and(globalRefinement, refinement); // Track overall refinement progress
+                totalRefiningTime += (System.currentTimeMillis() - refineTime);
+
                 // handle edges used natively in CAAT
+                long cuttingTime = System.currentTimeMillis();
                 TupleSetMap caatEdges = solverResult.getDynamicallyCut();
                 TupleSetMap permutedEdges = refiner.permute(caatEdges);
                 TupleSetMap edgesToBeEncoded = determineEncodedTuples(permutedEdges);
                 TupleSetMap newEdgesToEncode = manager.addEagerlyEncodedEdges(edgesToBeEncoded);
-                System.out.println("===========================\nEncode edges dynamically: ");
-                for (Relation relation: newEdgesToEncode.getRelations()) {
-                    System.out.println("    " + relation.getName() + ":");
-                    for (Tuple edge : newEdgesToEncode.get(relation)) {
-                        System.out.print("(" + edge.getFirst().getCId() + "," + edge.getSecond().getCId() + "), ");
-                    }
-                    System.out.println();
-                }
-                System.out.println("===========================");
-                //System.out.println(manager);
                 BooleanFormula dynamicCut = encodeEagerly(newEdgesToEncode, ctx, analysisContext, program);
-                System.out.println("Encoding is: " + dynamicCut);
                 prover.addConstraint(dynamicCut);
                 globalRefinement = bmgr.and(globalRefinement, dynamicCut);
-                totalRefiningTime += (System.currentTimeMillis() - refineTime);
+                totalCuttingTime += (System.currentTimeMillis() - cuttingTime);
 
                 if (REFINEMENT_GENERATE_GRAPHVIZ_DEBUG_FILES) {
                     generateGraphvizFiles(task, solver.getExecution(), iterationCount, reasons);
@@ -317,7 +302,7 @@ public class RefinementSolver extends ModelChecker {
 
         if (logger.isInfoEnabled()) {
             logger.info(generateSummary(statList, iterationCount, totalNativeSolvingTime,
-                    totalCaatTime, totalRefiningTime, boundCheckTime));
+                    totalCaatTime, totalRefiningTime, boundCheckTime, totalCuttingTime));
         }
 
         if(logger.isDebugEnabled()) {        	
@@ -390,7 +375,7 @@ public class RefinementSolver extends ModelChecker {
 
     private static CharSequence generateSummary(List<WMMSolver.Statistics> statList, int iterationCount,
                                                 long totalNativeSolvingTime, long totalCaatTime,
-                                                long totalRefiningTime, long boundCheckTime) {
+                                                long totalRefiningTime, long boundCheckTime, long totalCuttingTime) {
         long totalModelExtractTime = 0;
         long totalPopulationTime = 0;
         long totalConsistencyCheckTime = 0;
@@ -425,6 +410,7 @@ public class RefinementSolver extends ModelChecker {
                 .append("   -- Consistency check time(ms): ").append(totalConsistencyCheckTime).append("\n")
                 .append("   -- Reason computation time(ms): ").append(totalReasonComputationTime).append("\n")
                 .append("   -- Refining time(ms): ").append(totalRefiningTime).append("\n")
+                .append("   -- Cutting time(ms): ").append(totalCuttingTime).append("\n")
                 .append("   -- #Computed core reasons: ").append(totalNumReasons).append("\n")
                 .append("   -- #Computed core reduced reasons: ").append(totalNumReducedReasons).append("\n");
         if (statList.size() > 0) {

@@ -68,39 +68,21 @@ public class CoreReasoner {
                 if (lit.isPositive() && rel.getMinTupleSet().contains(tuple)) {
                     // Statically present edges
                     addExecReason(tuple, coreReason);
-                    if (lit.getName().equals("loc")) {
-                        System.out.println("loc(" + e1.getCId() + "," + e2.getCId() + "): " + 2);
-                    }
                 } else if (lit.isNegative() && !rel.getMaxTupleSet().contains(tuple)) {
                     // Statically absent edges
-                    if (lit.getName().equals("loc")) {
-                        System.out.println("loc(" + e1.getCId() + "," + e2.getCId() + "): " + 3);
-                    }
                 } else {
                     if (rel.getName().equals(RF) || rel.getName().equals(CO)) {
                         coreReason.add(new RelLiteral(rel.getName(), tuple, lit.isNegative()));
-                        if (lit.getName().equals("loc")) {
-                            System.out.println("loc(" + e1.getCId() + "," + e2.getCId() + "): " + 4);
-                        }
                     } else if (dynamicallyCut != null && dynamicallyCut.contains(executionGraph.getRelationGraph(rel))
                             && !manager.isEagerlyEncoded(rel, tuple)) { // new dynamically cut edge
                         coreReason.add(new RelLiteral(rel.getName(), tuple, lit.isNegative()));
                         TupleSet set = new TupleSet();
                         set.add(tuple);
                         notBase.merge(new TupleSetMap(rel, set));
-                        if (lit.getName().equals("loc")) {
-                            System.out.println("loc(" + e1.getCId() + "," + e2.getCId() + "): " + 5);
-                        }
                     } else if (manager.isEagerlyEncoded(rel, tuple)) { // old dynamically cut edge or intermediate edge
                         coreReason.add(new RelLiteral(rel.getName(), tuple, lit.isNegative()));
-                        if (lit.getName().equals("loc")) {
-                            System.out.println("loc(" + e1.getCId() + "," + e2.getCId() + "): " + 6);
-                        }
                     } else if (rel.getName().equals(LOC)) {
                         coreReason.add(new AddressLiteral(tuple, lit.isNegative()));
-                        if (lit.getName().equals("loc")) {
-                            System.out.println("loc(" + e1.getCId() + "," + e2.getCId() + "): " + 7);
-                        }
                     } else if (rel instanceof RelFencerel) {
                         // This is a special case since "fencerel(F) = po;[F];po".
                         // We should do this transformation directly on the Wmm to avoid this special reasoning
@@ -108,9 +90,6 @@ public class CoreReasoner {
                             throw new UnsupportedOperationException(String.format("FenceRel %s is not allowed on the rhs of differences.", rel));
                         }
                         addFenceReason(rel, edge, coreReason);
-                        if (lit.getName().equals("loc")) {
-                            System.out.println("loc(" + e1.getCId() + "," + e2.getCId() + "): " + 8);
-                        }
                     } else {
                         //TODO: Right now, we assume many relations like Data, Ctrl and Addr to be
                         // static.
@@ -118,9 +97,6 @@ public class CoreReasoner {
                             throw new UnsupportedOperationException(String.format("Negated literals of type %s are not supported.", rel));
                         }
                         addExecReason(tuple, coreReason);
-                        if (lit.getName().equals("loc")) {
-                            System.out.println("loc(" + e1.getCId() + "," + e2.getCId() + "): " + 9);
-                        }
                     }
                 }
             }
