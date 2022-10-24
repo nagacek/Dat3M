@@ -3,7 +3,6 @@ package com.dat3m.dartagnan.solver.caat.reasoning;
 import com.dat3m.dartagnan.solver.caat.constraints.AcyclicityConstraint;
 import com.dat3m.dartagnan.solver.caat.constraints.Constraint;
 import com.dat3m.dartagnan.solver.caat.misc.EdgeDirection;
-import com.dat3m.dartagnan.solver.caat.misc.EdgeSetMap;
 import com.dat3m.dartagnan.solver.caat.predicates.CAATPredicate;
 import com.dat3m.dartagnan.solver.caat.predicates.Derivable;
 import com.dat3m.dartagnan.solver.caat.predicates.misc.PredicateVisitor;
@@ -87,7 +86,7 @@ public class Reasoner {
             toCut.chooseRelation(graph);
             return new EdgeLiteral(graph.getName(), edge, false).toSingletonReason();
         }
-        if (toCut.isCovered(graph, edge)) {
+        if (toCut.isCovered(graph, edge) || toCut.hasStaticPresence(graph, edge)) {
             return new EdgeLiteral(graph.getName(), edge, false).toSingletonReason();
         }
 

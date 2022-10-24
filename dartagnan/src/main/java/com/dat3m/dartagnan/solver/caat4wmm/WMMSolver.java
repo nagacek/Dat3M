@@ -1,7 +1,9 @@
 package com.dat3m.dartagnan.solver.caat4wmm;
 
 
+import com.dat3m.dartagnan.program.event.core.Event;
 import com.dat3m.dartagnan.solver.caat.CAATSolver;
+import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.Edge;
 import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.RelationGraph;
 import com.dat3m.dartagnan.solver.caat.reasoning.CAATLiteral;
 import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.CoreLiteral;
@@ -13,6 +15,8 @@ import com.dat3m.dartagnan.verification.VerificationTask;
 import com.dat3m.dartagnan.verification.model.ExecutionModel;
 import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import com.dat3m.dartagnan.wmm.relation.Relation;
+import com.dat3m.dartagnan.wmm.utils.Tuple;
+import com.dat3m.dartagnan.wmm.utils.TupleSet;
 import com.dat3m.dartagnan.wmm.utils.TupleSetMap;
 import org.sosy_lab.common.configuration.Configuration;
 import org.sosy_lab.common.configuration.InvalidConfigurationException;
@@ -63,7 +67,7 @@ public class WMMSolver {
         long extractTime = System.currentTimeMillis() - curTime;
 
         // ============== Run the CAATSolver ==============
-        CAATSolver.Result caatResult = solver.check(executionGraph.getCAATModel());
+        CAATSolver.Result caatResult = solver.check(executionGraph.getCAATModel(), this::hasStaticPresence);
         Result result = Result.fromCAATResult(caatResult);
         Statistics stats = result.stats;
         stats.modelExtractionTime = extractTime;
@@ -89,6 +93,17 @@ public class WMMSolver {
         return result;
     }
 
+    // ============= Callback =============
+
+    private boolean hasStaticPresence(RelationGraph relGraph, Edge edge) {
+        Relation rel = executionGraph.getRelation(relGraph);
+        Event e1 = executionGraph.getDomain().getObjectById(edge.getFirst()).getEvent();
+        Event e2 = executionGraph.getDomain().getObjectById(edge.getSecond()).getEvent();
+        Tuple tuple = new Tuple(e1, e2);
+        TupleSet minSet = rel.getMinTupleSet();
+        TupleSet maxSet = rel.getMaxTupleSet(); //TODO: How to handle statically absent edges
+        return minSet.contains(tuple) || !maxSet.contains(tuple);
+    }
 
     // ===================== Classes ======================
 
@@ -98,10 +113,21 @@ public class WMMSolver {
         private Statistics stats;
         private TupleSetMap dynamicallyCut;
 
-        public CAATSolver.Status getStatus() { return status; }
-        public DNF<CoreLiteral> getCoreReasons() { return coreReasons; }
-        public Statistics getStatistics() { return stats; }
-        public TupleSetMap getDynamicallyCut() { return dynamicallyCut; }
+        public CAATSolver.Status getStatus() {
+            return status;
+        }
+
+        public DNF<CoreLiteral> getCoreReasons() {
+            return coreReasons;
+        }
+
+        public Statistics getStatistics() {
+            return stats;
+        }
+
+        public TupleSetMap getDynamicallyCut() {
+            return dynamicallyCut;
+        }
 
         Result() {
             status = CAATSolver.Status.INCONCLUSIVE;
@@ -133,16 +159,45 @@ public class WMMSolver {
         int numComputedCoreReasons;
         int numComputedReducedCoreReasons;
 
-        public long getModelExtractionTime() { return modelExtractionTime; }
-        public long getPopulationTime() { return caatStats.getPopulationTime(); }
-        public long getBaseReasonComputationTime() { return caatStats.getReasonComputationTime(); }
-        public long getCoreReasonComputationTime() { return coreReasonComputationTime; }
-        public long getConsistencyCheckTime() { return caatStats.getConsistencyCheckTime(); }
-        public int getModelSize() { return modelSize; }
-        public int getNumComputedBaseReasons() { return caatStats.getNumComputedReasons(); }
-        public int getNumComputedReducedBaseReasons() { return caatStats.getNumComputedReducedReasons(); }
-        public int getNumComputedCoreReasons() { return numComputedCoreReasons; }
-        public int getNumComputedReducedCoreReasons() { return numComputedReducedCoreReasons; }
+        public long getModelExtractionTime() {
+            return modelExtractionTime;
+        }
+
+        public long getPopulationTime() {
+            return caatStats.getPopulationTime();
+        }
+
+        public long getBaseReasonComputationTime() {
+            return caatStats.getReasonComputationTime();
+        }
+
+        public long getCoreReasonComputationTime() {
+            return coreReasonComputationTime;
+        }
+
+        public long getConsistencyCheckTime() {
+            return caatStats.getConsistencyCheckTime();
+        }
+
+        public int getModelSize() {
+            return modelSize;
+        }
+
+        public int getNumComputedBaseReasons() {
+            return caatStats.getNumComputedReasons();
+        }
+
+        public int getNumComputedReducedBaseReasons() {
+            return caatStats.getNumComputedReducedReasons();
+        }
+
+        public int getNumComputedCoreReasons() {
+            return numComputedCoreReasons;
+        }
+
+        public int getNumComputedReducedCoreReasons() {
+            return numComputedReducedCoreReasons;
+        }
 
         public String toString() {
             StringBuilder str = new StringBuilder();

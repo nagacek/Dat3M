@@ -4,6 +4,7 @@ package com.dat3m.dartagnan.solver.caat;
 import com.dat3m.dartagnan.solver.caat.constraints.Constraint;
 import com.dat3m.dartagnan.solver.caat.misc.EdgeSetMap;
 import com.dat3m.dartagnan.solver.caat.misc.PathAlgorithm;
+import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.Edge;
 import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.RelationGraph;
 import com.dat3m.dartagnan.solver.caat.reasoning.CAATLiteral;
 import com.dat3m.dartagnan.solver.caat.reasoning.Context;
@@ -12,11 +13,11 @@ import com.dat3m.dartagnan.solver.caat4wmm.EdgeManager;
 import com.dat3m.dartagnan.utils.logic.Conjunction;
 import com.dat3m.dartagnan.utils.logic.DNF;
 
-import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiFunction;
 
 import static com.dat3m.dartagnan.solver.caat.CAATSolver.Status.CONSISTENT;
 import static com.dat3m.dartagnan.solver.caat.CAATSolver.Status.INCONSISTENT;
@@ -62,7 +63,7 @@ public class CAATSolver {
             - If applicable, compute base reasons of consistency violations
             - Return results about the computation
      */
-    public Result check(CAATModel model) {
+    public Result check(CAATModel model, BiFunction<RelationGraph, Edge, Boolean> hasStaticPresence) {
         Result result = new Result();
         stats = result.getStatistics();
 
@@ -83,7 +84,7 @@ public class CAATSolver {
             // ============== Compute reasons ===============
             curTime = System.currentTimeMillis();
             Set<RelationGraph> assumedAsBaseRelations = new HashSet<>();
-            result.setBaseReasons(computeInconsistencyReasons(violatedConstraints, assumedAsBaseRelations));
+            result.setBaseReasons(computeInconsistencyReasons(violatedConstraints, assumedAsBaseRelations, hasStaticPresence));
             result.assumeAsBaseRelations = assumedAsBaseRelations;
             stats.reasonComputationTime += (System.currentTimeMillis() - curTime);
         }
@@ -93,11 +94,11 @@ public class CAATSolver {
 
     // ======================================== Reason computation ==============================================
 
-    private DNF<CAATLiteral> computeInconsistencyReasons(List<Constraint> violatedConstraints, Set<RelationGraph> toCut) {
+    private DNF<CAATLiteral> computeInconsistencyReasons(List<Constraint> violatedConstraints, Set<RelationGraph> toCut, BiFunction<RelationGraph, Edge, Boolean> hasStaticPresence) {
         EdgeSetMap caatView = manager.initCAATView();
         List<Conjunction<CAATLiteral>> reasons = new ArrayList<>();
         for (Constraint constraint : violatedConstraints) {
-            reasons.addAll(reasoner.computeViolationReasons(constraint, new Context(toCut, caatView)).getCubes());
+            reasons.addAll(reasoner.computeViolationReasons(constraint, new Context(toCut, caatView, hasStaticPresence)).getCubes());
         }
         stats.numComputedReasons += reasons.size();
         DNF<CAATLiteral> result = new DNF<>(reasons); // The conversion to DNF removes duplicates and dominated clauses
