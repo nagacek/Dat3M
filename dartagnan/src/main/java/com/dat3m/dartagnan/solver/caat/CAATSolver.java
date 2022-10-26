@@ -10,8 +10,10 @@ import com.dat3m.dartagnan.solver.caat.reasoning.CAATLiteral;
 import com.dat3m.dartagnan.solver.caat.reasoning.Context;
 import com.dat3m.dartagnan.solver.caat.reasoning.Reasoner;
 import com.dat3m.dartagnan.solver.caat4wmm.EdgeManager;
+import com.dat3m.dartagnan.solver.caat4wmm.WMMSolver;
 import com.dat3m.dartagnan.utils.logic.Conjunction;
 import com.dat3m.dartagnan.utils.logic.DNF;
+import com.dat3m.dartagnan.wmm.relation.Relation;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -63,7 +65,7 @@ public class CAATSolver {
             - If applicable, compute base reasons of consistency violations
             - Return results about the computation
      */
-    public Result check(CAATModel model, BiFunction<RelationGraph, Edge, Boolean> hasStaticPresence) {
+    public Result check(CAATModel model, BiFunction<RelationGraph, Edge, Relation.Presence> hasStaticPresence) {
         Result result = new Result();
         stats = result.getStatistics();
 
@@ -94,7 +96,7 @@ public class CAATSolver {
 
     // ======================================== Reason computation ==============================================
 
-    private DNF<CAATLiteral> computeInconsistencyReasons(List<Constraint> violatedConstraints, Set<RelationGraph> toCut, BiFunction<RelationGraph, Edge, Boolean> hasStaticPresence) {
+    private DNF<CAATLiteral> computeInconsistencyReasons(List<Constraint> violatedConstraints, Set<RelationGraph> toCut, BiFunction<RelationGraph, Edge, Relation.Presence> hasStaticPresence) {
         EdgeSetMap caatView = manager.initCAATView();
         List<Conjunction<CAATLiteral>> reasons = new ArrayList<>();
         for (Constraint constraint : violatedConstraints) {

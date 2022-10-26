@@ -10,8 +10,10 @@ import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.Edge;
 import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.RelationGraph;
 import com.dat3m.dartagnan.solver.caat.predicates.sets.Element;
 import com.dat3m.dartagnan.solver.caat.predicates.sets.SetPredicate;
+import com.dat3m.dartagnan.solver.caat4wmm.WMMSolver;
 import com.dat3m.dartagnan.utils.logic.Conjunction;
 import com.dat3m.dartagnan.utils.logic.DNF;
+import com.dat3m.dartagnan.wmm.relation.Relation;
 
 import java.util.*;
 
@@ -81,13 +83,24 @@ public class Reasoner {
             return Conjunction.FALSE();
         }
 
+        // Checks if the edge has been cut before
         // Difference is handled on its own, therefore all literals are positive
         if (externalCut.contains(graph)) {
             toCut.chooseRelation(graph);
             return new EdgeLiteral(graph.getName(), edge, false).toSingletonReason();
         }
-        if (toCut.isCovered(graph, edge) || toCut.hasStaticPresence(graph, edge)) {
+        if (toCut.isCovered(graph, edge)) {
             return new EdgeLiteral(graph.getName(), edge, false).toSingletonReason();
+        }
+
+        // Skips reasoning for statically present edges
+        Relation.Presence presence = toCut.hasStaticPresence(graph, edge);
+        if (presence == Relation.Presence.PRESENT) {
+            return new EdgeLiteral(graph.getName(), edge, false).toSingletonReason();
+        }
+        // should not occur
+        if (presence == Relation.Presence.ABSENT) {
+            return new EdgeLiteral(graph.getName(), edge, true).toSingletonReason();
         }
 
         Conjunction<CAATLiteral> reason = graph.accept(graphVisitor, edge, toCut);

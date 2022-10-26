@@ -80,7 +80,7 @@ public class WMMSolver {
             Set<RelationGraph> assumedCAATRelations = caatResult.getAssumedRelations();
             TupleSetMap edgesToBeEncoded = new TupleSetMap();
             for (Conjunction<CAATLiteral> baseReason : caatResult.getBaseReasons().getCubes()) {
-                // TODO: handle edge cases
+                // TODO: handle edge cases (?)
                 coreReasons.add(reasoner.toCoreReason(baseReason, assumedCAATRelations, edgesToBeEncoded));
             }
             result.dynamicallyCut = edgesToBeEncoded;
@@ -95,14 +95,20 @@ public class WMMSolver {
 
     // ============= Callback =============
 
-    private boolean hasStaticPresence(RelationGraph relGraph, Edge edge) {
+    private Relation.Presence hasStaticPresence(RelationGraph relGraph, Edge edge) {
         Relation rel = executionGraph.getRelation(relGraph);
         Event e1 = executionGraph.getDomain().getObjectById(edge.getFirst()).getEvent();
         Event e2 = executionGraph.getDomain().getObjectById(edge.getSecond()).getEvent();
         Tuple tuple = new Tuple(e1, e2);
         TupleSet minSet = rel.getMinTupleSet();
-        TupleSet maxSet = rel.getMaxTupleSet(); //TODO: How to handle statically absent edges
-        return minSet.contains(tuple) || !maxSet.contains(tuple);
+        TupleSet maxSet = rel.getMaxTupleSet();
+        if (minSet.contains(tuple)) {
+            return Relation.Presence.PRESENT;
+        } else if (!maxSet.contains(tuple)) {
+            return Relation.Presence.ABSENT;
+        } else {
+            return Relation.Presence.UNKNOWN;
+        }
     }
 
     // ===================== Classes ======================
