@@ -205,6 +205,10 @@ public class WMMSolver {
             return numComputedReducedCoreReasons;
         }
 
+        public int getNumSkippedStaticEdges() { return caatStats.getSkippedEdges().getNumStaticEdges(); }
+        public int getNumEdges() { return caatStats.getSkippedEdges().getNumEdges(); }
+        public int getNumSkippedUnionEdges() { return caatStats.getSkippedEdges().getNumStaticUnions(); }
+
         public String toString() {
             StringBuilder str = new StringBuilder();
             str.append("Model extraction time(ms): ").append(getModelExtractionTime()).append("\n");
@@ -217,6 +221,8 @@ public class WMMSolver {
                     .append("/").append(getNumComputedCoreReasons()).append("\n");
             str.append("#Computed reduced reasons (base/core): ").append(getNumComputedReducedBaseReasons())
                     .append("/").append(getNumComputedReducedCoreReasons()).append("\n");
+            str.append("Number of skipped edges due to static presence: ").append(getNumSkippedStaticEdges()).append("/").append(getNumEdges()).append("\n");
+            str.append("    of which coming from an union choice: ").append(getNumSkippedUnionEdges()).append("\n");
             return str.toString();
         }
     }

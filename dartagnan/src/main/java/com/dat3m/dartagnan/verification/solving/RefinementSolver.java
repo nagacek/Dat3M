@@ -117,7 +117,6 @@ public class RefinementSolver extends ModelChecker {
 
         // Relations to be cut statically
         Set<Relation> cutRelations = new HashSet<>();
-        cutRelations.add(memoryModel.getRelation("fr"));
         memoryModel.configureAll(config);
         baselineModel.configureAll(config);
 
@@ -386,6 +385,9 @@ public class RefinementSolver extends ModelChecker {
         long totalModelSize = 0;
         long minModelSize = Long.MAX_VALUE;
         long maxModelSize = Long.MIN_VALUE;
+        long totalStaticEdges = 0;
+        long totalEdges = 0;
+        long totalStaticUnions = 0;
 
         for (WMMSolver.Statistics stats : statList) {
             totalModelExtractTime += stats.getModelExtractionTime();
@@ -398,6 +400,10 @@ public class RefinementSolver extends ModelChecker {
             totalModelSize += stats.getModelSize();
             minModelSize = Math.min(stats.getModelSize(), minModelSize);
             maxModelSize = Math.max(stats.getModelSize(), maxModelSize);
+
+            totalEdges += stats.getNumEdges();
+            totalStaticEdges += stats.getNumSkippedStaticEdges();
+            totalStaticUnions += stats.getNumSkippedUnionEdges();
         }
 
         StringBuilder message = new StringBuilder().append("Summary").append("\n")
@@ -413,7 +419,9 @@ public class RefinementSolver extends ModelChecker {
                 .append("   -- Refining time(ms): ").append(totalRefiningTime).append("\n")
                 .append("   -- Cutting time(ms): ").append(totalCuttingTime).append("\n")
                 .append("   -- #Computed core reasons: ").append(totalNumReasons).append("\n")
-                .append("   -- #Computed core reduced reasons: ").append(totalNumReducedReasons).append("\n");
+                .append("   -- #Computed core reduced reasons: ").append(totalNumReducedReasons).append("\n")
+                .append("   -- #Static edges (static/all): ").append(totalStaticEdges).append("/").append(totalEdges).append("\n")
+                .append("      - of which coming from an union choice: ").append(totalStaticUnions).append("\n");
         if (statList.size() > 0) {
             message.append("   -- Min model size (#events): ").append(minModelSize).append("\n")
                     .append("   -- Average model size (#events): ").append(totalModelSize / statList.size()).append("\n")

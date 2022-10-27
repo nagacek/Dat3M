@@ -100,7 +100,7 @@ public class CAATSolver {
         EdgeSetMap caatView = manager.initCAATView();
         List<Conjunction<CAATLiteral>> reasons = new ArrayList<>();
         for (Constraint constraint : violatedConstraints) {
-            reasons.addAll(reasoner.computeViolationReasons(constraint, new Context(toCut, caatView, hasStaticPresence)).getCubes());
+            reasons.addAll(reasoner.computeViolationReasons(constraint, new Context(toCut, caatView, hasStaticPresence, stats.getSkippedEdges())).getCubes());
         }
         stats.numComputedReasons += reasons.size();
         DNF<CAATLiteral> result = new DNF<>(reasons); // The conversion to DNF removes duplicates and dominated clauses
@@ -147,12 +147,18 @@ public class CAATSolver {
         long reasonComputationTime;
         int numComputedReasons;
         int numComputedReducedReasons;
+        StaticStatistics skippedEdges;
+
+        public Statistics() {
+            skippedEdges = new StaticStatistics();
+        }
 
         public long getPopulationTime() { return populationTime; }
         public long getReasonComputationTime() { return reasonComputationTime; }
         public long getConsistencyCheckTime() { return consistencyCheckTime; }
         public int getNumComputedReasons() { return numComputedReasons; }
         public int getNumComputedReducedReasons() { return numComputedReducedReasons; }
+        public StaticStatistics getSkippedEdges() { return skippedEdges; }
 
         public String toString() {
             StringBuilder str = new StringBuilder();
@@ -161,9 +167,31 @@ public class CAATSolver {
             str.append("Reason computation time(ms): ").append(reasonComputationTime).append("\n");
             str.append("#Computed reasons: ").append(numComputedReasons).append("\n");
             str.append("#Computed reduced reasons: ").append(numComputedReducedReasons).append("\n");
-
+            str.append(skippedEdges);
             return str.toString();
         }
+    }
+
+    public static class StaticStatistics {
+        int numEdges;
+        int numStaticEdges;
+        int numStaticUnions;
+
+        public int getNumEdges() { return numEdges; }
+        public int getNumStaticEdges() { return numStaticEdges; }
+        public int getNumStaticUnions() { return numStaticUnions; }
+
+        public void incrementStatic() { numStaticEdges++; }
+        public void increment() { numEdges++; }
+        public void incrementUnion() { numStaticUnions++; }
+
+        public String toString() {
+            StringBuilder str = new StringBuilder();
+            str.append("Number of skipped edges due to static presence: ").append(numStaticEdges).append("/").append(numEdges);
+            str.append("    of which coming from an union choice: ").append(numStaticUnions);
+            return str.toString();
+        }
+
     }
 
     public enum Status {

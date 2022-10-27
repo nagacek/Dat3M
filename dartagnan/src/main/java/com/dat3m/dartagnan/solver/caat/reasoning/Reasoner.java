@@ -83,6 +83,19 @@ public class Reasoner {
             return Conjunction.FALSE();
         }
 
+        toCut.increment();
+        // Skips reasoning for statically present edges
+        RelationGraph.Presence presence = toCut.hasStaticPresence(graph, edge);
+        if (presence == RelationGraph.Presence.PRESENT) {
+            toCut.incrementStatic();
+            return new EdgeLiteral(graph.getName(), edge, false).toSingletonReason();
+        }
+        // should not occur
+        if (presence == RelationGraph.Presence.ABSENT) {
+            toCut.incrementStatic();
+            return new EdgeLiteral(graph.getName(), edge, true).toSingletonReason();
+        }
+
         // Checks if the edge has been cut before
         // Difference is handled on its own, therefore all literals are positive
         if (externalCut.contains(graph)) {
@@ -91,16 +104,6 @@ public class Reasoner {
         }
         if (toCut.isCovered(graph, edge)) {
             return new EdgeLiteral(graph.getName(), edge, false).toSingletonReason();
-        }
-
-        // Skips reasoning for statically present edges
-        RelationGraph.Presence presence = toCut.hasStaticPresence(graph, edge);
-        if (presence == RelationGraph.Presence.PRESENT) {
-            return new EdgeLiteral(graph.getName(), edge, false).toSingletonReason();
-        }
-        // should not occur
-        if (presence == RelationGraph.Presence.ABSENT) {
-            return new EdgeLiteral(graph.getName(), edge, true).toSingletonReason();
         }
 
         Conjunction<CAATLiteral> reason = graph.accept(graphVisitor, edge, toCut);
@@ -133,6 +136,15 @@ public class Reasoner {
 
         @Override
         public Conjunction<CAATLiteral> visitGraphUnion(RelationGraph graph, Edge edge, Context toCut) {
+            // Try to find any static reason (this case has not been observed to appear, yet)
+            for (RelationGraph g : (List<RelationGraph>) graph.getDependencies()) {
+                Edge e = g.get(edge);
+                if (e != null && toCut.hasStaticPresence(graph, e) == RelationGraph.Presence.PRESENT) {
+                    toCut.incrementUnion();
+                    return new EdgeLiteral(graph.getName(), e, false).toSingletonReason();
+                }
+            }
+
             // We try to compute a shortest reason based on the distance to the base graphs
             Edge min = edge;
             RelationGraph next = graph;
