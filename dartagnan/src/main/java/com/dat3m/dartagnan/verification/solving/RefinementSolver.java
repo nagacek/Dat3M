@@ -117,6 +117,7 @@ public class RefinementSolver extends ModelChecker {
 
         // Relations to be cut statically
         Set<Relation> cutRelations = new HashSet<>();
+        cutRelations.add(memoryModel.getRelation("fr"));
         memoryModel.configureAll(config);
         baselineModel.configureAll(config);
 

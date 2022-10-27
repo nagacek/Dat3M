@@ -39,8 +39,6 @@ import static com.dat3m.dartagnan.wmm.utils.Utils.edge;
 //TODO: Remove "Encoder" once we split data and operations appropriately
 public abstract class Relation implements Constraint, Encoder, Dependent<Relation> {
 
-    public enum Presence{  ABSENT, PRESENT, UNKNOWN  }
-
     protected String name;
     protected String term;
 

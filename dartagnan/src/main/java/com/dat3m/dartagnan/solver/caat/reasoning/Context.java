@@ -12,9 +12,9 @@ import java.util.function.BiFunction;
 public class Context {
     private final EdgeSetMap map;
     private final Set<RelationGraph> set;
-    private final BiFunction<RelationGraph, Edge, Relation.Presence> hasStaticPresence;
+    private final BiFunction<RelationGraph, Edge, RelationGraph.Presence> hasStaticPresence;
 
-    public Context(Set<RelationGraph> set, EdgeSetMap map, BiFunction<RelationGraph, Edge, Relation.Presence> hasStaticPresence) {
+    public Context(Set<RelationGraph> set, EdgeSetMap map, BiFunction<RelationGraph, Edge, RelationGraph.Presence> hasStaticPresence) {
         this.map = map;
         this.set = set;
         this.hasStaticPresence = hasStaticPresence;
@@ -31,7 +31,7 @@ public class Context {
         set.add(rel);
     }
 
-    public Relation.Presence hasStaticPresence(RelationGraph relGraph, Edge edge) {
+    public RelationGraph.Presence hasStaticPresence(RelationGraph relGraph, Edge edge) {
         return hasStaticPresence.apply(relGraph, edge);
     }
 }

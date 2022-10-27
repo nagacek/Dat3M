@@ -95,7 +95,7 @@ public class WMMSolver {
 
     // ============= Callback =============
 
-    private Relation.Presence hasStaticPresence(RelationGraph relGraph, Edge edge) {
+    private RelationGraph.Presence hasStaticPresence(RelationGraph relGraph, Edge edge) {
         Relation rel = executionGraph.getRelation(relGraph);
         Event e1 = executionGraph.getDomain().getObjectById(edge.getFirst()).getEvent();
         Event e2 = executionGraph.getDomain().getObjectById(edge.getSecond()).getEvent();
@@ -103,11 +103,11 @@ public class WMMSolver {
         TupleSet minSet = rel.getMinTupleSet();
         TupleSet maxSet = rel.getMaxTupleSet();
         if (minSet.contains(tuple)) {
-            return Relation.Presence.PRESENT;
+            return RelationGraph.Presence.PRESENT;
         } else if (!maxSet.contains(tuple)) {
-            return Relation.Presence.ABSENT;
+            return RelationGraph.Presence.ABSENT;
         } else {
-            return Relation.Presence.UNKNOWN;
+            return RelationGraph.Presence.UNKNOWN;
         }
     }
 

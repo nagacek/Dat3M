@@ -94,12 +94,12 @@ public class Reasoner {
         }
 
         // Skips reasoning for statically present edges
-        Relation.Presence presence = toCut.hasStaticPresence(graph, edge);
-        if (presence == Relation.Presence.PRESENT) {
+        RelationGraph.Presence presence = toCut.hasStaticPresence(graph, edge);
+        if (presence == RelationGraph.Presence.PRESENT) {
             return new EdgeLiteral(graph.getName(), edge, false).toSingletonReason();
         }
         // should not occur
-        if (presence == Relation.Presence.ABSENT) {
+        if (presence == RelationGraph.Presence.ABSENT) {
             return new EdgeLiteral(graph.getName(), edge, true).toSingletonReason();
         }
 

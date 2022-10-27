@@ -13,6 +13,9 @@ import java.util.stream.Stream;
 
 public interface RelationGraph extends CAATPredicate {
 
+
+    public enum Presence{  ABSENT, PRESENT, UNKNOWN  }
+
     @Override
     Collection<Edge> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added);
 

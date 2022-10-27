@@ -65,7 +65,7 @@ public class CAATSolver {
             - If applicable, compute base reasons of consistency violations
             - Return results about the computation
      */
-    public Result check(CAATModel model, BiFunction<RelationGraph, Edge, Relation.Presence> hasStaticPresence) {
+    public Result check(CAATModel model, BiFunction<RelationGraph, Edge, RelationGraph.Presence> hasStaticPresence) {
         Result result = new Result();
         stats = result.getStatistics();
 
@@ -96,7 +96,7 @@ public class CAATSolver {
 
     // ======================================== Reason computation ==============================================
 
-    private DNF<CAATLiteral> computeInconsistencyReasons(List<Constraint> violatedConstraints, Set<RelationGraph> toCut, BiFunction<RelationGraph, Edge, Relation.Presence> hasStaticPresence) {
+    private DNF<CAATLiteral> computeInconsistencyReasons(List<Constraint> violatedConstraints, Set<RelationGraph> toCut, BiFunction<RelationGraph, Edge, RelationGraph.Presence> hasStaticPresence) {
         EdgeSetMap caatView = manager.initCAATView();
         List<Conjunction<CAATLiteral>> reasons = new ArrayList<>();
         for (Constraint constraint : violatedConstraints) {
