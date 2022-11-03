@@ -22,6 +22,11 @@ public class IntersectionGraph extends MaterializedGraph {
         return Arrays.asList(first, second);
     }
 
+    @Override
+    public long getComplexity() {
+        return first.getComplexity() + second.getComplexity() + 1;
+    }
+
     public RelationGraph getFirst() { return first; }
     public RelationGraph getSecond() { return second; }
 

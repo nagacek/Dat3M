@@ -30,6 +30,11 @@ public class SetIdentityGraph extends AbstractPredicate implements RelationGraph
     }
 
     @Override
+    public long getComplexity() {
+        return inner.getComplexity() + 1;
+    }
+
+    @Override
     public <TRet, TData, TContext> TRet accept(PredicateVisitor<TRet, TData, TContext> visitor, TData data, TContext context) {
         return visitor.visitSetIdentity(this, data, context);
     }

@@ -22,6 +22,11 @@ public class UnionSet extends MaterializedSet {
         return Arrays.asList(first, second);
     }
 
+    @Override
+    public long getComplexity() {
+        return (first.getComplexity() + second.getComplexity()) * 2;
+    }
+
     public SetPredicate getFirst() { return first; }
     public SetPredicate getSecond() { return second; }
 

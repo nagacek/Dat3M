@@ -23,6 +23,9 @@ public interface RelationGraph extends CAATPredicate {
     Stream<Edge> edgeStream();
     Stream<Edge> edgeStream(int e, EdgeDirection dir);
 
+    @Override
+    default long getComplexity() { return 1; }
+
 
     // ================= Default methods ==================
 

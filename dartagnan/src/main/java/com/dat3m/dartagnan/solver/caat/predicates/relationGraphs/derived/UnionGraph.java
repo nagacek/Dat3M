@@ -21,6 +21,11 @@ public class UnionGraph extends MaterializedGraph {
         return Arrays.asList(first, second);
     }
 
+    @Override
+    public long getComplexity() {
+        return (first.getComplexity() + second.getComplexity()) * 2;
+    }
+
     public RelationGraph getFirst() { return first; }
     public RelationGraph getSecond() { return second; }
 

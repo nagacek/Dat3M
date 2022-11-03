@@ -30,6 +30,11 @@ public class ReflexiveClosureGraph extends AbstractPredicate implements Relation
     }
 
     @Override
+    public long getComplexity() {
+        return inner.getComplexity() * 2;
+    }
+
+    @Override
     public Edge get(Edge edge) {
         return edge.isLoop() ? edge.with(0, 0) : inner.get(edge);
     }

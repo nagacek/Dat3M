@@ -21,6 +21,11 @@ public class RangeIdentityGraph extends MaterializedGraph {
         return List.of(inner);
     }
 
+    @Override
+    public long getComplexity() {
+        return inner.getComplexity() + 1;
+    }
+
     public RangeIdentityGraph(RelationGraph inner) {
         this.inner = inner;
     }

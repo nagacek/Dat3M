@@ -16,10 +16,21 @@ import java.util.stream.Collectors;
 public class RecursiveGraph extends MaterializedGraph {
 
     private RelationGraph inner;
+    private long complexity = -1;
 
     @Override
     public List<RelationGraph> getDependencies() {
         return Collections.singletonList(inner);
+    }
+
+    @Override
+    public long getComplexity() {
+        if (complexity == -1) {
+            complexity = 1;
+            complexity = inner.getComplexity() + 1;
+        }
+        return complexity;
+
     }
 
     public void setConcreteGraph(RelationGraph concreteGraph) {

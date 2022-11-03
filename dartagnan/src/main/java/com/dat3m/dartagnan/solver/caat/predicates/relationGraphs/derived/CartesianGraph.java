@@ -32,6 +32,11 @@ public class CartesianGraph extends AbstractPredicate implements RelationGraph {
     }
 
     @Override
+    public long getComplexity() {
+        return first.getComplexity() + second.getComplexity() + 1;
+    }
+
+    @Override
     public <TRet, TData, TContext> TRet accept(PredicateVisitor<TRet, TData, TContext> visitor, TData tData, TContext context) {
         return visitor.visitCartesian(this, tData, context);
     }

@@ -121,12 +121,13 @@ public class Reasoner {
 
         @Override
         public Conjunction<CAATLiteral> visitGraphUnion(RelationGraph graph, Edge edge, Context toCut) {
-            // We try to compute a shortest reason based on the distance to the base graphs
+            // We try to compute an easy reason by preferring low-complexity relations
             Edge min = edge;
             RelationGraph next = graph;
+            System.out.println("Graph complexity is " + graph.getComplexity());
             for (RelationGraph g : (List<RelationGraph>) graph.getDependencies()) {
                 Edge e = g.get(edge);
-                if (e != null && e.getDerivationLength() < min.getDerivationLength()) {
+                if (e != null && g.getComplexity() < next.getComplexity()) {
                     next = g;
                     min = e;
                 }
@@ -288,12 +289,12 @@ public class Reasoner {
 
         @Override
         public Conjunction<CAATLiteral> visitSetUnion(SetPredicate set, Element ele, Void unused) {
-            // We try to compute a shortest reason based on the distance to the base graphs
+            // We try to compute a simple reason based on the predicate complexity
             Element min = ele;
             SetPredicate next = set;
             for (SetPredicate s : set.getDependencies()) {
                 Element e = s.get(ele);
-                if (e != null && e.getDerivationLength() < min.getDerivationLength()) {
+                if (e != null && s.getComplexity() < next.getComplexity()) {
                     next = s;
                     min = e;
                 }

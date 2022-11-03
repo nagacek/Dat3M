@@ -19,6 +19,11 @@ public class TransitiveGraph extends MaterializedGraph {
         return Collections.singletonList(inner);
     }
 
+    @Override
+    public long getComplexity() {
+        return inner.getComplexity() * 2;
+    }
+
     public TransitiveGraph(RelationGraph inner) {
         this.inner = inner;
     }

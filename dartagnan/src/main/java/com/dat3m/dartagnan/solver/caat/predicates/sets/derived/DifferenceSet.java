@@ -25,6 +25,11 @@ public class DifferenceSet extends AbstractPredicate implements SetPredicate {
         return Arrays.asList(first, second);
     }
 
+    @Override
+    public long getComplexity() {
+        return first.getComplexity() + second.getComplexity() + 1;
+    }
+
     public SetPredicate getFirst() { return first; }
     public SetPredicate getSecond() { return second; }
 

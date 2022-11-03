@@ -24,6 +24,9 @@ public class StaticWMMSet extends AbstractWMMPredicate implements SetPredicate {
     }
 
     @Override
+    public long getComplexity() { return 1; }
+
+    @Override
     public <TRet, TData, TContext> TRet accept(PredicateVisitor<TRet, TData, TContext> visitor, TData tData, TContext context) {
         return visitor.visitBaseSet(this, tData, context);
     }

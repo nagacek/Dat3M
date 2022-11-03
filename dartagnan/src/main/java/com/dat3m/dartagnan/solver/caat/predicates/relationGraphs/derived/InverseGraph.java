@@ -30,6 +30,11 @@ public class InverseGraph extends AbstractPredicate implements RelationGraph {
     }
 
     @Override
+    public long getComplexity() {
+        return inner.getComplexity() + 1;
+    }
+
+    @Override
     public Edge get(Edge edge) {
         Edge e = inner.get(edge.inverse());
         return e == null ? null : derive(e);

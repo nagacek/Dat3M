@@ -15,6 +15,9 @@ public abstract class AbstractBaseSet extends AbstractPredicate implements SetPr
     }
 
     @Override
+    public long getComplexity() { return 1; }
+
+    @Override
     public <TRet, TData, TContext> TRet accept(PredicateVisitor<TRet, TData, TContext> visitor, TData data, TContext context) {
         return visitor.visitBaseSet(this, data, context);
     }

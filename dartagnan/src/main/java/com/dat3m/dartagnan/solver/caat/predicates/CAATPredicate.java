@@ -28,6 +28,8 @@ public interface CAATPredicate extends Dependent<CAATPredicate> {
     // Gets the metadata associated with <value> or null, if there is none
     Derivable get(Derivable value);
 
+    long getComplexity();
+
     <TRet, TData, TContext> TRet accept(PredicateVisitor<TRet, TData, TContext> visitor, TData data, TContext context);
 
     /*
