@@ -12,6 +12,7 @@ import com.dat3m.dartagnan.solver.caat.predicates.sets.Element;
 import com.dat3m.dartagnan.solver.caat.predicates.sets.SetPredicate;
 import com.dat3m.dartagnan.utils.logic.Conjunction;
 import com.dat3m.dartagnan.utils.logic.DNF;
+import org.apache.logging.log4j.core.pattern.ConverterKeys;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -242,11 +243,12 @@ public class Reasoner {
             }
 
             List<Conjunction<CAATLiteral>> reason = computeReason(lhs, edge, toCut);
+            List<Conjunction<CAATLiteral>> differenceReason = new ArrayList<>(reason.size());
             for (Conjunction<CAATLiteral> singleReason : reason) {
-                singleReason.and(new EdgeLiteral(rhs.getName(), edge, true).toSingletonReason());
-                assert !singleReason.isFalse();
+                differenceReason.add(singleReason.and(new EdgeLiteral(rhs.getName(), edge, true).toSingletonReason()));
             }
-            return reason;
+            differenceReason.forEach(r -> {assert !r.isFalse();});
+            return differenceReason;
         }
 
         @Override
@@ -377,12 +379,13 @@ public class Reasoner {
             }
 
             List<Conjunction<CAATLiteral>> reason = computeReason(lhs, ele);
-            Conjunction<CAATLiteral> newReason = new ElementLiteral(rhs.getName(), ele, true).toSingletonReason();
+            Conjunction<CAATLiteral> rhsReason = new ElementLiteral(rhs.getName(), ele, true).toSingletonReason();
+            List<Conjunction<CAATLiteral>> newReason = new ArrayList<>(reason.size());
             for (Conjunction<CAATLiteral> sub : reason) {
-                sub.and(newReason);
-                assert !sub.isFalse();
+                newReason.add(sub.and(rhsReason));
             }
-            return reason;
+            newReason.forEach(r -> {assert !r.isFalse();});
+            return newReason;
         }
 
         @Override
@@ -399,7 +402,7 @@ public class Reasoner {
         for (Conjunction<CAATLiteral> firstReason : first) {
             for (Conjunction<CAATLiteral> secondReason : second) {
                 Conjunction<CAATLiteral> composed = new Conjunction<>(firstReason.getLiterals());
-                composed.and(secondReason);
+                composed = composed.and(secondReason);
                 intersection.add(composed);
             }
         }
