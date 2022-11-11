@@ -3,7 +3,6 @@ package com.dat3m.dartagnan.solver.caat.reasoning;
 import com.dat3m.dartagnan.solver.caat.constraints.AcyclicityConstraint;
 import com.dat3m.dartagnan.solver.caat.constraints.Constraint;
 import com.dat3m.dartagnan.solver.caat.misc.EdgeDirection;
-import com.dat3m.dartagnan.solver.caat.misc.EdgeSetMap;
 import com.dat3m.dartagnan.solver.caat.predicates.CAATPredicate;
 import com.dat3m.dartagnan.solver.caat.predicates.Derivable;
 import com.dat3m.dartagnan.solver.caat.predicates.misc.PredicateVisitor;
@@ -124,7 +123,6 @@ public class Reasoner {
             // We try to compute an easy reason by preferring low-complexity relations
             Edge min = edge;
             RelationGraph next = graph;
-            System.out.println("Graph complexity is " + graph.getComplexity());
             for (RelationGraph g : (List<RelationGraph>) graph.getDependencies()) {
                 Edge e = g.get(edge);
                 if (e != null && g.getComplexity() < next.getComplexity()) {
