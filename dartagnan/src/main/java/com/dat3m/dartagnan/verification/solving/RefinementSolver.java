@@ -380,6 +380,8 @@ public class RefinementSolver extends ModelChecker {
         long totalPopulationTime = 0;
         long totalConsistencyCheckTime = 0;
         long totalReasonComputationTime = 0;
+        long totalReasonOverhead = 0;
+        int totalNumVisitedSubPredicates = 0;
         long totalNumReasons = 0;
         long totalNumReducedReasons = 0;
         long totalModelSize = 0;
@@ -391,6 +393,8 @@ public class RefinementSolver extends ModelChecker {
             totalPopulationTime += stats.getPopulationTime();
             totalConsistencyCheckTime += stats.getConsistencyCheckTime();
             totalReasonComputationTime += stats.getBaseReasonComputationTime() + stats.getCoreReasonComputationTime();
+            totalReasonOverhead += stats.getReasonOverhead();
+            totalNumVisitedSubPredicates += stats.getNumVisitedSubPredicates();
             totalNumReasons += stats.getNumComputedCoreReasons();
             totalNumReducedReasons += stats.getNumComputedReducedCoreReasons();
 
@@ -409,6 +413,8 @@ public class RefinementSolver extends ModelChecker {
                 .append("   -- Population time(ms): ").append(totalPopulationTime).append("\n")
                 .append("   -- Consistency check time(ms): ").append(totalConsistencyCheckTime).append("\n")
                 .append("   -- Reason computation time(ms): ").append(totalReasonComputationTime).append("\n")
+                .append("   -- Reason overhead(ms): ").append(totalReasonOverhead).append("\n")
+                .append("   -- #Visited sub-predicates in reason computation: ").append(totalNumVisitedSubPredicates).append("\n")
                 .append("   -- Refining time(ms): ").append(totalRefiningTime).append("\n")
                 .append("   -- Cutting time(ms): ").append(totalCuttingTime).append("\n")
                 .append("   -- #Computed core reasons: ").append(totalNumReasons).append("\n")

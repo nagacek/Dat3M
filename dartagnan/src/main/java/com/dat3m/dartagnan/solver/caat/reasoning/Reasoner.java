@@ -25,6 +25,9 @@ public class Reasoner {
     private final GraphVisitor graphVisitor = new GraphVisitor();
     private final SetVisitor setVisitor = new SetVisitor();
     private final Set<RelationGraph> externalCut;
+    // for statistics
+    private long listTime;
+    private int visitedSubPredicates;
 
     public Reasoner(Set<RelationGraph> externalCut) {
         this.externalCut = externalCut;
@@ -36,6 +39,8 @@ public class Reasoner {
         if (!constraint.checkForViolations()) {
             return DNF.FALSE();
         }
+        listTime = 0;
+        visitedSubPredicates = 0;
 
         CAATPredicate pred = constraint.getConstrainedPredicate();
         Collection<? extends Collection<? extends Derivable>> violations = constraint.getViolations();
@@ -64,6 +69,7 @@ public class Reasoner {
 
         DNF<CAATLiteral> reasons = DNF.FALSE();
 
+        long startTime = System.currentTimeMillis();
         for (List<List<Conjunction<CAATLiteral>>> violationReasonList : reasonList) {
             DNF<CAATLiteral> edgeReasons = DNF.TRUE();
             for (List<Conjunction<CAATLiteral>> edgeReasonsList : violationReasonList) {
@@ -78,6 +84,7 @@ public class Reasoner {
             // all violations
             reasons = reasons.or(edgeReasons);
         }
+        listTime += System.currentTimeMillis() - startTime;
 
         return reasons;
     }
@@ -94,6 +101,7 @@ public class Reasoner {
 
 
     public List<Conjunction<CAATLiteral>> computeReason(RelationGraph graph, Edge edge, Context toCut) {
+        visitedSubPredicates++;
         if (!graph.contains(edge)) {
             return List.of(Conjunction.FALSE());
         }
@@ -115,6 +123,7 @@ public class Reasoner {
     }
 
     public List<Conjunction<CAATLiteral>> computeReason(SetPredicate set, Element ele) {
+        visitedSubPredicates++;
         if (!set.contains(ele)) {
             return List.of(Conjunction.FALSE());
         }
@@ -144,7 +153,7 @@ public class Reasoner {
             List<Conjunction<CAATLiteral>> reason = new ArrayList<>();
             for (RelationGraph g : (List<RelationGraph>) graph.getDependencies()) {
                 Edge e = g.get(edge);
-                if (e != null) {
+                if (e != null && e.getDerivationLength() < edge.getDerivationLength()) {
                     reason.addAll(computeReason(g, e, toCut));
                 }
             }
@@ -160,16 +169,16 @@ public class Reasoner {
         @Override
         public List<Conjunction<CAATLiteral>> visitGraphIntersection(RelationGraph graph, Edge edge, Context toCut) {
             List<List<Conjunction<CAATLiteral>>> reasonList = new ArrayList<>();
+            reasonList.add(List.of(Conjunction.TRUE()));
             for (RelationGraph g : (List<RelationGraph>) graph.getDependencies()) {
                 Edge e = g.get(edge);
                 if (e != null) {
                     reasonList.add(computeReason(g, e, toCut));
                 }
             }
-            if (reasonList.size() == 0) {
-                reasonList.add(List.of(Conjunction.TRUE()));
-            }
+            long startTime = System.currentTimeMillis();
             List<Conjunction<CAATLiteral>> reason = ANDingReasons(reasonList);
+            listTime += System.currentTimeMillis() - startTime;
             for (Conjunction<CAATLiteral> singleReason : reason) {
                 assert !singleReason.isFalse();
             }
@@ -191,7 +200,9 @@ public class Reasoner {
                     }
                     Edge e2 = second.get(new Edge(e1.getSecond(), edge.getSecond()));
                     if (e2 != null && e2.getDerivationLength() < edge.getDerivationLength()) {
+                        long startTime = System.currentTimeMillis();
                         reason = ANDingReasons(computeReason(first, e1, toCut), computeReason(second, e2, toCut));
+                        listTime += System.currentTimeMillis() - startTime;
                         for (Conjunction<CAATLiteral> singleReason : reason) {
                             assert !singleReason.isFalse();
                         }
@@ -205,7 +216,9 @@ public class Reasoner {
                     }
                     Edge e1 = first.get(new Edge(edge.getFirst(), e2.getFirst()));
                     if (e1 != null && e1.getDerivationLength() < edge.getDerivationLength()) {
+                        long startTime = System.currentTimeMillis();
                         reason = ANDingReasons(computeReason(first, e1, toCut), computeReason(second, e2, toCut));
+                        listTime += System.currentTimeMillis() - startTime;
                         for (Conjunction<CAATLiteral> singleReason : reason) {
                             assert !singleReason.isFalse();
                         }
@@ -225,7 +238,9 @@ public class Reasoner {
             List<Conjunction<CAATLiteral>> lhsReason = computeReason(lhs, lhs.getById(edge.getFirst()));
             List<Conjunction<CAATLiteral>> rhsReason = computeReason(rhs, rhs.getById(edge.getSecond()));
 
+            long startTime = System.currentTimeMillis();
             List<Conjunction<CAATLiteral>> reason = ANDingReasons(lhsReason, rhsReason);
+            listTime += System.currentTimeMillis() - startTime;
             for (Conjunction<CAATLiteral> singleReason : reason) {
                 assert !singleReason.isFalse();
             }
@@ -243,10 +258,12 @@ public class Reasoner {
             }
 
             List<Conjunction<CAATLiteral>> reason = computeReason(lhs, edge, toCut);
+            long startTime = System.currentTimeMillis();
             List<Conjunction<CAATLiteral>> differenceReason = new ArrayList<>(reason.size());
             for (Conjunction<CAATLiteral> singleReason : reason) {
                 differenceReason.add(singleReason.and(new EdgeLiteral(rhs.getName(), edge, true).toSingletonReason()));
             }
+            listTime += System.currentTimeMillis() - startTime;
             differenceReason.forEach(r -> {assert !r.isFalse();});
             return differenceReason;
         }
@@ -309,7 +326,9 @@ public class Reasoner {
             for (Edge e : path) {
                 pathReasons.add(computeReason(inner, e, toCut));
             }
+            long startTime = System.currentTimeMillis();
             List<Conjunction<CAATLiteral>> reason = ANDingReasons(pathReasons);
+            listTime += System.currentTimeMillis() - startTime;
             for (Conjunction<CAATLiteral> singleReason : reason) {
                 assert !singleReason.isFalse();
             }
@@ -340,7 +359,7 @@ public class Reasoner {
             List<Conjunction<CAATLiteral>> reason = new ArrayList<>();
             for (SetPredicate s : set.getDependencies()) {
                 Element e = s.get(ele);
-                if (e != null) {
+                if (e != null && e.getDerivationLength() < ele.getDerivationLength()) {
                     reason.addAll(computeReason(s, e));
                 }
             }
@@ -359,8 +378,9 @@ public class Reasoner {
                     reasonList.add(computeReason(s, e));
                 }
             }
-
+            long startTime = System.currentTimeMillis();
             List<Conjunction<CAATLiteral>> reason = ANDingReasons(reasonList);
+            listTime += System.currentTimeMillis() - startTime;
 
             for (Conjunction<CAATLiteral> singleReason : reason) {
                 assert !singleReason.isFalse();
@@ -380,10 +400,13 @@ public class Reasoner {
 
             List<Conjunction<CAATLiteral>> reason = computeReason(lhs, ele);
             Conjunction<CAATLiteral> rhsReason = new ElementLiteral(rhs.getName(), ele, true).toSingletonReason();
+
+            long startTime = System.currentTimeMillis();
             List<Conjunction<CAATLiteral>> newReason = new ArrayList<>(reason.size());
             for (Conjunction<CAATLiteral> sub : reason) {
                 newReason.add(sub.and(rhsReason));
             }
+            listTime += System.currentTimeMillis() - startTime;
             newReason.forEach(r -> {assert !r.isFalse();});
             return newReason;
         }
@@ -418,5 +441,13 @@ public class Reasoner {
             workingSet = ANDingReasons(workingSet, singleReason);
         }
         return workingSet;
+    }
+
+    public long getListTime() {
+        return listTime;
+    }
+
+    public int getVisitedSubPredicates() {
+        return visitedSubPredicates;
     }
 }

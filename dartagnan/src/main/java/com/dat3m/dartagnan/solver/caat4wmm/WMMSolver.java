@@ -136,6 +136,8 @@ public class WMMSolver {
         public long getModelExtractionTime() { return modelExtractionTime; }
         public long getPopulationTime() { return caatStats.getPopulationTime(); }
         public long getBaseReasonComputationTime() { return caatStats.getReasonComputationTime(); }
+        public long getReasonOverhead() { return caatStats.getReasonOverhead(); }
+        public int getNumVisitedSubPredicates() { return caatStats.getNumVisitedSubPredicates(); }
         public long getCoreReasonComputationTime() { return coreReasonComputationTime; }
         public long getConsistencyCheckTime() { return caatStats.getConsistencyCheckTime(); }
         public int getModelSize() { return modelSize; }

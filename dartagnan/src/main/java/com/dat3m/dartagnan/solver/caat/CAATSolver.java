@@ -77,6 +77,8 @@ public class CAATSolver {
         List<Constraint> violatedConstraints = model.getViolatedConstraints();
         Status status = violatedConstraints.isEmpty() ? CONSISTENT : INCONSISTENT;
         result.setStatus(status);
+        stats.reasonOverhead = reasoner.getListTime();
+        stats.numVisitedSubPredicates = reasoner.getVisitedSubPredicates();
         stats.consistencyCheckTime = System.currentTimeMillis() - curTime;
 
         if (status == INCONSISTENT) {
@@ -142,12 +144,16 @@ public class CAATSolver {
         long populationTime;
         long consistencyCheckTime;
         long reasonComputationTime;
+        long reasonOverhead;
+        int numVisitedSubPredicates;
         int numComputedReasons;
         int numComputedReducedReasons;
 
         public long getPopulationTime() { return populationTime; }
         public long getReasonComputationTime() { return reasonComputationTime; }
         public long getConsistencyCheckTime() { return consistencyCheckTime; }
+        public long getReasonOverhead() { return reasonOverhead; }
+        public int getNumVisitedSubPredicates() { return numVisitedSubPredicates; }
         public int getNumComputedReasons() { return numComputedReasons; }
         public int getNumComputedReducedReasons() { return numComputedReducedReasons; }
 
@@ -156,6 +162,8 @@ public class CAATSolver {
             str.append("Model construction time(ms): ").append(populationTime).append("\n");
             str.append("Consistency check time(ms): ").append(consistencyCheckTime).append("\n");
             str.append("Reason computation time(ms): ").append(reasonComputationTime).append("\n");
+            str.append("Reason overhead due to extended computation(ms): ").append(reasonOverhead).append("\n");
+            str.append("#Visited sub-predicates: ").append(numVisitedSubPredicates).append("\n");
             str.append("#Computed reasons: ").append(numComputedReasons).append("\n");
             str.append("#Computed reduced reasons: ").append(numComputedReducedReasons).append("\n");
 
