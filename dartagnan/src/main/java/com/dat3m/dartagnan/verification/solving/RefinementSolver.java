@@ -382,6 +382,7 @@ public class RefinementSolver extends ModelChecker {
         long totalReasonComputationTime = 0;
         long totalNumReasons = 0;
         long totalNumReducedReasons = 0;
+        int totalNumVisitedSubPredicates = 0;
         long totalModelSize = 0;
         long minModelSize = Long.MAX_VALUE;
         long maxModelSize = Long.MIN_VALUE;
@@ -391,6 +392,7 @@ public class RefinementSolver extends ModelChecker {
             totalPopulationTime += stats.getPopulationTime();
             totalConsistencyCheckTime += stats.getConsistencyCheckTime();
             totalReasonComputationTime += stats.getBaseReasonComputationTime() + stats.getCoreReasonComputationTime();
+            totalNumVisitedSubPredicates += stats.getNumVisitedSubPredicates();
             totalNumReasons += stats.getNumComputedCoreReasons();
             totalNumReducedReasons += stats.getNumComputedReducedCoreReasons();
 
@@ -411,6 +413,7 @@ public class RefinementSolver extends ModelChecker {
                 .append("   -- Reason computation time(ms): ").append(totalReasonComputationTime).append("\n")
                 .append("   -- Refining time(ms): ").append(totalRefiningTime).append("\n")
                 .append("   -- Cutting time(ms): ").append(totalCuttingTime).append("\n")
+                .append("   -- #Visited sub-predicates: ").append(totalNumVisitedSubPredicates).append("\n")
                 .append("   -- #Computed core reasons: ").append(totalNumReasons).append("\n")
                 .append("   -- #Computed core reduced reasons: ").append(totalNumReducedReasons).append("\n");
         if (statList.size() > 0) {

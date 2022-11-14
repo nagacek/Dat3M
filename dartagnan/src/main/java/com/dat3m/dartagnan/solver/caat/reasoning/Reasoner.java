@@ -24,6 +24,7 @@ public class Reasoner {
     private final GraphVisitor graphVisitor = new GraphVisitor();
     private final SetVisitor setVisitor = new SetVisitor();
     private final Set<RelationGraph> externalCut;
+    private int visitedSubPredicates;
 
     public Reasoner(Set<RelationGraph> externalCut) {
         this.externalCut = externalCut;
@@ -35,6 +36,7 @@ public class Reasoner {
         if (!constraint.checkForViolations()) {
             return DNF.FALSE();
         }
+        visitedSubPredicates = 0;
 
         CAATPredicate pred = constraint.getConstrainedPredicate();
         Collection<? extends Collection<? extends Derivable>> violations = constraint.getViolations();
@@ -78,6 +80,7 @@ public class Reasoner {
 
 
     public Conjunction<CAATLiteral> computeReason(RelationGraph graph, Edge edge, Context toCut) {
+        visitedSubPredicates++;
         if (!graph.contains(edge)) {
             return Conjunction.FALSE();
         }
@@ -97,6 +100,7 @@ public class Reasoner {
     }
 
     public Conjunction<CAATLiteral> computeReason(SetPredicate set, Element ele) {
+        visitedSubPredicates++;
         if (!set.contains(ele)) {
             return Conjunction.FALSE();
         }
@@ -337,5 +341,10 @@ public class Reasoner {
         public Conjunction<CAATLiteral> visitBaseSet(SetPredicate set, Element ele, Void unused) {
             return new ElementLiteral(set.getName(), ele, false).toSingletonReason();
         }
+    }
+
+    //====================== Stats ==========================
+    public int getNumVisitedSubPredicates() {
+        return visitedSubPredicates;
     }
 }
