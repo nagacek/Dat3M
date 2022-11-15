@@ -23,6 +23,7 @@ public class Reasoner {
     private final GraphVisitor graphVisitor = new GraphVisitor();
     private final SetVisitor setVisitor = new SetVisitor();
     private final Set<RelationGraph> externalCut;
+    private long complexityComputationTime;
 
     public Reasoner(Set<RelationGraph> externalCut) {
         this.externalCut = externalCut;
@@ -34,6 +35,8 @@ public class Reasoner {
         if (!constraint.checkForViolations()) {
             return DNF.FALSE();
         }
+
+        complexityComputationTime = 0;
 
         CAATPredicate pred = constraint.getConstrainedPredicate();
         Collection<? extends Collection<? extends Derivable>> violations = constraint.getViolations();
@@ -125,10 +128,12 @@ public class Reasoner {
             RelationGraph next = graph;
             for (RelationGraph g : (List<RelationGraph>) graph.getDependencies()) {
                 Edge e = g.get(edge);
+                long startTime = System.currentTimeMillis();
                 if (e != null && g.getComplexity() < next.getComplexity()) {
                     next = g;
                     min = e;
                 }
+                complexityComputationTime += System.currentTimeMillis() - startTime;
             }
 
             assert next != graph;
@@ -292,10 +297,12 @@ public class Reasoner {
             SetPredicate next = set;
             for (SetPredicate s : set.getDependencies()) {
                 Element e = s.get(ele);
+                long startTime = System.currentTimeMillis();
                 if (e != null && s.getComplexity() < next.getComplexity()) {
                     next = s;
                     min = e;
                 }
+                complexityComputationTime += System.currentTimeMillis() - startTime;
             }
 
             assert next != set;
@@ -336,5 +343,9 @@ public class Reasoner {
         public Conjunction<CAATLiteral> visitBaseSet(SetPredicate set, Element ele, Void unused) {
             return new ElementLiteral(set.getName(), ele, false).toSingletonReason();
         }
+    }
+    // ========================= Stats =========================
+    public long getComplexityComputationTime() {
+        return complexityComputationTime;
     }
 }

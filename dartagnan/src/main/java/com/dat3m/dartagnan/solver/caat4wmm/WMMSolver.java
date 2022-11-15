@@ -138,6 +138,7 @@ public class WMMSolver {
         public long getBaseReasonComputationTime() { return caatStats.getReasonComputationTime(); }
         public long getCoreReasonComputationTime() { return coreReasonComputationTime; }
         public long getConsistencyCheckTime() { return caatStats.getConsistencyCheckTime(); }
+        public long getComplexityComputationTime() { return caatStats.getComplexityComputationTime(); }
         public int getModelSize() { return modelSize; }
         public int getNumComputedBaseReasons() { return caatStats.getNumComputedReasons(); }
         public int getNumComputedReducedBaseReasons() { return caatStats.getNumComputedReducedReasons(); }

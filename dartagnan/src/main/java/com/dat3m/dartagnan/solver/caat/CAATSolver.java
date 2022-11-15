@@ -86,6 +86,7 @@ public class CAATSolver {
             result.setBaseReasons(computeInconsistencyReasons(violatedConstraints, assumedAsBaseRelations));
             result.assumeAsBaseRelations = assumedAsBaseRelations;
             stats.reasonComputationTime += (System.currentTimeMillis() - curTime);
+            stats.complexityComputationTime = reasoner.getComplexityComputationTime();
         }
 
         return result;
@@ -142,12 +143,14 @@ public class CAATSolver {
         long populationTime;
         long consistencyCheckTime;
         long reasonComputationTime;
+        long complexityComputationTime;
         int numComputedReasons;
         int numComputedReducedReasons;
 
         public long getPopulationTime() { return populationTime; }
         public long getReasonComputationTime() { return reasonComputationTime; }
         public long getConsistencyCheckTime() { return consistencyCheckTime; }
+        public long getComplexityComputationTime() { return complexityComputationTime; }
         public int getNumComputedReasons() { return numComputedReasons; }
         public int getNumComputedReducedReasons() { return numComputedReducedReasons; }
 
@@ -156,6 +159,7 @@ public class CAATSolver {
             str.append("Model construction time(ms): ").append(populationTime).append("\n");
             str.append("Consistency check time(ms): ").append(consistencyCheckTime).append("\n");
             str.append("Reason computation time(ms): ").append(reasonComputationTime).append("\n");
+            str.append("Complexity computation time(ms): ").append(complexityComputationTime).append("\n");
             str.append("#Computed reasons: ").append(numComputedReasons).append("\n");
             str.append("#Computed reduced reasons: ").append(numComputedReducedReasons).append("\n");
 
