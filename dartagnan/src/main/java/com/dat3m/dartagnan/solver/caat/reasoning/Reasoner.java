@@ -156,11 +156,29 @@ public class Reasoner {
                 }
             }
 
+            List<Conjunction<CAATLiteral>> otherReasons = new ArrayList<>();
+            for (RelationGraph g : (List<RelationGraph>) graph.getDependencies()) {
+                Edge e = g.get(edge);
+                if (e != null &&!g.equals(next)) {
+                    otherReasons.add(computeReason(g, e, toCut));
+                }
+            }
+
             assert next != graph;
             Conjunction<CAATLiteral> reason = computeReason(next, min, toCut);
+            for (Conjunction<CAATLiteral> r : otherReasons) {
+                if (getComplexity(r) < getComplexity(reason)) {
+                    int i = 5;
+                }
+            }
             assert !reason.isFalse();
             return reason;
 
+        }
+
+        long getComplexity(Conjunction<CAATLiteral> reason) {
+            return reason.getLiterals().stream().filter(x -> x instanceof ElementLiteral).map(x -> (ElementLiteral) x)
+                    .filter(x -> x.getName().equals("co") || x.getName().equals("rf")).count();
         }
 
         @Override
