@@ -64,11 +64,13 @@ public class CoreReasoner {
                 Event e2 = domain.getObjectById(edge.getSecond()).getEvent();
                 Tuple tuple = new Tuple(e1, e2);
                 Relation rel = memoryModel.getRelation(lit.getName());
+                TupleSet minSet = rel.getMinTupleSet();
+                TupleSet maxSet = rel.getMaxTupleSet();
 
-                if (lit.isPositive() && rel.getMinTupleSet().contains(tuple)) {
+                if (lit.isPositive() && minSet != null && minSet.contains(tuple)) {
                     // Statically present edges
                     addExecReason(tuple, coreReason);
-                } else if (lit.isNegative() && !rel.getMaxTupleSet().contains(tuple)) {
+                } else if (lit.isNegative() && maxSet != null && !maxSet.contains(tuple)) {
                     // Statically absent edges
                 } else {
                     if (rel.getName().equals(RF) || rel.getName().equals(CO)) {

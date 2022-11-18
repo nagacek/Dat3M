@@ -139,9 +139,9 @@ public class Reasoner {
             // Try to find any static reason (this case has not been observed to appear, yet)
             for (RelationGraph g : (List<RelationGraph>) graph.getDependencies()) {
                 Edge e = g.get(edge);
-                if (e != null && toCut.hasStaticPresence(graph, e) == RelationGraph.Presence.PRESENT) {
+                if (e != null && toCut.hasStaticPresence(g, e) == RelationGraph.Presence.PRESENT) {
                     toCut.incrementUnion();
-                    return new EdgeLiteral(graph.getName(), e, false).toSingletonReason();
+                    return new EdgeLiteral(g.getName(), e, false).toSingletonReason();
                 }
             }
 
@@ -159,7 +159,7 @@ public class Reasoner {
             List<Conjunction<CAATLiteral>> otherReasons = new ArrayList<>();
             for (RelationGraph g : (List<RelationGraph>) graph.getDependencies()) {
                 Edge e = g.get(edge);
-                if (e != null &&!g.equals(next)) {
+                if (e != null && e.getDerivationLength() < edge.getDerivationLength() && !g.getName().equals(next.getName())) {
                     otherReasons.add(computeReason(g, e, toCut));
                 }
             }
@@ -167,7 +167,9 @@ public class Reasoner {
             assert next != graph;
             Conjunction<CAATLiteral> reason = computeReason(next, min, toCut);
             for (Conjunction<CAATLiteral> r : otherReasons) {
-                if (getComplexity(r) < getComplexity(reason)) {
+                long reasonComplexity = getComplexity(reason);
+                long rComplexity = getComplexity(r);
+                if (rComplexity < reasonComplexity) {
                     int i = 5;
                 }
             }
@@ -177,8 +179,7 @@ public class Reasoner {
         }
 
         long getComplexity(Conjunction<CAATLiteral> reason) {
-            return reason.getLiterals().stream().filter(x -> x instanceof ElementLiteral).map(x -> (ElementLiteral) x)
-                    .filter(x -> x.getName().equals("co") || x.getName().equals("rf")).count();
+            return reason.getLiterals().stream().filter(x -> x.getName().equals("co") || x.getName().equals("rf")).count();
         }
 
         @Override
