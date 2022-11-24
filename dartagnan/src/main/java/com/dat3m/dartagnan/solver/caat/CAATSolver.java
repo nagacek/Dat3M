@@ -10,15 +10,10 @@ import com.dat3m.dartagnan.solver.caat.reasoning.CAATLiteral;
 import com.dat3m.dartagnan.solver.caat.reasoning.Context;
 import com.dat3m.dartagnan.solver.caat.reasoning.Reasoner;
 import com.dat3m.dartagnan.solver.caat4wmm.EdgeManager;
-import com.dat3m.dartagnan.solver.caat4wmm.WMMSolver;
 import com.dat3m.dartagnan.utils.logic.Conjunction;
 import com.dat3m.dartagnan.utils.logic.DNF;
-import com.dat3m.dartagnan.wmm.relation.Relation;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.function.BiFunction;
 
 import static com.dat3m.dartagnan.solver.caat.CAATSolver.Status.CONSISTENT;
@@ -100,7 +95,7 @@ public class CAATSolver {
         EdgeSetMap caatView = manager.initCAATView();
         List<Conjunction<CAATLiteral>> reasons = new ArrayList<>();
         for (Constraint constraint : violatedConstraints) {
-            reasons.addAll(reasoner.computeViolationReasons(constraint, new Context(toCut, caatView, hasStaticPresence, stats.getSkippedEdges())).getCubes());
+            reasons.addAll(reasoner.computeViolationReasons(constraint, new Context(toCut, caatView, hasStaticPresence, stats.getSkippedEdges(), stats.reasonStats)).getCubes());
         }
         stats.numComputedReasons += reasons.size();
         DNF<CAATLiteral> result = new DNF<>(reasons); // The conversion to DNF removes duplicates and dominated clauses
@@ -148,9 +143,11 @@ public class CAATSolver {
         int numComputedReasons;
         int numComputedReducedReasons;
         StaticStatistics skippedEdges;
+        ReasonComplexityStatistics reasonStats;
 
         public Statistics() {
             skippedEdges = new StaticStatistics();
+            reasonStats = new ReasonComplexityStatistics();
         }
 
         public long getPopulationTime() { return populationTime; }
@@ -159,6 +156,7 @@ public class CAATSolver {
         public int getNumComputedReasons() { return numComputedReasons; }
         public int getNumComputedReducedReasons() { return numComputedReducedReasons; }
         public StaticStatistics getSkippedEdges() { return skippedEdges; }
+        public ReasonComplexityStatistics getReasonStats() { return reasonStats; }
 
         public String toString() {
             StringBuilder str = new StringBuilder();
@@ -191,6 +189,27 @@ public class CAATSolver {
             str.append("    of which coming from an union choice: ").append(numStaticUnions);
             return str.toString();
         }
+
+    }
+
+    public static class ReasonComplexityStatistics {
+        private final HashMap<List<Long>, Integer> countUnion = new HashMap<>();
+        private final HashMap<List<Long>, Integer> countComposition = new HashMap<>();
+
+        public void putUnion(long was, long could) {
+            List<Long> complexityRelation = List.of(was, could);
+            countUnion.putIfAbsent(complexityRelation, 0);
+            countUnion.replace(complexityRelation, countUnion.get(complexityRelation) + 1);
+        }
+
+        public void putComposition(long was, long could) {
+            List<Long> complexityRelation = List.of(was, could);
+            countComposition.putIfAbsent(complexityRelation, 0);
+            countComposition.replace(complexityRelation, countComposition.get(complexityRelation) + 1);
+        }
+
+        public HashMap<List<Long>, Integer> getCountUnion() {  return countUnion;  }
+        public HashMap<List<Long>, Integer> getCountComposition() {  return countComposition;  }
 
     }
 

@@ -23,10 +23,7 @@ import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.java_smt.api.Model;
 import org.sosy_lab.java_smt.api.SolverContext;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 /*
     This is our domain-specific bridging component that specializes the CAATSolver to the WMM setting.
@@ -208,6 +205,9 @@ public class WMMSolver {
         public int getNumSkippedStaticEdges() { return caatStats.getSkippedEdges().getNumStaticEdges(); }
         public int getNumEdges() { return caatStats.getSkippedEdges().getNumEdges(); }
         public int getNumSkippedUnionEdges() { return caatStats.getSkippedEdges().getNumStaticUnions(); }
+
+        public HashMap<List<Long>, Integer> getUnionComplexity() { return caatStats.getReasonStats().getCountUnion(); }
+        public HashMap<List<Long>, Integer> getCompositionComplexity() { return caatStats.getReasonStats().getCountComposition(); }
 
         public String toString() {
             StringBuilder str = new StringBuilder();

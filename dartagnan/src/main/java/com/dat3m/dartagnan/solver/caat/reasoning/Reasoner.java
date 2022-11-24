@@ -14,6 +14,7 @@ import com.dat3m.dartagnan.solver.caat4wmm.WMMSolver;
 import com.dat3m.dartagnan.utils.logic.Conjunction;
 import com.dat3m.dartagnan.utils.logic.DNF;
 import com.dat3m.dartagnan.wmm.relation.Relation;
+import com.google.common.collect.Lists;
 
 import java.util.*;
 
@@ -166,12 +167,18 @@ public class Reasoner {
 
             assert next != graph;
             Conjunction<CAATLiteral> reason = computeReason(next, min, toCut);
+            Conjunction<CAATLiteral> betterReason = null;
+            long reasonComplexity = getComplexity(reason);
             for (Conjunction<CAATLiteral> r : otherReasons) {
-                long reasonComplexity = getComplexity(reason);
                 long rComplexity = getComplexity(r);
                 if (rComplexity < reasonComplexity) {
-                    int i = 5;
+                    reasonComplexity = rComplexity;
+                    betterReason = r;
                 }
+            }
+            if (betterReason != null) {
+                //System.out.println("Found better reason for union: " + reasonComplexity + "/" + rComplexity + "(" + reason.getSize() + "/" + r.getSize() + ")");
+                toCut.putUnion(getComplexity(reason), reasonComplexity);
             }
             assert !reason.isFalse();
             return reason;
@@ -198,7 +205,11 @@ public class Reasoner {
             RelationGraph first = (RelationGraph) graph.getDependencies().get(0);
             RelationGraph second = (RelationGraph) graph.getDependencies().get(1);
 
-            // We use the first composition that we find
+            Conjunction<CAATLiteral> firstReason = null;
+            Conjunction<CAATLiteral> reason = null;
+            Edge edge1 = null;
+            Edge edge2 = null;
+            // We use the composition with the lowest combined derivationLength
             if (first.getEstimatedSize(edge.getFirst(), EdgeDirection.OUTGOING)
                     <= second.getEstimatedSize(edge.getSecond(), EdgeDirection.INGOING)) {
                 for (Edge e1 : first.outEdges(edge.getFirst())) {
@@ -206,10 +217,15 @@ public class Reasoner {
                         continue;
                     }
                     Edge e2 = second.get(new Edge(e1.getSecond(), edge.getSecond()));
-                    if (e2 != null && e2.getDerivationLength() < edge.getDerivationLength()) {
-                        Conjunction<CAATLiteral> reason = computeReason(first, e1, toCut).and(computeReason(second, e2, toCut));
-                        assert !reason.isFalse();
-                        return reason;
+                    if (e2 != null && e2.getDerivationLength() < edge.getDerivationLength() && (edge1 == null ||
+                            e1.getDerivationLength() + e2.getDerivationLength() < edge1.getDerivationLength() + edge2.getDerivationLength())) {
+                        if (edge1 == null) {
+                            firstReason = computeReason(first, e1, toCut).and(computeReason(second, e2, toCut));
+                        }
+                        edge1 = e1;
+                        edge2 = e2;
+                    } else if (e2 != null && e2.getDerivationLength() < edge.getDerivationLength()) {
+                        //computedReasons.add(computeReason(first, e1, toCut).and(computeReason(second, e2, toCut)));
                     }
                 }
             } else {
@@ -218,15 +234,33 @@ public class Reasoner {
                         continue;
                     }
                     Edge e1 = first.get(new Edge(edge.getFirst(), e2.getFirst()));
-                    if (e1 != null && e1.getDerivationLength() < edge.getDerivationLength()) {
-                        Conjunction<CAATLiteral> reason = computeReason(first, e1, toCut).and(computeReason(second, e2, toCut));
-                        assert !reason.isFalse();
-                        return reason;
+                    if (e1 != null && e1.getDerivationLength() < edge.getDerivationLength() && (edge1 == null ||
+                            e1.getDerivationLength() + e2.getDerivationLength() < edge1.getDerivationLength() + edge2.getDerivationLength())) {
+                        if (edge1 == null) {
+                            firstReason = computeReason(first, e1, toCut).and(computeReason(second, e2, toCut));
+                        }
+                        edge1 = e1;
+                        edge2 = e2;
+                    } else if (e1 != null && e1.getDerivationLength() < edge.getDerivationLength()) {
+                        //computedReasons.add(computeReason(first, e1, toCut).and(computeReason(second, e2, toCut)));
                     }
                 }
             }
+            if (edge1 != null) {
+                reason = computeReason(first, edge1, toCut).and(computeReason(second, edge2, toCut));
+            }
 
-            throw new IllegalStateException("Did not find a reason for " + edge + " in " + graph.getName());
+            if (reason == null) {
+                throw new IllegalStateException("Did not find a reason for " + edge + " in " + graph.getName());
+            } else {
+                long reasonComplexity = getComplexity(reason);
+                long firstReasonComplexity = getComplexity(firstReason);
+                if (reasonComplexity < firstReasonComplexity) {
+                    //System.out.println("Found better reason for composition: " + getComplexity(reason) + "/" + reasonComplexity + "(" + reason.getSize() + "/" + foundBetterReason.getSize() + ")");
+                    toCut.putComposition(firstReasonComplexity, reasonComplexity);
+                }
+                return reason;
+            }
         }
 
         @Override

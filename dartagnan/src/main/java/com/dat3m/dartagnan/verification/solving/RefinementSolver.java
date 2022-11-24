@@ -46,6 +46,7 @@ import org.sosy_lab.common.configuration.Options;
 import org.sosy_lab.java_smt.api.*;
 
 import java.util.*;
+import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 
 import static com.dat3m.dartagnan.GlobalSettings.REFINEMENT_GENERATE_GRAPHVIZ_DEBUG_FILES;
@@ -388,6 +389,8 @@ public class RefinementSolver extends ModelChecker {
         long totalStaticEdges = 0;
         long totalEdges = 0;
         long totalStaticUnions = 0;
+        HashMap<List<Long>, Integer> totalUnionComplexity = new HashMap<>();
+        HashMap<List<Long>, Integer> totalCompositionComplexity = new HashMap<>();
 
         for (WMMSolver.Statistics stats : statList) {
             totalModelExtractTime += stats.getModelExtractionTime();
@@ -404,6 +407,9 @@ public class RefinementSolver extends ModelChecker {
             totalEdges += stats.getNumEdges();
             totalStaticEdges += stats.getNumSkippedStaticEdges();
             totalStaticUnions += stats.getNumSkippedUnionEdges();
+
+            stats.getUnionComplexity().forEach((key, value) -> totalUnionComplexity.merge(key, value, Integer::sum));
+            stats.getCompositionComplexity().forEach((key, value) -> totalCompositionComplexity.merge(key, value, Integer::sum));
         }
 
         StringBuilder message = new StringBuilder().append("Summary").append("\n")
@@ -427,6 +433,15 @@ public class RefinementSolver extends ModelChecker {
                     .append("   -- Average model size (#events): ").append(totalModelSize / statList.size()).append("\n")
                     .append("   -- Max model size (#events): ").append(maxModelSize).append("\n");
         }
+
+        message.append("\n")
+                .append("   -- Better reasons for Union ((was/could have been): #occurrences):").append("\n");
+        totalUnionComplexity.forEach((key, value) -> message.append("      - ").append("(").append(key.get(0)).append("/").append(key.get(1)).append("): ")
+                .append(value).append("\n"));
+        message.append("\n")
+                .append("   -- Better reasons for Composition ((first/used): #occurrences):").append("\n");
+        totalCompositionComplexity.forEach((key, value) -> message.append("      - ").append("(").append(key.get(0)).append("/").append(key.get(1)).append("): ")
+                .append(value).append("\n"));
 
         return message;
     }
