@@ -161,7 +161,7 @@ public class Reasoner {
             for (RelationGraph g : (List<RelationGraph>) graph.getDependencies()) {
                 Edge e = g.get(edge);
                 if (e != null && e.getDerivationLength() < edge.getDerivationLength() && !g.getName().equals(next.getName())) {
-                    //otherReasons.add(computeReason(g, e, toCut));
+                    otherReasons.add(computeReason(g, e, toCut));
                 }
             }
 
@@ -219,12 +219,10 @@ public class Reasoner {
                     if (e2 != null && e2.getDerivationLength() < edge.getDerivationLength() && (edge1 == null ||
                             e1.getDerivationLength() + e2.getDerivationLength() < edge1.getDerivationLength() + edge2.getDerivationLength())) {
                         if (edge1 == null) {
-                            //firstReason = computeReason(first, e1, toCut).and(computeReason(second, e2, toCut));
+                            firstReason = computeReason(first, e1, toCut).and(computeReason(second, e2, toCut));
                         }
                         edge1 = e1;
                         edge2 = e2;
-                    } else if (e2 != null && e2.getDerivationLength() < edge.getDerivationLength()) {
-                        //computedReasons.add(computeReason(first, e1, toCut).and(computeReason(second, e2, toCut)));
                     }
                 }
             } else {
@@ -236,12 +234,10 @@ public class Reasoner {
                     if (e1 != null && e1.getDerivationLength() < edge.getDerivationLength() && (edge1 == null ||
                             e1.getDerivationLength() + e2.getDerivationLength() < edge1.getDerivationLength() + edge2.getDerivationLength())) {
                         if (edge1 == null) {
-                            //firstReason = computeReason(first, e1, toCut).and(computeReason(second, e2, toCut));
+                            firstReason = computeReason(first, e1, toCut).and(computeReason(second, e2, toCut));
                         }
                         edge1 = e1;
                         edge2 = e2;
-                    } else if (e1 != null && e1.getDerivationLength() < edge.getDerivationLength()) {
-                        //computedReasons.add(computeReason(first, e1, toCut).and(computeReason(second, e2, toCut)));
                     }
                 }
             }
