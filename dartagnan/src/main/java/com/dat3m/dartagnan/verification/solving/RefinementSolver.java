@@ -435,11 +435,11 @@ public class RefinementSolver extends ModelChecker {
         }
 
         message.append("\n")
-                .append("   -- Better reasons for Union ((was/could have been): #occurrences):").append("\n");
+                .append("   -- Better reasons for Union ((dl-based/best): #occurrences):").append("\n");
         totalUnionComplexity.forEach((key, value) -> message.append("      - ").append("(").append(key.get(0)).append("/").append(key.get(1)).append("): ")
                 .append(value).append("\n"));
         message.append("\n")
-                .append("   -- Better reasons for Composition ((first/used): #occurrences):").append("\n");
+                .append("   -- Better reasons for Composition ((dl-based/best): #occurrences):").append("\n");
         totalCompositionComplexity.forEach((key, value) -> message.append("      - ").append("(").append(key.get(0)).append("/").append(key.get(1)).append("): ")
                 .append(value).append("\n"));
 
