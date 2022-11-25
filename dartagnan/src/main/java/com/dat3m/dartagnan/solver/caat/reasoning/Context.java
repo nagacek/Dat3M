@@ -15,14 +15,12 @@ public class Context {
     private final Set<RelationGraph> set;
     private final BiFunction<RelationGraph, Edge, RelationGraph.Presence> hasStaticPresence;
     private final CAATSolver.StaticStatistics stats;
-    private final CAATSolver.ReasonComplexityStatistics reasonStats;
 
-    public Context(Set<RelationGraph> set, EdgeSetMap map, BiFunction<RelationGraph, Edge, RelationGraph.Presence> hasStaticPresence, CAATSolver.StaticStatistics stats, CAATSolver.ReasonComplexityStatistics reasonStats) {
+    public Context(Set<RelationGraph> set, EdgeSetMap map, BiFunction<RelationGraph, Edge, RelationGraph.Presence> hasStaticPresence, CAATSolver.StaticStatistics stats) {
         this.map = map;
         this.set = set;
         this.hasStaticPresence = hasStaticPresence;
         this.stats = stats;
-        this.reasonStats = reasonStats;
     }
 
     public boolean isCovered(RelationGraph graph, Edge edge) {
@@ -41,6 +39,4 @@ public class Context {
     public void incrementStatic() { stats.incrementStatic(); }
     public void incrementUnion() { stats.incrementUnion(); }
 
-    public void putUnion(long was, long could) { reasonStats.putUnion(was, could); }
-    public void putComposition(long was, long could) { reasonStats.putComposition(was, could); }
 }

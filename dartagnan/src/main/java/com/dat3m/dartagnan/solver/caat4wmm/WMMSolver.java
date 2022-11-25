@@ -206,9 +206,6 @@ public class WMMSolver {
         public int getNumEdges() { return caatStats.getSkippedEdges().getNumEdges(); }
         public int getNumSkippedUnionEdges() { return caatStats.getSkippedEdges().getNumStaticUnions(); }
 
-        public HashMap<List<Long>, Integer> getUnionComplexity() { return caatStats.getReasonStats().getCountUnion(); }
-        public HashMap<List<Long>, Integer> getCompositionComplexity() { return caatStats.getReasonStats().getCountComposition(); }
-
         public String toString() {
             StringBuilder str = new StringBuilder();
             str.append("Model extraction time(ms): ").append(getModelExtractionTime()).append("\n");

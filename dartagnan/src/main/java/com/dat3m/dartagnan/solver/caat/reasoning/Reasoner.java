@@ -157,35 +157,15 @@ public class Reasoner {
                 }
             }
 
-            List<Conjunction<CAATLiteral>> otherReasons = new ArrayList<>();
             for (RelationGraph g : (List<RelationGraph>) graph.getDependencies()) {
                 Edge e = g.get(edge);
-                if (e != null && e.getDerivationLength() < edge.getDerivationLength() && !g.getName().equals(next.getName())) {
-                    //otherReasons.add(computeReason(g, e, toCut));
-                }
             }
 
             assert next != graph;
             Conjunction<CAATLiteral> reason = computeReason(next, min, toCut);
-            Conjunction<CAATLiteral> betterReason = null;
-            long reasonComplexity = getComplexity(reason);
-            for (Conjunction<CAATLiteral> r : otherReasons) {
-                long rComplexity = getComplexity(r);
-                if (rComplexity < reasonComplexity) {
-                    reasonComplexity = rComplexity;
-                    betterReason = r;
-                }
-            }
-            if (betterReason != null) {
-                toCut.putUnion(getComplexity(reason), reasonComplexity);
-            }
             assert !reason.isFalse();
             return reason;
 
-        }
-
-        long getComplexity(Conjunction<CAATLiteral> reason) {
-            return reason.getLiterals().stream().filter(x -> x.getName().equals("co") || x.getName().equals("rf")).count();
         }
 
         @Override
@@ -204,7 +184,6 @@ public class Reasoner {
             RelationGraph first = (RelationGraph) graph.getDependencies().get(0);
             RelationGraph second = (RelationGraph) graph.getDependencies().get(1);
 
-            Conjunction<CAATLiteral> firstReason = null;
             Conjunction<CAATLiteral> reason = null;
             Edge edge1 = null;
             Edge edge2 = null;
@@ -218,13 +197,8 @@ public class Reasoner {
                     Edge e2 = second.get(new Edge(e1.getSecond(), edge.getSecond()));
                     if (e2 != null && e2.getDerivationLength() < edge.getDerivationLength() && (edge1 == null ||
                             e1.getDerivationLength() + e2.getDerivationLength() < edge1.getDerivationLength() + edge2.getDerivationLength())) {
-                        if (edge1 == null) {
-                            //firstReason = computeReason(first, e1, toCut).and(computeReason(second, e2, toCut));
-                        }
                         edge1 = e1;
                         edge2 = e2;
-                    } else if (e2 != null && e2.getDerivationLength() < edge.getDerivationLength()) {
-                        //computedReasons.add(computeReason(first, e1, toCut).and(computeReason(second, e2, toCut)));
                     }
                 }
             } else {
@@ -235,13 +209,8 @@ public class Reasoner {
                     Edge e1 = first.get(new Edge(edge.getFirst(), e2.getFirst()));
                     if (e1 != null && e1.getDerivationLength() < edge.getDerivationLength() && (edge1 == null ||
                             e1.getDerivationLength() + e2.getDerivationLength() < edge1.getDerivationLength() + edge2.getDerivationLength())) {
-                        if (edge1 == null) {
-                            //firstReason = computeReason(first, e1, toCut).and(computeReason(second, e2, toCut));
-                        }
                         edge1 = e1;
                         edge2 = e2;
-                    } else if (e1 != null && e1.getDerivationLength() < edge.getDerivationLength()) {
-                        //computedReasons.add(computeReason(first, e1, toCut).and(computeReason(second, e2, toCut)));
                     }
                 }
             }
@@ -251,16 +220,9 @@ public class Reasoner {
 
             if (reason == null) {
                 throw new IllegalStateException("Did not find a reason for " + edge + " in " + graph.getName());
-            } else {
-                if (firstReason != null) {
-                    long reasonComplexity = getComplexity(reason);
-                    long firstReasonComplexity = getComplexity(firstReason);
-                    if (reasonComplexity < firstReasonComplexity) {
-                        toCut.putComposition(firstReasonComplexity, reasonComplexity);
-                    }
-                }
-                return reason;
             }
+            return reason;
+
         }
 
         @Override

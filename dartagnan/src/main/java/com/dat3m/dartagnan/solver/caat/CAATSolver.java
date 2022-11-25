@@ -95,7 +95,7 @@ public class CAATSolver {
         EdgeSetMap caatView = manager.initCAATView();
         List<Conjunction<CAATLiteral>> reasons = new ArrayList<>();
         for (Constraint constraint : violatedConstraints) {
-            reasons.addAll(reasoner.computeViolationReasons(constraint, new Context(toCut, caatView, hasStaticPresence, stats.getSkippedEdges(), stats.reasonStats)).getCubes());
+            reasons.addAll(reasoner.computeViolationReasons(constraint, new Context(toCut, caatView, hasStaticPresence, stats.getSkippedEdges())).getCubes());
         }
         stats.numComputedReasons += reasons.size();
         DNF<CAATLiteral> result = new DNF<>(reasons); // The conversion to DNF removes duplicates and dominated clauses
@@ -143,11 +143,9 @@ public class CAATSolver {
         int numComputedReasons;
         int numComputedReducedReasons;
         StaticStatistics skippedEdges;
-        ReasonComplexityStatistics reasonStats;
 
         public Statistics() {
             skippedEdges = new StaticStatistics();
-            reasonStats = new ReasonComplexityStatistics();
         }
 
         public long getPopulationTime() { return populationTime; }
@@ -156,7 +154,6 @@ public class CAATSolver {
         public int getNumComputedReasons() { return numComputedReasons; }
         public int getNumComputedReducedReasons() { return numComputedReducedReasons; }
         public StaticStatistics getSkippedEdges() { return skippedEdges; }
-        public ReasonComplexityStatistics getReasonStats() { return reasonStats; }
 
         public String toString() {
             StringBuilder str = new StringBuilder();
@@ -189,27 +186,6 @@ public class CAATSolver {
             str.append("    of which coming from an union choice: ").append(numStaticUnions);
             return str.toString();
         }
-
-    }
-
-    public static class ReasonComplexityStatistics {
-        private final HashMap<List<Long>, Integer> countUnion = new HashMap<>();
-        private final HashMap<List<Long>, Integer> countComposition = new HashMap<>();
-
-        public void putUnion(long was, long could) {
-            List<Long> complexityRelation = List.of(was, could);
-            countUnion.putIfAbsent(complexityRelation, 0);
-            countUnion.replace(complexityRelation, countUnion.get(complexityRelation) + 1);
-        }
-
-        public void putComposition(long was, long could) {
-            List<Long> complexityRelation = List.of(was, could);
-            countComposition.putIfAbsent(complexityRelation, 0);
-            countComposition.replace(complexityRelation, countComposition.get(complexityRelation) + 1);
-        }
-
-        public HashMap<List<Long>, Integer> getCountUnion() {  return countUnion;  }
-        public HashMap<List<Long>, Integer> getCountComposition() {  return countComposition;  }
 
     }
 
