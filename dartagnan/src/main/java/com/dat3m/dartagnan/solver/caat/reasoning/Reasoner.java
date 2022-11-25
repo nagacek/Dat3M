@@ -161,7 +161,7 @@ public class Reasoner {
             for (RelationGraph g : (List<RelationGraph>) graph.getDependencies()) {
                 Edge e = g.get(edge);
                 if (e != null && e.getDerivationLength() < edge.getDerivationLength() && !g.getName().equals(next.getName())) {
-                    otherReasons.add(computeReason(g, e, toCut));
+                    //otherReasons.add(computeReason(g, e, toCut));
                 }
             }
 
@@ -177,7 +177,6 @@ public class Reasoner {
                 }
             }
             if (betterReason != null) {
-                //System.out.println("Found better reason for union: " + reasonComplexity + "/" + rComplexity + "(" + reason.getSize() + "/" + r.getSize() + ")");
                 toCut.putUnion(getComplexity(reason), reasonComplexity);
             }
             assert !reason.isFalse();
@@ -220,7 +219,7 @@ public class Reasoner {
                     if (e2 != null && e2.getDerivationLength() < edge.getDerivationLength() && (edge1 == null ||
                             e1.getDerivationLength() + e2.getDerivationLength() < edge1.getDerivationLength() + edge2.getDerivationLength())) {
                         if (edge1 == null) {
-                            firstReason = computeReason(first, e1, toCut).and(computeReason(second, e2, toCut));
+                            //firstReason = computeReason(first, e1, toCut).and(computeReason(second, e2, toCut));
                         }
                         edge1 = e1;
                         edge2 = e2;
@@ -237,7 +236,7 @@ public class Reasoner {
                     if (e1 != null && e1.getDerivationLength() < edge.getDerivationLength() && (edge1 == null ||
                             e1.getDerivationLength() + e2.getDerivationLength() < edge1.getDerivationLength() + edge2.getDerivationLength())) {
                         if (edge1 == null) {
-                            firstReason = computeReason(first, e1, toCut).and(computeReason(second, e2, toCut));
+                            //firstReason = computeReason(first, e1, toCut).and(computeReason(second, e2, toCut));
                         }
                         edge1 = e1;
                         edge2 = e2;
@@ -253,11 +252,12 @@ public class Reasoner {
             if (reason == null) {
                 throw new IllegalStateException("Did not find a reason for " + edge + " in " + graph.getName());
             } else {
-                long reasonComplexity = getComplexity(reason);
-                long firstReasonComplexity = getComplexity(firstReason);
-                if (reasonComplexity < firstReasonComplexity) {
-                    //System.out.println("Found better reason for composition: " + getComplexity(reason) + "/" + reasonComplexity + "(" + reason.getSize() + "/" + foundBetterReason.getSize() + ")");
-                    toCut.putComposition(firstReasonComplexity, reasonComplexity);
+                if (firstReason != null) {
+                    long reasonComplexity = getComplexity(reason);
+                    long firstReasonComplexity = getComplexity(firstReason);
+                    if (reasonComplexity < firstReasonComplexity) {
+                        toCut.putComposition(firstReasonComplexity, reasonComplexity);
+                    }
                 }
                 return reason;
             }
