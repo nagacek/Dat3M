@@ -64,6 +64,10 @@ public class CoreReasoner {
                 Event e2 = domain.getObjectById(edge.getSecond()).getEvent();
                 Tuple tuple = new Tuple(e1, e2);
                 Relation rel = memoryModel.getRelation(lit.getName());
+                if (rel == null) {
+                    System.out.println("DEBUG: " + lit.getName());
+                }
+
                 TupleSet minSet = rel.getMinTupleSet();
                 TupleSet maxSet = rel.getMaxTupleSet();
 
