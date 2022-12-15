@@ -16,6 +16,11 @@ import static java.util.Spliterator.*;
 
 public class CoherenceGraph extends StaticWMMGraph {
 
+    @Override
+    public Edge get(Edge edge) {
+        return contains(edge) ? edge.with(0, 0, 1) : null;
+    }
+
     private Map<BigInteger, List<EventData>> coMap;
 
     @Override
@@ -62,7 +67,7 @@ public class CoherenceGraph extends StaticWMMGraph {
             return Stream.empty();
         }
         Function<EventData, Edge> mapping = dir == EdgeDirection.INGOING ?
-                (event -> new Edge(event.getId(), id)) : (event -> new Edge(id, event.getId()));
+                (event -> new Edge(event.getId(), id, 0, 0, 1)) : (event -> new Edge(id, event.getId(), 0, 0, 1));
         return getCoSuccessorList(e, dir).stream().map(mapping);
     }
 
@@ -78,7 +83,7 @@ public class CoherenceGraph extends StaticWMMGraph {
             return Collections.emptyIterator();
         }
         com.google.common.base.Function<EventData, Edge> mapping = dir == EdgeDirection.INGOING ?
-                (event -> new Edge(event.getId(), id)) : (event -> new Edge(id, event.getId()));
+                (event -> new Edge(event.getId(), id, 0, 0, 1)) : (event -> new Edge(id, event.getId(), 0, 0, 1));
         return Iterators.transform(getCoSuccessorList(e, dir).iterator(), mapping);
     }
 
@@ -119,7 +124,7 @@ public class CoherenceGraph extends StaticWMMGraph {
                     }
                 }
             }
-            edge = new Edge(curList.get(low).getId(), curList.get(high).getId());
+            edge = new Edge(curList.get(low).getId(), curList.get(high).getId(), 0, 0, 1);
 
         }
 

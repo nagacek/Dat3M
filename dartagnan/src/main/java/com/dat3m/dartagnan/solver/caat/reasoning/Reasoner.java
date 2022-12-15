@@ -147,11 +147,11 @@ public class Reasoner {
             }
 
             // We try to compute a shortest reason based on the distance to the base graphs
-            Edge min = edge;
-            RelationGraph next = graph;
+            Edge min = null;
+            RelationGraph next = null;
             for (RelationGraph g : (List<RelationGraph>) graph.getDependencies()) {
                 Edge e = g.get(edge);
-                if (e != null && e.getDerivationLength() < min.getDerivationLength()) {
+                if (e != null && (min == null || e.getComplexity() < min.getComplexity()) && e.getDerivationLength() < edge.getDerivationLength()) {
                     next = g;
                     min = e;
                 }
@@ -204,7 +204,7 @@ public class Reasoner {
             Conjunction<CAATLiteral> reason = null;
             Edge edge1 = null;
             Edge edge2 = null;
-            // We use the composition with the lowest combined derivationLength
+            // We use the composition with the lowest combined complexity
             if (first.getEstimatedSize(edge.getFirst(), EdgeDirection.OUTGOING)
                     <= second.getEstimatedSize(edge.getSecond(), EdgeDirection.INGOING)) {
                 for (Edge e1 : first.outEdges(edge.getFirst())) {
@@ -213,7 +213,7 @@ public class Reasoner {
                     }
                     Edge e2 = second.get(new Edge(e1.getSecond(), edge.getSecond()));
                     if (e2 != null && e2.getDerivationLength() < edge.getDerivationLength() && (edge1 == null ||
-                            e1.getDerivationLength() + e2.getDerivationLength() < edge1.getDerivationLength() + edge2.getDerivationLength())) {
+                            e1.getComplexity() + e2.getComplexity() < edge1.getComplexity() + edge2.getComplexity())) {
                         if (edge1 == null) {
                             firstReason = computeReason(first, e1, toCut).and(computeReason(second, e2, toCut));
                         }
@@ -228,7 +228,7 @@ public class Reasoner {
                     }
                     Edge e1 = first.get(new Edge(edge.getFirst(), e2.getFirst()));
                     if (e1 != null && e1.getDerivationLength() < edge.getDerivationLength() && (edge1 == null ||
-                            e1.getDerivationLength() + e2.getDerivationLength() < edge1.getDerivationLength() + edge2.getDerivationLength())) {
+                            e1.getComplexity() + e2.getComplexity() < edge1.getComplexity() + edge2.getComplexity())) {
                         if (edge1 == null) {
                             firstReason = computeReason(first, e1, toCut).and(computeReason(second, e2, toCut));
                         }
@@ -362,7 +362,7 @@ public class Reasoner {
             SetPredicate next = set;
             for (SetPredicate s : set.getDependencies()) {
                 Element e = s.get(ele);
-                if (e != null && e.getDerivationLength() < min.getDerivationLength()) {
+                if (e != null && (min == null || e.getComplexity() < min.getComplexity()) && e.getDerivationLength() < ele.getDerivationLength()) {
                     next = s;
                     min = e;
                 }

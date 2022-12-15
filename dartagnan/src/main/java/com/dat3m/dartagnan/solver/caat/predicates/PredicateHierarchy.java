@@ -2,7 +2,6 @@ package com.dat3m.dartagnan.solver.caat.predicates;
 
 import com.dat3m.dartagnan.solver.caat.domain.Domain;
 import com.dat3m.dartagnan.solver.caat.predicates.misc.PredicateListener;
-import com.dat3m.dartagnan.solver.caat.predicates.misc.SccComplexity;
 import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.derived.RecursiveGraph;
 import com.dat3m.dartagnan.utils.dependable.DependencyGraph;
 
@@ -22,7 +21,6 @@ public class PredicateHierarchy {
     private final DependencyGraph<CAATPredicate> dependencyGraph;
     private final PriorityQueue<Task> tasks = new PriorityQueue<>();
     private final Set<CAATPredicate> basePredicates;
-    private final SccComplexity sccComplexity = new SccComplexity();
 
     private Domain<?> domain;
 
@@ -76,8 +74,6 @@ public class PredicateHierarchy {
             if (recGrp.size() == 1) {
                 recGrp.stream().findAny().get().repopulate();
             } else {
-                // inform about static complexity in recursive group
-                sccComplexity.initializeComplexities(scc);
 
                 populateRecursively(recGrp.stream().findAny().get(), recGrp, new HashSet<>());
 
