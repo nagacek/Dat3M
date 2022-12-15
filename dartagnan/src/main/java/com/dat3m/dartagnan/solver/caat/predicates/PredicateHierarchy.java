@@ -74,7 +74,6 @@ public class PredicateHierarchy {
             if (recGrp.size() == 1) {
                 recGrp.stream().findAny().get().repopulate();
             } else {
-
                 populateRecursively(recGrp.stream().findAny().get(), recGrp, new HashSet<>());
 
                 // For all recursive relations, initialize the propagation

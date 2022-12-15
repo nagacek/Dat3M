@@ -147,11 +147,11 @@ public class Reasoner {
             }
 
             // We try to compute a shortest reason based on the distance to the base graphs
-            Edge min = null;
-            RelationGraph next = null;
+            Edge min = edge;
+            RelationGraph next = graph;
             for (RelationGraph g : (List<RelationGraph>) graph.getDependencies()) {
                 Edge e = g.get(edge);
-                if (e != null && (min == null || e.getComplexity() < min.getComplexity()) && e.getDerivationLength() < edge.getDerivationLength()) {
+                if (e != null && (e.getDerivationLength() < edge.getDerivationLength() && e.getComplexity() <= min.getComplexity())) {
                     next = g;
                     min = e;
                 }
@@ -362,7 +362,7 @@ public class Reasoner {
             SetPredicate next = set;
             for (SetPredicate s : set.getDependencies()) {
                 Element e = s.get(ele);
-                if (e != null && (min == null || e.getComplexity() < min.getComplexity()) && e.getDerivationLength() < ele.getDerivationLength()) {
+                if (e != null && e.getDerivationLength() < ele.getDerivationLength() && e.getComplexity() <= min.getComplexity()) {
                     next = s;
                     min = e;
                 }
