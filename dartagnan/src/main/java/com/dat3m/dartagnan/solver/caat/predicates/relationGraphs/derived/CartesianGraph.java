@@ -43,7 +43,7 @@ public class CartesianGraph extends AbstractPredicate implements RelationGraph {
 
     private Edge derive(Element a, Element b) {
         return new Edge(a.getId(), b.getId(), Math.max(a.getTime(), b.getTime()),
-                Math.max(a.getDerivationLength(), b.getDerivationLength()) + 1);
+                Math.max(a.getDerivationLength(), b.getDerivationLength()) + 1, a.getComplexity() + b.getComplexity());
     }
 
     @Override

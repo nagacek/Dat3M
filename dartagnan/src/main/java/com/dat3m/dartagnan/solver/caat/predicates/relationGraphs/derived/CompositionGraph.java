@@ -51,7 +51,7 @@ public class CompositionGraph extends MaterializedGraph {
 
     private Edge combine(Edge a, Edge b, int time) {
         return new Edge(a.getFirst(), b.getSecond(), time,
-                Math.max(a.getDerivationLength(), b.getDerivationLength()) + 1);
+                Math.max(a.getDerivationLength(), b.getDerivationLength()) + 1, a.getComplexity() + b.getComplexity());
     }
 
     @Override

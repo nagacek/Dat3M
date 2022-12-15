@@ -8,6 +8,7 @@ import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.MaterializedGra
 import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.RelationGraph;
 
 import java.util.*;
+import java.util.function.Function;
 
 // A materialized Union Graph.
 // This seems to be more efficient than the virtualized UnionGraph we used before.
@@ -35,28 +36,30 @@ public class UnionGraph extends MaterializedGraph {
 
     @Override
     public void repopulate() {
-        //TODO: Maybe try to minimize the derivation length initially
+        HashMap<Edge, Integer> smallestComplexity = new HashMap<>();
         for (Edge e : first.edges()) {
-            simpleGraph.add(derive(e));
+            insertSmallestUniquely(derive(e), smallestComplexity);
         }
         for (Edge e : second.edges()) {
-            simpleGraph.add(derive(e));
+            insertSmallestUniquely(derive(e), smallestComplexity);
         }
+        simpleGraph.addAll(smallestComplexity.keySet());
     }
+
 
     @Override
     @SuppressWarnings("unchecked")
     public Collection<Edge> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added) {
         if (changedSource == first || changedSource == second) {
-            ArrayList<Edge> newlyAdded = new ArrayList<>();
+            HashMap<Edge, Integer> smallestComplexityNew = new HashMap<>();
             Collection<Edge> addedEdges = (Collection<Edge>)added;
             for (Edge e : addedEdges) {
                 Edge edge = derive(e);
-                if (simpleGraph.add(edge)) {
-                    newlyAdded.add(edge);
+                if (!simpleGraph.contains(edge)) {
+                    insertSmallestUniquely(edge, smallestComplexityNew);
                 }
             }
-            return newlyAdded;
+            return smallestComplexityNew.keySet();
         } else {
             return Collections.emptyList();
         }
@@ -65,6 +68,18 @@ public class UnionGraph extends MaterializedGraph {
     @Override
     public <TRet, TData, TContext> TRet accept(PredicateVisitor<TRet, TData, TContext> visitor, TData data, TContext context) {
         return visitor.visitGraphUnion(this, data, context);
+    }
+
+    private void insertSmallestUniquely(Edge e, Map<Edge, Integer> measure) {
+        if (measure.putIfAbsent(e, e.getComplexity()) != null) {
+            int inserted = measure.get(e);
+            int current = e.getComplexity();
+            if (current < inserted) {
+                // equality on edges is only defined by their ids
+                measure.remove(e);
+                measure.put(e, current);
+            }
+        }
     }
 
 

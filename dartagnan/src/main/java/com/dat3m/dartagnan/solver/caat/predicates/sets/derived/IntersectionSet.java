@@ -30,7 +30,7 @@ public class IntersectionSet extends MaterializedSet {
 
     private Element derive(Element a, Element b) {
         return a.with(Math.max(a.getTime(), b.getTime()),
-                Math.max(a.getDerivationLength(), b.getDerivationLength()) + 1);
+                Math.max(a.getDerivationLength(), b.getDerivationLength()) + 1, a.getComplexity() + b.getComplexity());
     }
 
     @Override

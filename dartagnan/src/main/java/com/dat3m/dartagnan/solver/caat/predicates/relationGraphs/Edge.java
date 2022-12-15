@@ -10,27 +10,29 @@ public class Edge extends AbstractDerivable implements Comparable<Edge> {
     public int getFirst() { return dId1; }
     public int getSecond() { return dId2; }
 
-    public Edge(int id1, int id2, int time, int derivLength) {
-        super(time, derivLength);
+    public Edge(int id1, int id2, int time, int derivLength, int complexity) {
+        super(time, derivLength, complexity);
         this.dId1 = id1;
         this.dId2 = id2;
     }
 
     public Edge(int id1, int id2) {
-        this(id1, id2, 0, 0);
+        this(id1, id2, 0, 0, 0);
     }
 
 
     @Override
-    public Edge with(int time, int derivationLength) { return new Edge(dId1, dId2, time, derivationLength); }
+    public Edge with(int time, int derivationLength, int complexity) { return new Edge(dId1, dId2, time, derivationLength, complexity); }
     @Override
-    public Edge withTime(int time) { return with(time, derivLength); }
+    public Edge withTime(int time) { return with(time, derivLength, complexity); }
     @Override
-    public Edge withDerivationLength(int derivationLength) { return with(time, derivationLength); }
+    public Edge withDerivationLength(int derivationLength) { return with(time, derivationLength, complexity); }
+    @Override
+    public Edge withComplexity(int complexity) { return with(time, derivLength, complexity); }
 
 
     public boolean isLoop() { return dId1 == dId2; }
-    public Edge inverse() { return new Edge(dId2, dId1, time, derivLength); }
+    public Edge inverse() { return new Edge(dId2, dId1, time, derivLength, complexity); }
 
     @Override
     public int compareTo(Edge o) {

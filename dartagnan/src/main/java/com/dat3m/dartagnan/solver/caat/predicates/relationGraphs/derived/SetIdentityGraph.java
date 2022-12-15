@@ -40,7 +40,7 @@ public class SetIdentityGraph extends AbstractPredicate implements RelationGraph
     public void backtrackTo(int time) { }
 
     private Edge derive(Element a) {
-        return new Edge(a.getId(), a.getId(), a.getTime(), a.getDerivationLength() + 1);
+        return new Edge(a.getId(), a.getId(), a.getTime(), a.getDerivationLength() + 1, a.getComplexity());
     }
 
     @Override

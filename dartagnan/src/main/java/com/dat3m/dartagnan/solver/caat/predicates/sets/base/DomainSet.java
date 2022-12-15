@@ -20,7 +20,7 @@ public class DomainSet extends AbstractBaseSet {
     }
 
     @Override
-    public Element get(Element ele) { return ele.with(0, 0); }
+    public Element get(Element ele) { return ele.with(0, 0, 0); }
 
     @Override
     public int size() { return domain.size(); }

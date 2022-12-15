@@ -82,7 +82,7 @@ public class InverseGraph extends AbstractPredicate implements RelationGraph {
 
 
     private Edge derive(Edge e) {
-        return new Edge(e.getSecond(), e.getFirst(), e.getTime(), e.getDerivationLength() + 1);
+        return new Edge(e.getSecond(), e.getFirst(), e.getTime(), e.getDerivationLength() + 1, e.getComplexity());
     }
 
     @Override

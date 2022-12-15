@@ -65,4 +65,6 @@ public interface CAATPredicate extends Dependent<CAATPredicate> {
     default Iterator<? extends Derivable> valueIterator() { return valueStream().iterator(); }
     default Iterable<? extends Derivable> values() { return OneTimeIterable.create(valueIterator()); }
 
+    default void injectStaticComplexity(int complexity) { }
+
 }

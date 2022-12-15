@@ -10,7 +10,7 @@ public abstract class StaticWMMGraph extends AbstractWMMGraph {
 
     @Override
     public Edge get(Edge edge) {
-        return contains(edge) ? edge.with(0, 0) : null;
+        return contains(edge) ? edge.with(0, 0, 0) : null;
     }
 
     @Override

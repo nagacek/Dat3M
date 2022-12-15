@@ -184,10 +184,6 @@ public class Reasoner {
 
         }
 
-        long getComplexity(Conjunction<CAATLiteral> reason) {
-            return reason.getLiterals().stream().filter(x -> x.getName().equals("co") || x.getName().equals("rf")).count();
-        }
-
         @Override
         public Conjunction<CAATLiteral> visitGraphIntersection(RelationGraph graph, Edge edge, Context toCut) {
             Conjunction<CAATLiteral> reason = Conjunction.TRUE();
@@ -410,5 +406,11 @@ public class Reasoner {
         public Conjunction<CAATLiteral> visitBaseSet(SetPredicate set, Element ele, Void unused) {
             return new ElementLiteral(set.getName(), ele, false).toSingletonReason();
         }
+    }
+
+    // ============================ Helper Methods ==================================
+
+    long getComplexity(Conjunction<CAATLiteral> reason) {
+        return reason.getLiterals().stream().filter(x -> x.getName().equals("co") || x.getName().equals("rf")).count();
     }
 }
