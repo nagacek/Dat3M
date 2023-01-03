@@ -340,6 +340,10 @@ public class Reasoner {
 
         @Override
         public Conjunction<CAATLiteral> visitRecursiveGraph(RelationGraph graph, Edge edge, Context toCut) {
+            Edge e = graph.get(edge);
+            if (e.getDerivationLength() - e.getComplexity() != 0) {
+                System.out.println(String.format("%s: %d/%d (D/C)", graph.getName(), e.getDerivationLength(), e.getComplexity()));
+            }
             Conjunction<CAATLiteral> reason = computeReason((RelationGraph) graph.getDependencies().get(0), edge, toCut);
             assert !reason.isFalse();
             return reason;
@@ -347,6 +351,7 @@ public class Reasoner {
 
         @Override
         public Conjunction<CAATLiteral> visitBaseGraph(RelationGraph graph, Edge edge, Context toCut) {
+            assert !graph.getName().contains("_");
             return new EdgeLiteral(graph.getName(), edge, false).toSingletonReason();
         }
     }

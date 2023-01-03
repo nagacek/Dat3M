@@ -74,6 +74,9 @@ public class CompositionGraph extends MaterializedGraph {
         // For A;A, we have the following:
         // (A+R);(A+R) = A;A + A;R + R;A + R;R = A;A + (A+R);R + R;(A+R)
         // So we add (A+R);R and R;(A+R), which is done by doing both of the above update procedures
+        for (Edge e : newEdges) {
+            assert simpleGraph.contains(e);
+        }
         return newEdges;
     }
 

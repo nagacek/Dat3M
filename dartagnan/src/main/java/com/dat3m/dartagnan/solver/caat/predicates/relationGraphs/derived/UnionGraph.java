@@ -9,6 +9,7 @@ import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.RelationGraph;
 
 import java.util.*;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 // A materialized Union Graph.
 // This seems to be more efficient than the virtualized UnionGraph we used before.
@@ -51,15 +52,7 @@ public class UnionGraph extends MaterializedGraph {
     @SuppressWarnings("unchecked")
     public Collection<Edge> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added) {
         if (changedSource == first || changedSource == second) {
-            HashMap<Edge, Integer> smallestComplexityNew = new HashMap<>();
-            Collection<Edge> addedEdges = (Collection<Edge>)added;
-            for (Edge e : addedEdges) {
-                Edge edge = derive(e);
-                if (!simpleGraph.contains(edge)) {
-                    insertSmallestUniquely(edge, smallestComplexityNew);
-                }
-            }
-            return smallestComplexityNew.keySet();
+            return ((Collection<Edge>) added).stream().map(this::derive).filter(simpleGraph::add).collect(Collectors.toList());
         } else {
             return Collections.emptyList();
         }

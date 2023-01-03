@@ -63,8 +63,13 @@ public class CoreReasoner {
                 Event e1 = domain.getObjectById(edge.getFirst()).getEvent();
                 Event e2 = domain.getObjectById(edge.getSecond()).getEvent();
                 Tuple tuple = new Tuple(e1, e2);
-                Relation rel = memoryModel.getRelation(lit.getName());
+
+                int uIndex = lit.getName().indexOf("_");
+                String relName = uIndex < 0 ? lit.getName() : lit.getName().substring(0,uIndex);
+                Relation rel = memoryModel.getRelation(relName);
                 if (rel == null) {
+                    System.out.println("DEBUG: " + relName);
+
                     System.out.println("DEBUG: " + lit.getName());
                 }
 

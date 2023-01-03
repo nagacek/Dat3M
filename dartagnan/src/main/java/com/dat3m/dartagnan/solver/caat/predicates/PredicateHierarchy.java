@@ -160,6 +160,10 @@ public class PredicateHierarchy {
         if (newlyAdded.isEmpty()) {
             // Nothing has changed, so we don't create new propagation tasks
             return;
+        } else {
+            for (Derivable deriv : newlyAdded) {
+                assert target.contains(deriv);
+            }
         }
 
         for (PredicateListener listener : listenersMap.get(target)) {
