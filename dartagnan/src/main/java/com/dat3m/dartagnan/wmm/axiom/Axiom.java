@@ -1,5 +1,6 @@
 package com.dat3m.dartagnan.wmm.axiom;
 
+import com.dat3m.dartagnan.encoding.EncodingContext;
 import com.dat3m.dartagnan.verification.Context;
 import com.dat3m.dartagnan.verification.VerificationTask;
 import com.dat3m.dartagnan.wmm.Constraint;
@@ -77,12 +78,16 @@ public abstract class Axiom implements Constraint {
         this.name = name;
     }
 
+    public String getNameOrTerm() {
+        return name != null ? name : toString();
+    }
+
     @Override
     public abstract String toString();
 
     public abstract TupleSet getEncodeTupleSet();
 
-    public abstract BooleanFormula consistent(Set<Tuple> toBeEncoded, Context analysisContext, SolverContext ctx);
+    public abstract BooleanFormula consistent(Set<Tuple> toBeEncoded, EncodingContext context);
 
     @Override
     public int hashCode() {

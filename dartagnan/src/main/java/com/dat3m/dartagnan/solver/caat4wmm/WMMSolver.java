@@ -2,6 +2,7 @@ package com.dat3m.dartagnan.solver.caat4wmm;
 
 
 import com.dat3m.dartagnan.program.event.core.Event;
+import com.dat3m.dartagnan.encoding.EncodingContext;
 import com.dat3m.dartagnan.solver.caat.CAATSolver;
 import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.Edge;
 import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.RelationGraph;
@@ -18,10 +19,8 @@ import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
 import com.dat3m.dartagnan.wmm.utils.TupleSetMap;
-import org.sosy_lab.common.configuration.Configuration;
 import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.java_smt.api.Model;
-import org.sosy_lab.java_smt.api.SolverContext;
 
 import java.util.*;
 
@@ -44,8 +43,8 @@ public class WMMSolver {
         this.solver = CAATSolver.create(manager, manager.transformCAATRelations(executionGraph));
     }
 
-    public static WMMSolver fromConfig(VerificationTask task, Context analysisContext, EdgeManager manager, Configuration config) throws InvalidConfigurationException {
-        return new WMMSolver(task, analysisContext, manager, ExecutionModel.fromConfig(task, config));
+    public static WMMSolver withContext(EncodingContext context, VerificationTask task, Context analysisContext, EdgeManager manager) throws InvalidConfigurationException {
+        return new WMMSolver(task, analysisContext, manager, ExecutionModel.withContext(context));
     }
 
     public ExecutionModel getExecution() {
@@ -56,10 +55,10 @@ public class WMMSolver {
         return executionGraph;
     }
 
-    public Result check(Model model, SolverContext ctx) {
+    public Result check(Model model) {
         // ============ Extract ExecutionModel ==============
         long curTime = System.currentTimeMillis();
-        executionModel.initialize(model, ctx);
+        executionModel.initialize(model);
         executionGraph.initializeFromModel(executionModel);
         long extractTime = System.currentTimeMillis() - curTime;
 

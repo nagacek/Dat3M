@@ -28,23 +28,22 @@ public class ProcessingManager implements ProgramProcessor {
             secure = true)
     private boolean reduceSymmetry = false;
 
-	@Option(name= ATOMIC_BLOCKS_AS_LOCKS,
-			description="Transforms atomic blocks by adding global locks.",
-			secure=true)
-		private boolean atomicBlocksAsLocks = false;
+    @Option(name= CONSTANT_PROPAGATION,
+        description="Performs constant propagation.",
+        secure=true)
+        private boolean constantPropagation = false;
 
-	@Option(name= CONSTANT_PROPAGATION,
-			description="Performs constant propagation.",
+	@Option(name= DEAD_ASSIGNEMENT_ELIMINATION,
+			description="Performs dead code elimination.",
 			secure=true)
-		private boolean constantPropagation = true;
+		private boolean dce = false;
 
-    // ======================================================================
+// ======================================================================
 
     private ProcessingManager(Configuration config) throws InvalidConfigurationException {
         config.inject(this);
 
         programProcessors.addAll(Arrays.asList(
-                atomicBlocksAsLocks ? AtomicAsLock.fromConfig(config) : null,
                 Memory.fixateMemoryValues(),
                 DeadCodeElimination.fromConfig(config),
                 BranchReordering.fromConfig(config),
@@ -52,9 +51,8 @@ public class ProcessingManager implements ProgramProcessor {
         		FindSpinLoops.fromConfig(config),
                 LoopUnrolling.fromConfig(config),
                 constantPropagation ? ConstantPropagation.fromConfig(config) : null,
-                DeadAssignmentElimination.fromConfig(config),
+                dce ? DeadAssignmentElimination.fromConfig(config) : null,
                 RemoveDeadCondJumps.fromConfig(config),
-                AtomicityPropagation.fromConfig(config),
                 Compilation.fromConfig(config),
                 reduceSymmetry ? SymmetryReduction.fromConfig(config) : null
         ));

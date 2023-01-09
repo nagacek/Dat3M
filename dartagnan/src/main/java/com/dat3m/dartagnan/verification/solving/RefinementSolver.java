@@ -10,7 +10,6 @@ import com.dat3m.dartagnan.solver.caat4wmm.Refiner;
 import com.dat3m.dartagnan.solver.caat4wmm.WMMSolver;
 import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.CoreLiteral;
 import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.RelLiteral;
-import com.dat3m.dartagnan.utils.Result;
 import com.dat3m.dartagnan.utils.logic.Conjunction;
 import com.dat3m.dartagnan.utils.logic.DNF;
 import com.dat3m.dartagnan.verification.Context;
@@ -46,7 +45,6 @@ import org.sosy_lab.common.configuration.Options;
 import org.sosy_lab.java_smt.api.*;
 
 import java.util.*;
-import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 
 import static com.dat3m.dartagnan.GlobalSettings.REFINEMENT_GENERATE_GRAPHVIZ_DEBUG_FILES;
@@ -96,15 +94,16 @@ public class RefinementSolver extends ModelChecker {
     //TODO: We do not yet use Witness information. The problem is that WitnessGraph.encode() generates
     // constraints on hb, which is not encoded in Refinement.
     //TODO (2): Add possibility for Refinement to handle CAT-properties (it ignores them for now).
-    public static Result run(SolverContext ctx, ProverEnvironment prover, VerificationTask task)
+    public static RefinementSolver run(SolverContext ctx, ProverEnvironment prover, VerificationTask task)
             throws InterruptedException, SolverException, InvalidConfigurationException {
         RefinementSolver solver = new RefinementSolver(ctx, prover, task);
         task.getConfig().inject(solver);
         logger.info("{}: {}", BASELINE, solver.baselines);
-        return solver.run();
+        solver.run();
+        return solver;
     }
 
-    private Result run() throws InterruptedException, SolverException, InvalidConfigurationException {
+    private void run() throws InterruptedException, SolverException, InvalidConfigurationException {
 
         Program program = task.getProgram();
         Wmm memoryModel = task.getMemoryModel();
@@ -129,12 +128,13 @@ public class RefinementSolver extends ModelChecker {
         performStaticWmmAnalyses(task, analysisContext, config);
         performStaticWmmAnalyses(baselineTask, baselineContext, config);
 
-        ProgramEncoder programEncoder = ProgramEncoder.fromConfig(program, analysisContext, config);
-        PropertyEncoder propertyEncoder = PropertyEncoder.fromConfig(program, baselineModel, analysisContext, config);
+        context = EncodingContext.of(baselineTask, baselineContext, ctx);
+        ProgramEncoder programEncoder = ProgramEncoder.withContext(context);
+        PropertyEncoder propertyEncoder = PropertyEncoder.withContext(context);
         // We use the original memory model for symmetry breaking because we need axioms
         // to compute the breaking order.
-        SymmetryEncoder symmEncoder = SymmetryEncoder.fromConfig(memoryModel, analysisContext, config);
-        WmmEncoder baselineEncoder = WmmEncoder.fromConfig(program, baselineModel, baselineContext, config);
+        SymmetryEncoder symmEncoder = SymmetryEncoder.withContext(context, memoryModel, analysisContext);
+        WmmEncoder baselineEncoder = WmmEncoder.withContext(context);
         programEncoder.initializeEncoding(ctx);
         propertyEncoder.initializeEncoding(ctx);
         symmEncoder.initializeEncoding(ctx);
@@ -143,7 +143,7 @@ public class RefinementSolver extends ModelChecker {
         BooleanFormulaManager bmgr = ctx.getFormulaManager().getBooleanFormulaManager();
         BooleanFormula globalRefinement = bmgr.makeTrue();
 
-        WMMSolver solver = WMMSolver.fromConfig(task, analysisContext, manager, config);
+        WMMSolver solver = WMMSolver.withContext(context, task, analysisContext, manager);
         // init partial relation encoding
         for(RecursiveGroup recursiveGroup : task.getMemoryModel().getRecursiveGroups()){
             recursiveGroup.setDoRecurse();
@@ -158,19 +158,13 @@ public class RefinementSolver extends ModelChecker {
         Refiner refiner = new Refiner(memoryModel, analysisContext);
         CAATSolver.Status status = INCONSISTENT;
 
-        BooleanFormula propertyEncoding = propertyEncoder.encodeSpecification(task.getProperty(), ctx);
-        if(bmgr.isFalse(propertyEncoding)) {
-            logger.info("Verification finished: property trivially holds");
-       		return PASS;        	
-        }
-
         logger.info("Starting encoding using " + ctx.getVersion());
-        prover.addConstraint(programEncoder.encodeFullProgram(ctx));
-        prover.addConstraint(baselineEncoder.encodeFullMemoryModel(ctx));
-        prover.addConstraint(symmEncoder.encodeFullSymmetry(ctx));
+        prover.addConstraint(programEncoder.encodeFullProgram());
+        prover.addConstraint(baselineEncoder.encodeFullMemoryModel());
+        prover.addConstraint(symmEncoder.encodeFullSymmetryBreaking());
 
         prover.push();
-        prover.addConstraint(propertyEncoding);
+        prover.addConstraint(propertyEncoder.encodeSpecification());
 
         //  ------ Just for statistics ------
         List<WMMSolver.Statistics> statList = new ArrayList<>();
@@ -203,7 +197,7 @@ public class RefinementSolver extends ModelChecker {
             curTime = System.currentTimeMillis();
             WMMSolver.Result solverResult;
             try (Model model = prover.getModel()) {
-                solverResult = solver.check(model, ctx);
+                solverResult = solver.check(model);
             } catch (SolverException e) {
                 logger.error(e);
                 throw e;
@@ -217,7 +211,7 @@ public class RefinementSolver extends ModelChecker {
             if (status == INCONSISTENT) {
                 long refineTime = System.currentTimeMillis();
                 DNF<CoreLiteral> reasons = solverResult.getCoreReasons();
-                BooleanFormula refinement = refiner.refine(reasons, ctx);
+                BooleanFormula refinement = refiner.refine(reasons, context);
                 prover.addConstraint(refinement);
                 globalRefinement = bmgr.and(globalRefinement, refinement); // Track overall refinement progress
                 totalRefiningTime += (System.currentTimeMillis() - refineTime);
@@ -228,7 +222,7 @@ public class RefinementSolver extends ModelChecker {
                 TupleSetMap permutedEdges = refiner.permute(caatEdges);
                 TupleSetMap edgesToBeEncoded = determineEncodedTuples(permutedEdges);
                 TupleSetMap newEdgesToEncode = manager.addEagerlyEncodedEdges(edgesToBeEncoded);
-                BooleanFormula dynamicCut = encodeEagerly(newEdgesToEncode, ctx, analysisContext, program);
+                BooleanFormula dynamicCut = encodeEagerly(newEdgesToEncode, context);
                 prover.addConstraint(dynamicCut);
                 globalRefinement = bmgr.and(globalRefinement, dynamicCut);
                 totalCuttingTime += (System.currentTimeMillis() - cuttingTime);
@@ -279,26 +273,25 @@ public class RefinementSolver extends ModelChecker {
 
         if (status == INCONCLUSIVE) {
             // CAATSolver got no result (should not be able to happen), so we cannot proceed further.
-            return UNKNOWN;
+            res = UNKNOWN;
+            return;
         }
 
-
-        Result veriResult;
         long boundCheckTime = 0;
         if (prover.isUnsat()) {
             // ------- CHECK BOUNDS -------
             lastTime = System.currentTimeMillis();
             prover.pop();
             // Add bound check
-            prover.addConstraint(propertyEncoder.encodeBoundEventExec(ctx));
+            prover.addConstraint(propertyEncoder.encodeBoundEventExec());
             // Add back the constraints found during Refinement
             // TODO: We actually need to perform a second refinement to check for bound reachability
             //  This is needed for the seqlock.c benchmarks!
             prover.addConstraint(globalRefinement);
-            veriResult = !prover.isUnsat() ? UNKNOWN : PASS;
+            res = !prover.isUnsat() ? UNKNOWN : PASS;
             boundCheckTime = System.currentTimeMillis() - lastTime;
         } else {
-            veriResult = FAIL;
+            res = FAIL;
         }
 
         if (logger.isInfoEnabled()) {
@@ -314,9 +307,8 @@ public class RefinementSolver extends ModelChecker {
     		logger.debug(smtStatistics.toString());
         }
 
-        veriResult = program.getAss().getInvert() ? veriResult.invert() : veriResult;
-        logger.info("Verification finished with result " + veriResult);
-        return veriResult;
+        res = program.getAss().getInvert() ? res.invert() : res;
+        logger.info("Verification finished with result " + res);
     }
     // ======================= Helper Methods ======================
 
@@ -331,9 +323,9 @@ public class RefinementSolver extends ModelChecker {
         return toEncode;
     }
 
-    public static BooleanFormula encodeEagerly(TupleSetMap toEncode, SolverContext ctx, Context analysisContext, Program program) {
-        RelationEncoder encoder = new RelationEncoder(ctx, analysisContext, program, false);
-        BooleanFormulaManager manager = ctx.getFormulaManager().getBooleanFormulaManager();
+    public static BooleanFormula encodeEagerly(TupleSetMap toEncode, EncodingContext context) {
+        RelationEncoder encoder = new RelationEncoder(context);
+        BooleanFormulaManager manager = context.getBooleanFormulaManager();
         BooleanFormula eagerEncoding = manager.makeTrue();
         for (var entry : toEncode.getEntries()) {
             Relation rel = entry.getKey();
@@ -341,6 +333,7 @@ public class RefinementSolver extends ModelChecker {
         }
         return eagerEncoding;
     }
+
     private static Relation getCopyOfRelation(Relation rel, Wmm m) {
         checkArgument(!(rel instanceof RecursiveRelation), "Cannot cut recursively defined relation %s from memory model. ", rel);
         Relation namedCopy = m.getRelation(rel.getName());
@@ -472,9 +465,9 @@ public class RefinementSolver extends ModelChecker {
         String directoryName = String.format("%s/refinement/%s-%s-debug/", System.getenv("DAT3M_OUTPUT"), programName, task.getProgram().getArch());
         String fileNameBase = String.format("%s-%d", programName, iterationCount);
         // File with reason edges only
-        generateGraphvizFile(model, iterationCount, edgeFilter, directoryName, fileNameBase);
+        generateGraphvizFile(model, iterationCount, edgeFilter, directoryName, fileNameBase, new HashMap<>());
         // File with all edges
-        generateGraphvizFile(model, iterationCount, (x,y) -> true, directoryName, fileNameBase + "-full");
+        generateGraphvizFile(model, iterationCount, (x,y) -> true, directoryName, fileNameBase + "-full", new HashMap<>());
     }
 
     private Wmm createDefaultWmm() {

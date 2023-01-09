@@ -3,27 +3,23 @@ package com.dat3m.dartagnan.encoding;
 import com.dat3m.dartagnan.GlobalSettings;
 import com.dat3m.dartagnan.program.Program;
 import com.dat3m.dartagnan.program.analysis.ExecutionAnalysis;
-import com.dat3m.dartagnan.program.analysis.alias.AliasAnalysis;
 import com.dat3m.dartagnan.program.event.Tag;
 import com.dat3m.dartagnan.program.event.core.Event;
 import com.dat3m.dartagnan.program.event.core.MemEvent;
 import com.dat3m.dartagnan.program.filter.FilterAbstract;
 import com.dat3m.dartagnan.program.filter.FilterBasic;
 import com.dat3m.dartagnan.program.filter.FilterIntersection;
-import com.dat3m.dartagnan.verification.Context;
 import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import com.dat3m.dartagnan.wmm.relation.Relation;
 import com.dat3m.dartagnan.wmm.relation.base.stat.StaticRelation;
 import com.dat3m.dartagnan.wmm.utils.Flag;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
 import com.dat3m.dartagnan.wmm.utils.TupleSet;
-import com.dat3m.dartagnan.wmm.utils.Utils;
 import com.google.common.base.Preconditions;
 import org.sosy_lab.java_smt.api.*;
 
 import java.util.*;
 
-import static com.dat3m.dartagnan.expression.utils.Utils.generalEqual;
 import static com.dat3m.dartagnan.program.event.Tag.INIT;
 import static com.dat3m.dartagnan.program.event.Tag.WRITE;
 import static com.dat3m.dartagnan.wmm.relation.RelationNameRepository.RF;
@@ -31,21 +27,15 @@ import static com.google.common.base.Preconditions.checkState;
 import static java.util.stream.Collectors.toList;
 
 public final class RelationEncoder implements Relation.Visitor<BooleanFormula> {
-    private final ExecutionAnalysis exec;
-    private final AliasAnalysis alias;
-    private final SolverContext ctx;
+    private final EncodingContext context;
     private final BooleanFormulaManager bmgr;
-    private final IntegerFormulaManager imgr;
     private final Program program;
-    private final boolean useSATEncoding;
-    public RelationEncoder(SolverContext c, Context analysisContext, Program program, boolean useSATEncoding) {
-        exec = analysisContext.get(ExecutionAnalysis.class);
-        alias = analysisContext.get(AliasAnalysis.class);
-        ctx = c;
-        bmgr = c.getFormulaManager().getBooleanFormulaManager();
-        imgr = c.getFormulaManager().getIntegerFormulaManager();
-        this.program = program;
-        this.useSATEncoding = useSATEncoding;
+    private final IntegerFormulaManager imgr;
+    public RelationEncoder(EncodingContext context) {
+        this.context = context;
+        bmgr = context.getBooleanFormulaManager();
+        imgr = context.getFormulaManager().getIntegerFormulaManager();
+        this.program = context.getTask().getProgram();
     }
     @Override
     public BooleanFormula visitDefinition(TupleSet toEncode, Relation rel, List<? extends Relation> dependencies) {
@@ -217,7 +207,7 @@ public final class RelationEncoder implements Relation.Visitor<BooleanFormula> {
             } else {
                 orClause = fences.stream()
                         .filter(f -> e1.getCId() < f.getCId() && f.getCId() < e2.getCId())
-                        .map(Event::exec).reduce(bmgr.makeFalse(), bmgr::or);
+                        .map(context::execution).reduce(bmgr.makeFalse(), bmgr::or);
             }
             enc = bmgr.and(enc, bmgr.equivalence(
                     edge(rel, tuple),
@@ -261,7 +251,7 @@ public final class RelationEncoder implements Relation.Visitor<BooleanFormula> {
             BooleanFormula storeExec = bmgr.makeFalse();
             for (Tuple t : maySet.getBySecond(store)) {
                 MemEvent load = (MemEvent) t.getFirst();
-                BooleanFormula sameAddress = generalEqual(load.getMemAddressExpr(), ((MemEvent) store).getMemAddressExpr(), ctx);
+                BooleanFormula sameAddress =  context.sameAddress(load, (MemEvent) store);
                 // Encode if load and store form an exclusive pair
                 BooleanFormula isPair = exclPair(load, store);
                 BooleanFormula pairingCond = pairingCond(load, store, maySet);
@@ -272,25 +262,24 @@ public final class RelationEncoder implements Relation.Visitor<BooleanFormula> {
                 if (store.is(Tag.MATCHADDRESS)) {
                     pairingCond = bmgr.and(pairingCond, sameAddress);
                 } else {
-                    unpredictable = bmgr.or(unpredictable, bmgr.and(store.exec(), isPair, bmgr.not(sameAddress)));
+                    unpredictable = bmgr.or(unpredictable, bmgr.and(context.execution(store), isPair, bmgr.not(sameAddress)));
                 }
                 enc = bmgr.and(enc, bmgr.equivalence(isPair, pairingCond));
                 storeExec = bmgr.or(storeExec, isPair);
             }
-            enc = bmgr.and(enc, bmgr.implication(store.exec(), storeExec));
+            enc = bmgr.and(enc, bmgr.implication(context.execution(store), storeExec));
         }
         for (Tuple tuple : toEncode) {
             MemEvent load = (MemEvent) tuple.getFirst();
             MemEvent store = (MemEvent) tuple.getSecond();
-            BooleanFormula sameAddress = (alias.mustAlias(load, store) || store.is(Tag.MATCHADDRESS)) ? bmgr.makeTrue()
-                    : generalEqual(load.getMemAddressExpr(), store.getMemAddressExpr(), ctx);
+            BooleanFormula sameAddress = store.is(Tag.MATCHADDRESS) ? bmgr.makeTrue() : context.sameAddress(load, store);
             enc = bmgr.and(enc, bmgr.equivalence(
                     edge(rmw, tuple),
                     mustSet.contains(tuple) ? execution(tuple) :
                             // Relation between exclusive load and store
-                            bmgr.and(store.exec(), exclPair(load, store), sameAddress)));
+                            bmgr.and(context.execution(store), exclPair(load, store), sameAddress)));
         }
-        return bmgr.and(enc, bmgr.equivalence(Flag.ARM_UNPREDICTABLE_BEHAVIOUR.repr(ctx), unpredictable));
+        return bmgr.and(enc, bmgr.equivalence(Flag.ARM_UNPREDICTABLE_BEHAVIOUR.repr(context.getFormulaManager()), unpredictable));
     }
     @Override
     public BooleanFormula visitSameAddress(TupleSet toEncode, Relation loc) {
@@ -299,9 +288,7 @@ public final class RelationEncoder implements Relation.Visitor<BooleanFormula> {
             BooleanFormula rel = edge(loc, tuple);
             enc = bmgr.and(enc, bmgr.equivalence(rel, bmgr.and(
                     execution(tuple),
-                    generalEqual(
-                            ((MemEvent) tuple.getFirst()).getMemAddressExpr(),
-                            ((MemEvent) tuple.getSecond()).getMemAddressExpr(), ctx)
+                    context.sameAddress((MemEvent) tuple.getFirst(), (MemEvent) tuple.getSecond())
             )));
         }
         return enc;
@@ -314,14 +301,8 @@ public final class RelationEncoder implements Relation.Visitor<BooleanFormula> {
             MemEvent w = (MemEvent) tuple.getFirst();
             MemEvent r = (MemEvent) tuple.getSecond();
             BooleanFormula edge = edge(rf, tuple);
-            // The boogie file might have a different type (Ints vs BVs) that the imposed by ARCH_PRECISION
-            // In such cases we perform the transformation
-            Formula a1 = w.getMemAddressExpr();
-            Formula a2 = r.getMemAddressExpr();
-            BooleanFormula sameAddress = generalEqual(a1, a2, ctx);
-            Formula v1 = w.getMemValueExpr();
-            Formula v2 = r.getMemValueExpr();
-            BooleanFormula sameValue = generalEqual(v1, v2, ctx);
+            BooleanFormula sameAddress = context.sameAddress(w, r);
+            BooleanFormula sameValue = context.equal(context.value(w), context.value(r));
             edgeMap.computeIfAbsent(r, key -> new ArrayList<>()).add(edge);
             enc = bmgr.and(enc, bmgr.implication(edge, bmgr.and(execution(tuple), sameAddress, sameValue)));
         }
@@ -332,23 +313,23 @@ public final class RelationEncoder implements Relation.Visitor<BooleanFormula> {
     }
     @Override
     public BooleanFormula visitMemoryOrder(TupleSet toEncode, Relation co) {
-        return useSATEncoding ? encodeSAT(co) : encodeIDL(co);
+        return context.useSATEncoding ? encodeSAT(co) : encodeIDL(co);
     }
 
     public BooleanFormulaManager getBmgr() { return bmgr; }
 
     private BooleanFormula pairingCond(Event load, Event store, TupleSet maySet) {
-        BooleanFormula pairingCond = bmgr.and(load.exec(), store.cf());
+        BooleanFormula pairingCond = bmgr.and(context.execution(load), context.controlFlow(store));
         for (Tuple t : maySet.getBySecond(store)) {
             Event otherLoad = t.getFirst();
             if (otherLoad.getCId() > load.getCId()) {
-                pairingCond = bmgr.and(pairingCond, bmgr.not(otherLoad.exec()));
+                pairingCond = bmgr.and(pairingCond, bmgr.not(context.execution(otherLoad)));
             }
         }
         for (Tuple t : maySet.getByFirst(load)) {
             Event otherStore = t.getSecond();
             if (otherStore.getCId() < store.getCId()) {
-                pairingCond = bmgr.and(pairingCond, bmgr.not(otherStore.cf()));
+                pairingCond = bmgr.and(pairingCond, bmgr.not(context.controlFlow(otherStore)));
             }
         }
         return pairingCond;
@@ -359,7 +340,7 @@ public final class RelationEncoder implements Relation.Visitor<BooleanFormula> {
 
     private BooleanFormula encodeEdgeSeq(Event read, List<BooleanFormula> edges) {
         if (GlobalSettings.ALLOW_MULTIREADS) {
-            return bmgr.implication(read.exec(), bmgr.or(edges));
+            return bmgr.implication(context.execution(read), bmgr.or(edges));
         }
         int num = edges.size();
         int readId = read.getCId();
@@ -373,7 +354,7 @@ public final class RelationEncoder implements Relation.Visitor<BooleanFormula> {
             lastSeqVar = newSeqVar;
         }
         BooleanFormula atLeastOne = bmgr.or(newSeqVar, edges.get(edges.size() - 1));
-        atLeastOne = bmgr.implication(read.exec(), atLeastOne);
+        atLeastOne = bmgr.implication(context.execution(read), atLeastOne);
         return bmgr.and(atMostOne, atLeastOne);
     }
     private BooleanFormula mkSeqVar(int readId, int i) {
@@ -385,12 +366,12 @@ public final class RelationEncoder implements Relation.Visitor<BooleanFormula> {
                 .sorted(Comparator.comparingInt(Event::getCId))
                 .collect(toList());
         TupleSet maxSet = co.getMaxTupleSet();
-        Set<Tuple> transCo = RelationAnalysis.findTransitivelyImpliedCo(co, exec);
+        Set<Tuple> transCo = RelationAnalysis.findTransitivelyImpliedCo(co, context.getAnalysisContext().get(ExecutionAnalysis.class));
         BooleanFormula enc = bmgr.makeTrue();
         // ---- Encode clock conditions (init = 0, non-init > 0) ----
         NumeralFormula.IntegerFormula zero = imgr.makeNumber(0);
         for (MemEvent w : allWrites) {
-            NumeralFormula.IntegerFormula clock = Utils.coClockVar(w, ctx);
+            NumeralFormula.IntegerFormula clock = context.memoryOrderClock(w);
             enc = bmgr.and(enc, w.is(INIT) ? imgr.equal(clock, zero) : imgr.greaterThan(clock, zero));
         }
 
@@ -405,13 +386,12 @@ public final class RelationEncoder implements Relation.Visitor<BooleanFormula> {
                     continue;
                 }
                 BooleanFormula execPair = execution(t);
-                BooleanFormula sameAddress = alias.mustAlias(w1, w2) ? bmgr.makeTrue() :
-                        generalEqual(w1.getMemAddressExpr(), w2.getMemAddressExpr(), ctx);
+                BooleanFormula sameAddress = context.sameAddress(w1, w2);
                 BooleanFormula pairingCond = bmgr.and(execPair, sameAddress);
                 BooleanFormula fCond = (w1.is(INIT) || transCo.contains(t)) ? bmgr.makeTrue() :
-                        imgr.lessThan(Utils.coClockVar(w1, ctx), Utils.coClockVar(w2, ctx));
+                        imgr.lessThan(context.memoryOrderClock(w1), context.memoryOrderClock(w2));
                 BooleanFormula bCond = (w2.is(INIT) || transCo.contains(t.getInverse())) ? bmgr.makeTrue() :
-                        imgr.lessThan(Utils.coClockVar(w2, ctx), Utils.coClockVar(w1, ctx));
+                        imgr.lessThan(context.memoryOrderClock(w2), context.memoryOrderClock(w1));
                 BooleanFormula coF = forwardPossible ? edge(co, new Tuple(w1, w2)) : bmgr.makeFalse();
                 BooleanFormula coB = backwardPossible ? edge(co, new Tuple(w2, w1)) : bmgr.makeFalse();
                 enc = bmgr.and(enc,
@@ -443,8 +423,7 @@ public final class RelationEncoder implements Relation.Visitor<BooleanFormula> {
                     continue;
                 }
                 BooleanFormula execPair = execution(t);
-                BooleanFormula sameAddress = alias.mustAlias(w1, w2) ? bmgr.makeTrue() :
-                        generalEqual(w1.getMemAddressExpr(), w2.getMemAddressExpr(), ctx);
+                BooleanFormula sameAddress = context.sameAddress(w1, w2);
                 BooleanFormula pairingCond = bmgr.and(execPair, sameAddress);
                 BooleanFormula coF = forwardPossible ? edge(co, t) : bmgr.makeFalse();
                 BooleanFormula coB = backwardPossible ? edge(co, tInv) : bmgr.makeFalse();
@@ -474,9 +453,9 @@ public final class RelationEncoder implements Relation.Visitor<BooleanFormula> {
     }
 
     private BooleanFormula edge(Relation relation, Tuple tuple) {
-        return relation.getSMTVar(tuple, ctx);
+        return context.edge(relation, tuple);
     }
     private BooleanFormula execution(Tuple tuple) {
-        return ProgramEncoder.execution(tuple.getFirst(), tuple.getSecond(), exec, ctx);
+        return context.execution(tuple.getFirst(), tuple.getSecond());
     }
 }
