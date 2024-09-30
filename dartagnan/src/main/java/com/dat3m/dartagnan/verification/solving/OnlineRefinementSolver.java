@@ -250,6 +250,9 @@ public class OnlineRefinementSolver extends ModelChecker {
 
         // TODO: fix stats
         System.out.println(userPropagator.getTotalStats());
+        System.out.println("\n\nConflicts:\n" + userPropagator.getConflictStats().toString(100));
+        System.out.println("\n\nReasons:\n" + userPropagator.getReasonStats().toString(100));
+        System.out.println("\n\nPropagation Stats:\n" + userPropagator.getPropagationStats().toString(100));
 
         if (logger.isDebugEnabled()) {
             StringBuilder smtStatistics = new StringBuilder("\n ===== SMT Statistics (after final iteration) ===== \n");

@@ -3,9 +3,7 @@ package com.dat3m.dartagnan.solver.onlineCaatTest.caat4wmm;
 import com.dat3m.dartagnan.encoding.EncodingContext;
 import com.dat3m.dartagnan.program.event.Event;
 import com.dat3m.dartagnan.program.event.Tag;
-import com.dat3m.dartagnan.solver.onlineCaatTest.Decoder;
-import com.dat3m.dartagnan.solver.onlineCaatTest.EdgeInfo;
-import com.dat3m.dartagnan.solver.onlineCaatTest.PendingEdgeInfo;
+import com.dat3m.dartagnan.solver.onlineCaatTest.*;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.CAATModel;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.CAATSolver;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.domain.Domain;
@@ -51,7 +49,11 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
     // used for (semi-) offline solving
     /*private final ExecutionGraph offlineExecutionGraph;
     private final CoreReasoner offlineReasoner;
-    private final CAATSolver offlineSolver;*/
+    private final CAATSolver offlineSolver;
+    private final Statistics offlineStats = new Statistics();
+
+    public Statistics getOfflineStats() { return offlineStats; }*/
+
 
     public OnlineWMMSolver(RefinementModel refinementModel, Context analysisContext, EncodingContext encCtx) {
         this.refinementModel = refinementModel;
@@ -65,20 +67,29 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
 
         executionGraph.initializeToDomain(domain);
 
+        //System.out.println("START");
+
         // used for (semi-) offline solving
         /*this.offlineExecutionGraph = new ExecutionGraph(refinementModel);
         this.offlineReasoner = new CoreReasoner(analysisContext, offlineExecutionGraph);
         this.offlineSolver = CAATSolver.create();*/
+
     }
 
     //-------------------------------------------------------------------------------------------------------
     // Statistics
     private final Statistics totalStats = new Statistics();
     private final Statistics curStats = new Statistics();
+    private final Stats<Conjunction<CoreLiteral>> reasonStats = new Stats<>();
+    private final Stats<Refiner.Conflict> conflictStats = new Stats<>();
+    private final Stats<Relation> propagationStats = new Stats<>();
 
     public Statistics getTotalStats() {
         return totalStats;
     }
+    public Stats<Conjunction<CoreLiteral>> getReasonStats() { return reasonStats; }
+    public Stats<Refiner.Conflict> getConflictStats() { return conflictStats; }
+    public Stats<Relation> getPropagationStats() { return propagationStats; }
 
     // ------------------------------------------------------------------------------------------------------
     // Online features
@@ -120,6 +131,9 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
         int oldDomainSize = domain.size();
         int oldTime = backtrackPoints.size();
 
+
+        //System.out.println("\nPOP to time " + (oldTime - numLevels));
+
         int backtrackTo = domain.resetElements(numLevels);
         if (backtrackTo < 0) {
             throw new RuntimeException("Cannot backtrack to negative time");
@@ -137,7 +151,6 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
         executionGraph.backtrackTo(backtrackPoints.size());
         backtrackEdgesTo(backtrackPoints.size());
 
-        //System.out.println("\nPOP to time " + backtrackPoints.size() + " (event in domain: " + backtrackTo + ") from " + oldTime + " (" + oldDomainSize + ")");
 
         while (knownValues.size() > backtrackKnownValuesTo) {
             final BooleanFormula revertedAssignment = knownValues.pop();
@@ -177,6 +190,7 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
                 final Relation relInFullModel = refinementModel.translateToOriginal(edge.relation());
                 final SimpleGraph graph = (SimpleGraph) executionGraph.getRelationGraph(relInFullModel);
                 if (graph != null) {
+                    propagationStats.track(relInFullModel);
                     int sourceId = domain.getId(edge.source());
                     int targetId = domain.getId(edge.target());
                     if (sourceId < 0 || targetId < 0) {
@@ -242,6 +256,7 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
 
     private Result onlineCheck() {
         Result result = check();
+        // used for (semi-) offline solving only
         //Result offlineResult = checkOffline();
         curStats.numChecks++;
         curStats.consistencyTime += result.caatStats.getConsistencyCheckTime();
@@ -250,9 +265,11 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
         if (result.status == CAATSolver.Status.INCONSISTENT) {
             long curTime = System.currentTimeMillis();
             final List<Refiner.Conflict> conflicts = refiner.computeConflicts(result.coreReasons, encodingContext);
-            if (conflicts.isEmpty()) {
+            result.coreReasons.getCubes().forEach(reason -> reasonStats.track(reason));
+            conflicts.forEach(c -> conflictStats.track(c));
+            /*if (conflicts.isEmpty()) {
                 int i = 5;
-            }
+            }*/
             assert !conflicts.isEmpty();
             boolean isFirst = true;
             for (Refiner.Conflict conflict : conflicts) {
@@ -319,6 +336,7 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
         curStats.clear();
 
         if (result.status != CAATSolver.Status.INCONSISTENT) {
+
         }
 
     }
@@ -360,9 +378,9 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
             for (Conjunction<CAATLiteral> baseReason : caatResult.getBaseReasons().getCubes()) {
                 coreReasons.addAll(reasoner.toCoreReasons(baseReason));
             }
-            if (coreReasons.isEmpty()) {
+            /*if (coreReasons.isEmpty()) {
                 int i = 5;
-            }
+            }*/
             curStats.numComputedCoreReasons = coreReasons.size();
             result.coreReasons = new DNF<>(coreReasons);
             curStats.numComputedReducedCoreReasons = result.coreReasons.getNumberOfCubes();
@@ -381,9 +399,13 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
         // ============== Run the CAATSolver ==============
         CAATSolver.Result caatResult = offlineSolver.check(offlineExecutionGraph.getCAATModel(), true);
         Result result = Result.fromCAATResult(caatResult);
-        Statistics stats = result.stats;
-        stats.modelExtractionTime = extractTime;
-        stats.modelSize = offlineExecutionGraph.getDomain().size();
+        //Statistics stats = result.stats;
+        //stats.modelExtractionTime = extractTime;
+        offlineStats.numComputedBaseReasons += result.caatStats.getNumComputedReasons();
+        offlineStats.populationTime += result.caatStats.getPopulationTime();
+        offlineStats.reasoningTime += result.caatStats.getReasonComputationTime();
+        offlineStats.consistencyTime += result.caatStats.getConsistencyCheckTime();
+        offlineStats.numChecks++;
 
         if (result.getStatus() == CAATSolver.Status.INCONSISTENT) {
             // ============== Compute Core reasons ==============
@@ -392,10 +414,10 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
             for (Conjunction<CAATLiteral> baseReason : caatResult.getBaseReasons().getCubes()) {
                 coreReasons.addAll(offlineReasoner.toCoreReasons(baseReason));
             }
-            stats.numComputedCoreReasons = coreReasons.size();
+            //stats.numComputedCoreReasons = coreReasons.size();
             result.coreReasons = new DNF<>(coreReasons);
-            stats.numComputedReducedCoreReasons = result.coreReasons.getNumberOfCubes();
-            stats.coreReasonComputationTime = System.currentTimeMillis() - curTime;
+            offlineStats.numComputedReducedCoreReasons = result.coreReasons.getNumberOfCubes();
+            offlineStats.coreReasonComputationTime += System.currentTimeMillis() - curTime;
         }
 
         return result;

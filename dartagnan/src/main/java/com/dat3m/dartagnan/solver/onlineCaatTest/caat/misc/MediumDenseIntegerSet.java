@@ -148,7 +148,16 @@ public class MediumDenseIntegerSet implements Set<Integer> {
         }
     }
 
-
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < elements.length; i++) {
+            if (elements[i] > 0) {
+                sb.append("[").append(i).append("], ");
+            }
+        }
+        return sb.toString();
+    }
 
     private static class SetIterator implements PrimitiveIterator.OfInt {
         final short[] elements;
