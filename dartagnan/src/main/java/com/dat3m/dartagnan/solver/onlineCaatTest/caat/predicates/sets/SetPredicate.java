@@ -2,6 +2,7 @@ package com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.sets;
 
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.CAATPredicate;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.Derivable;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.PredicateHierarchy;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.misc.AbstractPredicateSetView;
 import com.dat3m.dartagnan.utils.collections.OneTimeIterable;
 
@@ -14,7 +15,7 @@ import java.util.stream.Stream;
 public interface SetPredicate extends CAATPredicate {
 
     @Override
-    Collection<Element> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added);
+    Collection<Element> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added, PredicateHierarchy.PropagationMode mode);
 
     @Override
     List<SetPredicate> getDependencies(); // SetPredicates only depend on other SetPredicates
@@ -29,7 +30,7 @@ public interface SetPredicate extends CAATPredicate {
 
     // ===================== Default methods =======================
     @Override
-    default void validate(int time) { elementStream().forEach(e->{ assert e.getTime() <= time; }); }
+    default void validate(int time, Set<Derivable> activeSet, boolean active) { elementStream().forEach(e->{ assert e.getTime() <= time; }); }
 
     default Element getById(int id) { return get(new Element(id)); }
     default boolean contains(Element e) { return get(e) != null; }

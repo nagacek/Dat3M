@@ -13,7 +13,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
-public interface Event extends Encoder, Comparable<Event> {
+public interface Event extends Encoder, Comparable<Event>, Backtrackable {
     int PRINT_PAD_EXTRA = 50;
 
     int getGlobalId();
@@ -74,6 +74,10 @@ public interface Event extends Encoder, Comparable<Event> {
     void replaceBy(List<Event> replacement);
 
     // ============================== Misc ==============================
+
+    // Activeness is used for static skeleton
+    boolean isActive();
+    void setActive(boolean activeness);
 
     Set<EventUser> getUsers();
     boolean registerUser(EventUser user);

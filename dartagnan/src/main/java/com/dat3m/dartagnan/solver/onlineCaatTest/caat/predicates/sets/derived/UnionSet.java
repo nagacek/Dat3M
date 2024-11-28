@@ -3,6 +3,7 @@ package com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.sets.derived;
 
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.CAATPredicate;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.Derivable;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.PredicateHierarchy;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.misc.PredicateVisitor;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.sets.Element;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.sets.MaterializedSet;
@@ -47,20 +48,34 @@ public class UnionSet extends MaterializedSet {
 
     @Override
     @SuppressWarnings("unchecked")
-    public Collection<Element> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added) {
-        if (changedSource == first || changedSource == second) {
-            ArrayList<Element> newlyAdded = new ArrayList<>();
-            Collection<Element> addedElems = (Collection<Element>)added;
+    public Collection<Element> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added, PredicateHierarchy.PropagationMode mode) {
+        ArrayList<Element> newlyAdded = new ArrayList<>();
+        Collection<Element> addedElems = (Collection<Element>)added;
+        if (changedSource == null && (mode == PredicateHierarchy.PropagationMode.DEFER || mode == PredicateHierarchy.PropagationMode.DELETE)) {
+            for (Element e : addedElems) {
+                if (simpleSet.add(e)) {
+                    newlyAdded.add(e);
+                }
+            }
+        } else if (changedSource == first || changedSource == second) {
             for (Element e : addedElems) {
                 Element elem = derive(e);
                 if (simpleSet.add(elem)) {
                     newlyAdded.add(elem);
                 }
             }
-            return newlyAdded;
         } else {
             return Collections.emptyList();
         }
+        return newlyAdded;
+    }
+
+    @Override
+    public int staticDerivationLength() {
+        if (maxDerivationLength < 0) {
+            maxDerivationLength = Math.max(first.staticDerivationLength(), second.staticDerivationLength()) + 1;
+        }
+        return maxDerivationLength;
     }
 
     @Override

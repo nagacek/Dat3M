@@ -1,15 +1,23 @@
 package com.dat3m.dartagnan.solver.onlineCaatTest.caat4wmm.basePredicates;
 
 import com.dat3m.dartagnan.program.event.core.RMWStore;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.Derivable;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.Edge;
 import com.dat3m.dartagnan.verification.model.EventData;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 public class RMWGraph extends MaterializedWMMGraph {
 
     public RMWGraph() { }
+
+    @Override
+    public void validate (int time, Set<Derivable> activeSet, boolean active) {}
+
+    @Override
+    public int staticDerivationLength() { return 0; }
 
     /* Right now there are four cases where the RMW-Relation is established:
      (1) LOCK : Load -> CondJump -> Store

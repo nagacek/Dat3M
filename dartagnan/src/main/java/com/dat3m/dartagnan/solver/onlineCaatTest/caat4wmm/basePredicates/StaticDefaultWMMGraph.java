@@ -1,9 +1,12 @@
 package com.dat3m.dartagnan.solver.onlineCaatTest.caat4wmm.basePredicates;
 
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.Derivable;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.Edge;
 import com.dat3m.dartagnan.verification.model.EventData;
 import com.dat3m.dartagnan.wmm.Relation;
 import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
+
+import java.util.Set;
 
 // Used for static relations that are not yet implemented explicitly
 public class StaticDefaultWMMGraph extends MaterializedWMMGraph {
@@ -16,6 +19,9 @@ public class StaticDefaultWMMGraph extends MaterializedWMMGraph {
     }
 
     @Override
+    public void validate (int time, Set<Derivable> activeSet, boolean active) {}
+
+    @Override
     public void repopulate() {
         ra.getKnowledge(relation).getMaySet().apply((e1, e2) -> {
             EventData d1 = model.getData(e1).orElse(null);
@@ -24,5 +30,10 @@ public class StaticDefaultWMMGraph extends MaterializedWMMGraph {
                 simpleGraph.add(new Edge(d1.getId(), d2.getId()));
             }
         });
+    }
+
+    @Override
+    public int staticDerivationLength() {
+        return 0;
     }
 }

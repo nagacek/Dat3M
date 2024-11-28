@@ -8,6 +8,8 @@ public abstract class AbstractPredicate implements CAATPredicate {
     protected String name;
     protected Domain<?> domain;
 
+    protected int maxDerivationLength = -1;
+
     @Override
     public String getName() { return name; }
 

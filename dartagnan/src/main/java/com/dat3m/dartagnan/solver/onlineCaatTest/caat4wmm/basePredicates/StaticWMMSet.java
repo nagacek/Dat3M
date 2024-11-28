@@ -3,6 +3,7 @@ package com.dat3m.dartagnan.solver.onlineCaatTest.caat4wmm.basePredicates;
 import com.dat3m.dartagnan.program.filter.Filter;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.CAATPredicate;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.Derivable;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.PredicateHierarchy;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.misc.PredicateVisitor;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.sets.Element;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.sets.SetPredicate;
@@ -40,7 +41,7 @@ public class StaticWMMSet extends AbstractWMMPredicate implements SetPredicate {
     }
 
     @Override
-    public Collection<Element> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added) {
+    public Collection<Element> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added, PredicateHierarchy.PropagationMode mode) {
         return Collections.emptyList();
     }
 
@@ -83,4 +84,7 @@ public class StaticWMMSet extends AbstractWMMPredicate implements SetPredicate {
     public Iterable<Element> elements() {
         return events;
     }
+
+    @Override
+    public int staticDerivationLength() { return 0; }
 }

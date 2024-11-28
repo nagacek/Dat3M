@@ -3,6 +3,7 @@ package com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.sets.derived;
 
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.CAATPredicate;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.Derivable;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.PredicateHierarchy;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.misc.PredicateVisitor;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.sets.Element;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.sets.MaterializedSet;
@@ -54,11 +55,17 @@ public class IntersectionSet extends MaterializedSet {
 
     @Override
     @SuppressWarnings("unchecked")
-    public Collection<Element> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added) {
-        if (changedSource == first || changedSource == second) {
+    public Collection<Element> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added, PredicateHierarchy.PropagationMode mode) {
+        Collection<Element> addedElems = (Collection<Element>)added;
+        List<Element> newlyAdded = new ArrayList<>();
+        if (changedSource == null && (mode == PredicateHierarchy.PropagationMode.DEFER || mode == PredicateHierarchy.PropagationMode.DELETE)) {
+            for (Element e : addedElems) {
+                if (simpleSet.add(e)) {
+                    newlyAdded.add(e);
+                }
+            }
+        } else if (changedSource == first || changedSource == second) {
             SetPredicate other = (changedSource == first) ? second : first;
-            Collection<Element> addedElems = (Collection<Element>)added;
-            List<Element> newlyAdded = new ArrayList<>();
             for (Element e1 : addedElems) {
                 Element e2 = other.get(e1);
                 if (e2 != null) {
@@ -67,10 +74,18 @@ public class IntersectionSet extends MaterializedSet {
                     newlyAdded.add(e);
                 }
             }
-            return newlyAdded;
         } else {
             return Collections.emptyList();
         }
+        return newlyAdded;
+    }
+
+    @Override
+    public int staticDerivationLength() {
+        if (maxDerivationLength < 0) {
+            maxDerivationLength = Math.max(first.staticDerivationLength(), second.staticDerivationLength()) + 1;
+        }
+        return maxDerivationLength;
     }
 
     @Override

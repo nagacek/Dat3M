@@ -4,6 +4,7 @@ import com.dat3m.dartagnan.solver.onlineCaatTest.caat.domain.Domain;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.AbstractPredicate;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.CAATPredicate;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.Derivable;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.PredicateHierarchy;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.sets.base.SimpleSet;
 
 import java.util.Collection;
@@ -101,8 +102,8 @@ public abstract class MaterializedSet extends AbstractPredicate implements SetPr
     }
 
     @Override
-    public Collection<Element> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added) {
-        return simpleSet.forwardPropagate(changedSource, added);
+    public Collection<Element> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added, PredicateHierarchy.PropagationMode mode) {
+        return simpleSet.forwardPropagate(changedSource, added, mode);
     }
 
     @Override

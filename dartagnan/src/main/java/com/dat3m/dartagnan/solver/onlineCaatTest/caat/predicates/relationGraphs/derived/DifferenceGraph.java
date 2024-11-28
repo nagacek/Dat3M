@@ -1,18 +1,17 @@
 package com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.derived;
 
 
+import com.dat3m.dartagnan.solver.onlineCaatTest.BoneInfo;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.misc.EdgeDirection;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.AbstractPredicate;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.CAATPredicate;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.Derivable;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.PredicateHierarchy;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.misc.PredicateVisitor;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.Edge;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.RelationGraph;
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -22,6 +21,9 @@ public class DifferenceGraph extends AbstractPredicate implements RelationGraph 
 
     private final RelationGraph first;
     private final RelationGraph second;
+
+    @Override
+    public void validate (int time, Set<Derivable> activeSet, boolean active) {}
 
     @Override
     public List<RelationGraph> getDependencies() {
@@ -40,6 +42,9 @@ public class DifferenceGraph extends AbstractPredicate implements RelationGraph 
     public Edge get(Edge edge) {
         return second.contains(edge) ? null : first.get(edge);
     }
+
+    @Override
+    public Edge weakGet(Edge edge) { return get(edge); }
 
     @Override
     public boolean contains(Edge edge) {
@@ -82,13 +87,22 @@ public class DifferenceGraph extends AbstractPredicate implements RelationGraph 
     }
 
     @Override
+    public Stream<Edge> weakEdgeStream() { return edgeStream(); }
+
+    @Override
     public Stream<Edge> edgeStream(int e, EdgeDirection dir) {
         return first.edgeStream(e, dir).filter(edge -> !second.contains(edge));
     }
 
     @Override
+    public Stream<Edge> weakEdgeStream(int e, EdgeDirection dir) { return edgeStream(e, dir); }
+
+    @Override
     @SuppressWarnings("unchecked")
-    public Collection<Edge> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added) {
+    public Collection<Edge> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added, PredicateHierarchy.PropagationMode mode) {
+        if (mode == PredicateHierarchy.PropagationMode.DELETE) {
+            return Collections.emptyList();
+        }
         Collection<Edge> addedEdges = (Collection<Edge>) added;
         if (changedSource == first) {
             return addedEdges.stream().filter(e -> !second.contains(e)).collect(Collectors.toList());
@@ -100,7 +114,22 @@ public class DifferenceGraph extends AbstractPredicate implements RelationGraph 
     }
 
     @Override
+    public int staticDerivationLength() {
+        if (maxDerivationLength < 0) {
+            maxDerivationLength = Math.max(first.staticDerivationLength(), second.staticDerivationLength());
+        }
+        return maxDerivationLength;
+    }
+
+    @Override
+    public void addBones(Collection<? extends Derivable> bones) { }
+
+    @Override
     public void backtrackTo(int time) { }
+
+    @Override
+    public Set<Edge> checkBoneActivation(int triggerId, int time, Set<BoneInfo> bones) { return new HashSet<>(); }
+
     @Override
     public void repopulate() { }
 

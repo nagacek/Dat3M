@@ -1,18 +1,18 @@
 package com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.derived;
 
-import com.dat3m.dartagnan.solver.caat.misc.EdgeDirection;
-import com.dat3m.dartagnan.solver.caat.predicates.AbstractPredicate;
-import com.dat3m.dartagnan.solver.caat.predicates.CAATPredicate;
-import com.dat3m.dartagnan.solver.caat.predicates.Derivable;
-import com.dat3m.dartagnan.solver.caat.predicates.misc.PredicateVisitor;
-import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.Edge;
-import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.RelationGraph;
-import com.dat3m.dartagnan.solver.caat.predicates.sets.Element;
-import com.dat3m.dartagnan.solver.caat.predicates.sets.SetPredicate;
+import com.dat3m.dartagnan.solver.onlineCaatTest.BoneInfo;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.misc.EdgeDirection;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.AbstractPredicate;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.CAATPredicate;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.Derivable;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.PredicateHierarchy;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.misc.PredicateVisitor;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.Edge;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.RelationGraph;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.sets.Element;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.sets.SetPredicate;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -23,6 +23,9 @@ public class SetIdentityGraph extends AbstractPredicate implements RelationGraph
     public SetIdentityGraph(SetPredicate first) {
         this.inner = first;
     }
+
+    @Override
+    public void validate (int time, Set<Derivable> activeSet, boolean active) {}
 
     @Override
     public List<SetPredicate> getDependencies() {
@@ -44,8 +47,24 @@ public class SetIdentityGraph extends AbstractPredicate implements RelationGraph
     }
 
     @Override
-    public Collection<Edge> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added) {
+    public Collection<Edge> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added, PredicateHierarchy.PropagationMode mode) {
+        if (mode == PredicateHierarchy.PropagationMode.DELETE) {
+            return Collections.emptyList();
+        }
         return added.stream().map(e -> derive((Element) e)).collect(Collectors.toList());
+    }
+
+    @Override
+    public void addBones(Collection<? extends Derivable> bones) {
+
+    }
+
+    @Override
+    public int staticDerivationLength() {
+        if (maxDerivationLength < 0) {
+            maxDerivationLength = inner.staticDerivationLength() + 1;
+        }
+        return maxDerivationLength;
     }
 
     @Override
@@ -59,6 +78,11 @@ public class SetIdentityGraph extends AbstractPredicate implements RelationGraph
     }
 
     @Override
+    public Edge weakGet(Edge edge) {
+        return get(edge);
+    }
+
+    @Override
     public boolean contains(Edge edge) {
         return containsById(edge.getFirst(), edge.getSecond());
     }
@@ -66,6 +90,11 @@ public class SetIdentityGraph extends AbstractPredicate implements RelationGraph
     @Override
     public boolean containsById(int id1, int id2) {
         return id1 == id2 && inner.containsById(id1);
+    }
+
+    @Override
+    public Set<Edge> checkBoneActivation(int triggerId, int time, Set<BoneInfo> bones) {
+        return new HashSet<>();
     }
 
     @Override
@@ -90,5 +119,15 @@ public class SetIdentityGraph extends AbstractPredicate implements RelationGraph
     public Stream<Edge> edgeStream(int id, EdgeDirection dir) {
         Element e = inner.getById(id);
         return e != null ? Stream.of(derive(e)) : Stream.empty();
+    }
+
+    @Override
+    public Stream<Edge> weakEdgeStream() {
+        return edgeStream();
+    }
+
+    @Override
+    public Stream<Edge> weakEdgeStream(int e, EdgeDirection dir) {
+        return edgeStream(e, dir);
     }
 }

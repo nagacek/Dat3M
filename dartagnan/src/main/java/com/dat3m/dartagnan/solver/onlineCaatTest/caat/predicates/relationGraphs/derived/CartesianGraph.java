@@ -1,19 +1,18 @@
 package com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.derived;
 
+import com.dat3m.dartagnan.solver.onlineCaatTest.BoneInfo;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.misc.EdgeDirection;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.AbstractPredicate;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.CAATPredicate;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.Derivable;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.PredicateHierarchy;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.misc.PredicateVisitor;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.Edge;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.RelationGraph;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.sets.Element;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.sets.SetPredicate;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Stream;
 
 public class CartesianGraph extends AbstractPredicate implements RelationGraph {
@@ -25,6 +24,9 @@ public class CartesianGraph extends AbstractPredicate implements RelationGraph {
         this.first = first;
         this.second = second;
     }
+
+    @Override
+    public void validate (int time, Set<Derivable> activeSet, boolean active) {}
 
     @Override
     public List<SetPredicate> getDependencies() {
@@ -41,6 +43,9 @@ public class CartesianGraph extends AbstractPredicate implements RelationGraph {
     @Override
     public void backtrackTo(int time) { }
 
+    @Override
+    public Set<Edge> checkBoneActivation(int triggerId, int time, Set<BoneInfo> bones) { return new HashSet<>(); }
+
     private Edge derive(Element a, Element b) {
         return new Edge(a.getId(), b.getId(), Math.max(a.getTime(), b.getTime()),
                 Math.max(a.getDerivationLength(), b.getDerivationLength()) + 1);
@@ -48,7 +53,10 @@ public class CartesianGraph extends AbstractPredicate implements RelationGraph {
 
     @Override
     @SuppressWarnings("unchecked")
-    public Collection<Edge> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added) {
+    public Collection<Edge> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added, PredicateHierarchy.PropagationMode mode) {
+        if (mode == PredicateHierarchy.PropagationMode.DELETE) {
+            return Collections.emptyList();
+        }
         List<Edge> addedEdges = new ArrayList<>();
         Collection<Element> addedElems = (Collection<Element>) added;
         if (changedSource == first) {
@@ -68,11 +76,25 @@ public class CartesianGraph extends AbstractPredicate implements RelationGraph {
     }
 
     @Override
+    public int staticDerivationLength() {
+        if (maxDerivationLength < 0) {
+            maxDerivationLength = Math.max(first.staticDerivationLength(), second.staticDerivationLength()) + 1;
+        }
+        return maxDerivationLength;
+    }
+
+    @Override
+    public void addBones(Collection<? extends Derivable> bones) { }
+
+    @Override
     public Edge get(Edge edge) {
         Element a = first.getById(edge.getFirst());
         Element b = second.getById(edge.getSecond());
         return (a != null && b != null) ? derive(a, b) : null;
     }
+
+    @Override
+    public Edge weakGet(Edge edge) { return get(edge); }
 
     @Override
     public boolean contains(Edge edge) {
@@ -125,6 +147,11 @@ public class CartesianGraph extends AbstractPredicate implements RelationGraph {
     }
 
     @Override
+    public Stream<Edge> weakEdgeStream() {
+        return edgeStream();
+    }
+
+    @Override
     public Stream<Edge> edgeStream(int e, EdgeDirection dir) {
         if (dir == EdgeDirection.INGOING) {
             Element a = first.getById(e);
@@ -133,5 +160,10 @@ public class CartesianGraph extends AbstractPredicate implements RelationGraph {
             Element b = second.getById(e);
             return b != null ? first.elementStream().map(a -> derive(a, b)) : Stream.empty();
         }
+    }
+
+    @Override
+    public Stream<Edge> weakEdgeStream(int e, EdgeDirection dir) {
+        return edgeStream(e, dir);
     }
 }

@@ -21,4 +21,7 @@ public abstract class AbstractBaseSet extends AbstractPredicate implements SetPr
 
     @Override
     public void repopulate() { }
+
+    @Override
+    public int staticDerivationLength() { return 0; }
 }

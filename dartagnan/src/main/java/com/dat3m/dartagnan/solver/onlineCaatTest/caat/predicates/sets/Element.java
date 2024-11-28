@@ -1,6 +1,7 @@
 package com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.sets;
 
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.AbstractDerivable;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.Derivable;
 
 public class Element extends AbstractDerivable implements Comparable<Element> {
 
@@ -8,9 +9,13 @@ public class Element extends AbstractDerivable implements Comparable<Element> {
 
     public int getId() { return dId; }
 
-    public Element(int id, int time, int derivLength) {
-        super(time, derivLength);
+    public Element(int id, int time, int derivLength, boolean isBone) {
+        super(time, derivLength, isBone);
         this.dId = id;
+    }
+
+    public Element(int id, int time, int derivLength) {
+        this(id, time, derivLength, false);
     }
 
     public Element(int id) {
@@ -19,10 +24,16 @@ public class Element extends AbstractDerivable implements Comparable<Element> {
 
     @Override
     public Element with(int time, int derivationLength) { return new Element(dId, time, derivLength); }
+
     @Override
     public Element withTime(int time) { return with(time, derivLength); }
     @Override
     public Element withDerivationLength(int derivationLength) { return with(time, derivationLength); }
+
+    @Override
+    public Element asBone() {
+        return new Element(dId, time, derivLength, true);
+    }
 
     @Override
     public int compareTo(Element o) {

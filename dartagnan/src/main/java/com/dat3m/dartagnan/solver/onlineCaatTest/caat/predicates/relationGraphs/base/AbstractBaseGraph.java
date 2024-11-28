@@ -2,9 +2,11 @@ package com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs
 
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.AbstractPredicate;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.CAATPredicate;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.Derivable;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.misc.PredicateVisitor;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.RelationGraph;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 

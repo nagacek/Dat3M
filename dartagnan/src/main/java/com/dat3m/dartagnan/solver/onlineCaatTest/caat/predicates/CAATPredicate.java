@@ -43,7 +43,9 @@ public interface CAATPredicate extends Dependent<CAATPredicate> {
             - This predicate should update its content based on the propagated changes
             - It should return the changes it made for further propagation
      */
-    Collection<? extends Derivable> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added);
+    Collection<? extends Derivable> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added, PredicateHierarchy.PropagationMode mode);
+
+    int staticDerivationLength();
 
     // Backtracks to the state at time <time>
     void backtrackTo(int time);
@@ -51,7 +53,7 @@ public interface CAATPredicate extends Dependent<CAATPredicate> {
     // Gives a view on this predicate as a Set<Derivable>
     Set<? extends Derivable> setView();
 
-    void validate(int time);
+    void validate(int time, Set<Derivable> activeSet, boolean active);
 
 
     // ======================================== Defaults ==============================================

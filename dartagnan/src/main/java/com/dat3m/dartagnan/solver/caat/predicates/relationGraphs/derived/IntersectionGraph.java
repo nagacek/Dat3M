@@ -79,6 +79,7 @@ public class IntersectionGraph extends MaterializedGraph {
             time = Math.max(time, e.getTime());
             length = Math.max(length, e.getDerivationLength());
         }
+        // TODO check if length + 1 is meant here
         return edge.with(time, length);
     }
 }

@@ -2,6 +2,7 @@ package com.dat3m.dartagnan.solver.onlineCaatTest.caat4wmm.basePredicates;
 
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.CAATPredicate;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.Derivable;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.PredicateHierarchy;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.misc.PredicateVisitor;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.Edge;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.RelationGraph;
@@ -23,7 +24,10 @@ public abstract class AbstractWMMGraph extends AbstractWMMPredicate implements R
     }
 
     @Override
-    public Collection<Edge> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added) {
+    public Collection<Edge> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added, PredicateHierarchy.PropagationMode mode) {
         return Collections.emptyList();
     }
+
+    @Override
+    public void addBones(Collection<? extends Derivable> bones) {}
 }

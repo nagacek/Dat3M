@@ -3,6 +3,7 @@ package com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs
 
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.CAATPredicate;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.Derivable;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.PredicateHierarchy;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.misc.PredicateVisitor;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.Edge;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.MaterializedGraph;
@@ -18,6 +19,24 @@ import static java.util.Comparator.comparingInt;
 public class IntersectionGraph extends MaterializedGraph {
 
     private final RelationGraph[] operands;
+
+    @Override
+    protected Set<Edge> computeFromInnerEdges() {
+        HashSet<Edge> innerEdges = new HashSet<>();
+        RelationGraph smallest = operands[0];
+        for (RelationGraph gr : operands) {
+            if (gr.size() < smallest.size()) {
+                smallest = gr;
+            }
+        }
+        for (Edge e : smallest.edges()) {
+            Edge derived = derive(e, Arrays.stream(operands).toList());
+            if (derived != null) {
+                innerEdges.add(derived);
+            }
+        }
+        return innerEdges;
+    }
 
     @Override
     public List<RelationGraph> getDependencies() {
@@ -42,11 +61,18 @@ public class IntersectionGraph extends MaterializedGraph {
 
     @Override
     @SuppressWarnings("unchecked")
-    public Collection<Edge> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added) {
-        if (Stream.of(operands).anyMatch(g -> changedSource == g)) {
+    public Collection<Edge> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added, PredicateHierarchy.PropagationMode mode) {
+        Collection<Edge> addedEdges = (Collection<Edge>)added;
+        List<Edge> newlyAdded = new ArrayList<>();
+        if (changedSource == null && (mode == PredicateHierarchy.PropagationMode.DEFER | mode == PredicateHierarchy.PropagationMode.DELETE)) {
+            for (Edge e : addedEdges) {
+                if (simpleGraph.add(e)) {
+                    newlyAdded.add(e);
+                }
+            }
+        } else if (Stream.of(operands).anyMatch(g -> changedSource == g)) {
             List<RelationGraph> others = Stream.of(operands).filter(g -> g != changedSource).toList();
-            Collection<Edge> addedEdges = (Collection<Edge>)added;
-            List<Edge> newlyAdded = new ArrayList<>();
+
             for (Edge e1 : addedEdges) {
                 Edge e = derive(e1, others);
                 if (e != null) {
@@ -54,10 +80,20 @@ public class IntersectionGraph extends MaterializedGraph {
                     newlyAdded.add(e);
                 }
             }
-            return newlyAdded;
         } else {
             return Collections.emptyList();
         }
+        return newlyAdded;
+    }
+
+    @Override
+    public int staticDerivationLength() {
+        if (maxDerivationLength < 0) {
+            for (RelationGraph o : operands) {
+                maxDerivationLength = Math.max(o.staticDerivationLength(), maxDerivationLength);
+            }
+        }
+        return maxDerivationLength;
     }
 
 
@@ -72,7 +108,12 @@ public class IntersectionGraph extends MaterializedGraph {
         int time = edge.getTime();
         int length = edge.getDerivationLength();
         for (RelationGraph g : operands) {
-            Edge e = g.get(edge);
+            Edge e;
+            if (edge.isBone() && !edge.isActive()) {
+                e = g.weakGet(edge);
+            } else {
+                e = g.get(edge);
+            }
             if (e == null) {
                 return null;
             }

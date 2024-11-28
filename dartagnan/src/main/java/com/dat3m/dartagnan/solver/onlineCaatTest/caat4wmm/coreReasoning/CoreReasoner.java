@@ -8,6 +8,7 @@ import com.dat3m.dartagnan.program.event.Event;
 import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.CoreReasoner.SymmetricLearning;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.domain.Domain;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.Edge;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.derived.CompositionGraph;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.reasoning.CAATLiteral;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.reasoning.EdgeLiteral;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.reasoning.ElementLiteral;

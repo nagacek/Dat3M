@@ -1,24 +1,26 @@
 package com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.derived;
 
+import com.dat3m.dartagnan.solver.onlineCaatTest.BoneInfo;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.misc.EdgeDirection;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.AbstractPredicate;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.CAATPredicate;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.Derivable;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.PredicateHierarchy;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.misc.PredicateVisitor;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.Edge;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.RelationGraph;
 import com.google.common.collect.Iterators;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class InverseGraph extends AbstractPredicate implements RelationGraph {
 
     protected final RelationGraph inner;
+
+    @Override
+    public void validate (int time, Set<Derivable> activeSet, boolean active) {}
 
     public InverseGraph(RelationGraph inner) {
         this.inner = inner;
@@ -34,6 +36,9 @@ public class InverseGraph extends AbstractPredicate implements RelationGraph {
         Edge e = inner.get(edge.inverse());
         return e == null ? null : derive(e);
     }
+
+    @Override
+    public Edge weakGet(Edge edge) { return get(edge); }
 
     @Override
     public int size(int e, EdgeDirection dir) {
@@ -82,7 +87,7 @@ public class InverseGraph extends AbstractPredicate implements RelationGraph {
 
 
     private Edge derive(Edge e) {
-        return new Edge(e.getSecond(), e.getFirst(), e.getTime(), e.getDerivationLength() + 1);
+        return new Edge(e.getSecond(), e.getFirst(), e.getTime(), e.getDerivationLength() + 1, e.isBone(), e.isActive());
     }
 
     @Override
@@ -91,8 +96,18 @@ public class InverseGraph extends AbstractPredicate implements RelationGraph {
     }
 
     @Override
+    public Stream<Edge> weakEdgeStream() {
+        return inner.weakEdgeStream().map(this::derive);
+    }
+
+    @Override
     public Stream<Edge> edgeStream(int e, EdgeDirection dir) {
         return inner.edgeStream(e, dir.flip()).map(this::derive);
+    }
+
+    @Override
+    public Stream<Edge> weakEdgeStream(int e, EdgeDirection dir) {
+        return inner.weakEdgeStream(e, dir.flip()).map(this::derive);
     }
 
     @Override
@@ -107,13 +122,27 @@ public class InverseGraph extends AbstractPredicate implements RelationGraph {
 
     @Override
     @SuppressWarnings("unchecked")
-    public Collection<Edge> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added) {
+    public Collection<Edge> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added, PredicateHierarchy.PropagationMode mode) {
+        if (mode == PredicateHierarchy.PropagationMode.DELETE) {
+            return Collections.emptyList();
+        }
         if (changedSource == inner) {
             return ((Collection<Edge>) added).stream().map(this::derive).collect(Collectors.toList());
         } else {
             return Collections.emptyList();
         }
     }
+
+    @Override
+    public int staticDerivationLength() {
+        if (maxDerivationLength < 0) {
+            maxDerivationLength = inner.staticDerivationLength() + 1;
+        }
+        return maxDerivationLength;
+    }
+
+    @Override
+    public void addBones(Collection<? extends Derivable> bones) { }
 
 
     @Override
@@ -128,4 +157,7 @@ public class InverseGraph extends AbstractPredicate implements RelationGraph {
     public void backtrackTo(int time) {
      inner.backtrackTo(time);
     }
+
+    @Override
+    public Set<Edge> checkBoneActivation(int triggerId, int time, Set<BoneInfo> bones) { return new HashSet<>(); }
 }

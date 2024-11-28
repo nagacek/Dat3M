@@ -39,7 +39,7 @@ import static com.dat3m.dartagnan.configuration.OptionNames.ENABLE_ACTIVE_SETS;
 import static com.dat3m.dartagnan.configuration.OptionNames.MEMORY_IS_ZEROED;
 import static com.dat3m.dartagnan.program.event.Tag.*;
 import static com.dat3m.dartagnan.wmm.RelationNameRepository.RF;
-import static com.dat3m.dartagnan.wmm.utils.EventGraph.difference;
+import static com.dat3m.dartagnan.wmm.utils.EventGraph.*;
 import static com.google.common.base.Verify.verify;
 import static java.lang.Boolean.TRUE;
 
@@ -48,6 +48,7 @@ public class WmmEncoder implements Encoder {
 
     private static final Logger logger = LogManager.getLogger(WmmEncoder.class);
     final Map<Relation, EventGraph> encodeSets = new HashMap<>();
+    final Map<Relation, EventGraph> inactiveBoundarySets = new HashMap<>();
     private final EncodingContext context;
 
     // =====================================================================
@@ -148,6 +149,104 @@ public class WmmEncoder implements Encoder {
                         .filter((e1, e2) -> TRUE.equals(model.evaluate(context.execution(e1, e2))));
         encodeSet.addAll(mustEncodeSet);
         return encodeSet;
+    }
+
+    public Map<Relation, EventGraph> getActiveSets() {
+        return encodeSets;
+    }
+
+    public Map<Relation, EventGraph> getInactiveBoundarySets() {
+        initializeInactiveBoundary();
+        return inactiveBoundarySets;
+    }
+
+    private void initializeInactiveBoundary() {
+        BoundarySets boundaryVisitor = new BoundarySets();
+        for (Relation r : context.getTask().getMemoryModel().getRelations()) {
+            inactiveBoundarySets.putAll(r.getDefinition().accept(boundaryVisitor));
+        }
+    }
+
+    private final class BoundarySets implements Constraint.Visitor<Map<Relation, EventGraph>> {
+        final RelationAnalysis ra = context.getAnalysisContext().requires(RelationAnalysis.class);
+
+        @Override
+        public Map<Relation, EventGraph> visitDefinition(Definition def) {
+            return Map.of();
+        }
+
+        private Map<Relation, EventGraph> computeSimpleBoundary(Definition def) {
+            final Relation rel = def.getDefinedRelation();
+            EventGraph graph = encodeSets.get(rel);
+            Map<Relation, EventGraph> boundarySets = new HashMap<>();
+            for (Relation c : rel.getDependencies()) {
+                EventGraph intersection = intersection(graph, ra.getKnowledge(c).getMustSet());
+                if (!intersection.isEmpty()) {
+                    boundarySets.merge(c, intersection, EventGraph::union);
+                }
+            }
+            return boundarySets;
+        }
+
+        @Override
+        public Map<Relation, EventGraph> visitIntersection(Intersection def) {
+            return computeSimpleBoundary(def);
+        }
+
+        @Override
+        public Map<Relation, EventGraph> visitUnion(Union def) {
+            return computeSimpleBoundary(def);
+        }
+
+        @Override
+        public Map<Relation, EventGraph> visitDifference(Difference def) {
+            return computeSimpleBoundary(def);
+        }
+
+        @Override
+        public Map<Relation, EventGraph> visitComposition(Composition def) {
+            final Relation r1 = def.getLeftOperand();
+            final Relation r2 = def.getRightOperand();
+            final EventGraph boundary1 = new EventGraph();
+            final EventGraph boundary2 = new EventGraph();
+            EventGraph activeSet = encodeSets.get(def.getDefinedRelation());
+            Map<Event, Set<Event>> firstActive = encodeSets.get(r1).getOutMap();
+            EventGraph firstActiveGraph = encodeSets.get(r1);
+            EventGraph secondActiveGraph = encodeSets.get(r2);
+            Map<Event, Set<Event>> secondActive = encodeSets.get(r2).getInMap();
+            EventGraph firstMust = ra.getKnowledge(r1).getMustSet();
+            EventGraph secondMust = ra.getKnowledge(r2).getMustSet();
+            activeSet.apply((e1, e2) -> {
+                for (Event e : firstActive.getOrDefault(e1, Set.of())) {
+                    if (secondMust.contains(e, e2)) {
+                        boundary2.add(e, e2);
+                    } else if (secondActiveGraph.contains(e, e2)) {
+                        int i = 5;
+                    } else {
+                        int i = 5;
+                    }
+                }
+                for (Event e : secondActive.getOrDefault(e2, Set.of())) {
+                    if (firstMust.contains(e1, e)) {
+                        boundary1.add(e1, e);
+                    } else if (firstActiveGraph.contains(e1, e)) {
+                        int i = 5;
+                    } else {
+                        int i = 5;
+                    }
+                }
+            });
+            if (boundary1.isEmpty() && boundary2.isEmpty()) {
+                return Map.of();
+            }
+            if (boundary1.isEmpty()) {
+                return Map.of(r2, boundary2);
+            }
+            if (boundary2.isEmpty()) {
+                return Map.of(r1, boundary1);
+            }
+            return r1.equals(r2) ? Map.of(r1, EventGraph.union(boundary1, boundary2)) : Map.of(r1, boundary1, r2, boundary2);
+        }
     }
 
     private final class RelationEncoder implements Constraint.Visitor<Void> {
@@ -717,9 +816,15 @@ public class WmmEncoder implements Encoder {
         for (Relation r : context.getTask().getMemoryModel().getRelations()) {
             encodeSets.put(r, new EventGraph());
         }
+        // Note: Encode-set visitor
+        //     - Handles definition-based processing of a set of edges ("news")
+        //     - All processing is done with the relation analysis as a basis
+        //       -> it makes sure only edges are considered that are not known (inside may but outside must)
+        //          for each relation in a definition
         EncodeSets v = new EncodeSets(context.getAnalysisContext());
         Map<Relation, List<EventGraph>> queue = new HashMap<>();
         for (Axiom a : context.getTask().getMemoryModel().getAxioms()) {
+            // Note: Computes unknown edges in an axiom (causing a violation)
             for (Map.Entry<Relation, EventGraph> e : a.getEncodeGraph(context.getTask(), context.getAnalysisContext()).entrySet()) {
                 queue.computeIfAbsent(e.getKey(), k -> new ArrayList<>()).add(e.getValue());
             }
@@ -736,12 +841,17 @@ public class WmmEncoder implements Encoder {
                 p.setSource(c);
                 p.setMay(ra.getKnowledge(p.getSource()).getMaySet());
                 p.setMust(ra.getKnowledge(p.getSource()).getMustSet());
+                // Note: Bottom-up (but only with one layer) computation of may/must set from definition assuming
+                //       may/must in p for relation c
                 RelationAnalysis.Delta s = r.getDefinition().accept(p);
                 may.addAll(s.may);
                 must.addAll(s.must);
             }
             may.removeAll(ra.getKnowledge(r).getMaySet());
             EventGraph must2 = difference(ra.getKnowledge(r).getMustSet(), must);
+            // Note: - set "may" contains only those edges that the bottom-up computation found but
+            //         that are not in the actual may set
+            //       - set must2 contains only those must edges that the bottom-up computation did not find
             queue.computeIfAbsent(r, k -> new ArrayList<>()).add(EventGraph.union(may, must2));
         }
         while (!queue.isEmpty()) {
@@ -749,10 +859,20 @@ public class WmmEncoder implements Encoder {
             logger.trace("Update encode set of '{}'", r);
             EventGraph s = encodeSets.get(r);
             EventGraph c = new EventGraph();
+            // Note: - only edges are considered that were not already found when creating encode sets during the
+            //         initial relation analysis
+            //         -> not true!
+            //       - actually, here, the encode sets are initialized, so in the first iteration, every edge is
+            //         considered!
+            //       - the encode sets are being enriched by them, though!
             for (EventGraph news : queue.remove(r)) {
                 news.filter(s::add).apply(c::add);
             }
             if (!c.isEmpty()) {
+                // Note:
+                //   - New state for every element in queue
+                //   - Finds relevant (unknown) edges for each relation in definition
+                //   - Loop propagates unknown edges down, effectively
                 v.news = c;
                 for (Map.Entry<Relation, EventGraph> e : r.getDefinition().accept(v).entrySet()) {
                     queue.computeIfAbsent(e.getKey(), k -> new ArrayList<>()).add(e.getValue());

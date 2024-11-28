@@ -2,6 +2,7 @@ package com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.sets.base;
 
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.CAATPredicate;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.Derivable;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.PredicateHierarchy;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.sets.Element;
 
 import java.util.Collection;
@@ -16,7 +17,7 @@ public class EmptySet extends AbstractBaseSet {
     public void backtrackTo(int time) { }
 
     @Override
-    public Collection<Element> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added) {
+    public Collection<Element> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added, PredicateHierarchy.PropagationMode mode) {
         return Collections.emptyList();
     }
 

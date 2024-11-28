@@ -1,11 +1,14 @@
 package com.dat3m.dartagnan.solver.onlineCaatTest.caat4wmm.basePredicates;
 
 import com.dat3m.dartagnan.encoding.EncodingContext;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.Derivable;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.Edge;
 import com.dat3m.dartagnan.verification.model.EventData;
 import com.dat3m.dartagnan.wmm.Relation;
 import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import org.sosy_lab.java_smt.api.Model;
+
+import java.util.Set;
 
 // A default implementation for any encoded relation, e.g. base relations or non-base but cut relations.
 public class DynamicDefaultWMMGraph extends MaterializedWMMGraph {
@@ -14,6 +17,9 @@ public class DynamicDefaultWMMGraph extends MaterializedWMMGraph {
     public DynamicDefaultWMMGraph(Relation rel) {
         this.relation = rel;
     }
+
+    @Override
+    public void validate (int time, Set<Derivable> activeSet, boolean active) {}
 
     @Override
     public void repopulate() {
@@ -50,5 +56,10 @@ public class DynamicDefaultWMMGraph extends MaterializedWMMGraph {
     private Edge getEdgeFromEventData(EventData e1, EventData e2, Model m, EncodingContext.EdgeEncoder edge) {
         return Boolean.TRUE.equals(m.evaluate(edge.encode(e1.getEvent(), e2.getEvent())))
                 ? new Edge(e1.getId(), e2.getId()) : null;
+    }
+
+    @Override
+    public int staticDerivationLength() {
+        return 0;
     }
 }

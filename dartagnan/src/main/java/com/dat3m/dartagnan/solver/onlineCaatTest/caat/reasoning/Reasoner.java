@@ -79,11 +79,20 @@ public class Reasoner {
 
 
     public Conjunction<CAATLiteral> computeReason(RelationGraph graph, Edge edge) {
+        if (edge == null) {
+            int i = 5;
+        }
         if (!graph.contains(edge)) {
             return Conjunction.FALSE();
         }
 
-        Conjunction<CAATLiteral> reason = graph.accept(graphVisitor, edge, null);
+        Conjunction<CAATLiteral> reason;
+        if (edge.getDerivationLength() == -1) {
+            reason = new EdgeLiteral(graph, edge, true).toSingletonReason();
+        } else {
+            reason = graph.accept(graphVisitor, edge, null);
+        }
+
         assert !reason.isFalse();
         return reason;
     }
@@ -122,6 +131,13 @@ public class Reasoner {
                     next = g;
                     min = e;
                 }
+                if (e != null && e.getDerivationLength() == 0) {
+                    int i = 5;
+                }
+            }
+
+            if (next == graph) {
+                int i = 5;
             }
 
             assert next != graph;
@@ -175,6 +191,7 @@ public class Reasoner {
                 }
             }
 
+            int i = 5;
             throw new IllegalStateException("Did not find a reason for " + edge + " in " + graph.getName());
         }
 
@@ -265,6 +282,9 @@ public class Reasoner {
         @Override
         public Conjunction<CAATLiteral> visitRecursiveGraph(RelationGraph graph, Edge edge, Void unused) {
             Conjunction<CAATLiteral> reason = computeReason((RelationGraph) graph.getDependencies().get(0), edge);
+            if (reason.isFalse()) {
+                int i = 5;
+            }
             assert !reason.isFalse();
             return reason;
         }

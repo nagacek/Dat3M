@@ -2,6 +2,7 @@ package com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs
 
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.CAATPredicate;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.Derivable;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.PredicateHierarchy;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.misc.PredicateVisitor;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.Edge;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.MaterializedGraph;
@@ -15,6 +16,17 @@ import java.util.stream.Stream;
 public class UnionGraph extends MaterializedGraph {
 
     private final RelationGraph[] operands;
+
+    @Override
+    protected Set<Edge> computeFromInnerEdges() {
+        HashSet<Edge> innerEdges = new HashSet<>();
+        for (RelationGraph gr : operands) {
+            for (Edge e : gr.edges()) {
+                innerEdges.add(e);
+            }
+        }
+        return innerEdges;
+    }
 
     @Override
     public List<RelationGraph> getDependencies() {
@@ -41,20 +53,36 @@ public class UnionGraph extends MaterializedGraph {
 
     @Override
     @SuppressWarnings("unchecked")
-    public Collection<Edge> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added) {
-        if (Stream.of(operands).anyMatch(g -> changedSource == g)) {
-            ArrayList<Edge> newlyAdded = new ArrayList<>();
-            Collection<Edge> addedEdges = (Collection<Edge>)added;
+    public Collection<Edge> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added, PredicateHierarchy.PropagationMode mode) {
+        ArrayList<Edge> newlyAdded = new ArrayList<>();
+        Collection<Edge> addedEdges = (Collection<Edge>)added;
+        if (changedSource == null && (mode == PredicateHierarchy.PropagationMode.DEFER || mode == PredicateHierarchy.PropagationMode.DELETE)) {
+            for (Edge e : addedEdges) {
+                if (simpleGraph.add(e)) {
+                    newlyAdded.add(e);
+                }
+            }
+        } else if (Stream.of(operands).anyMatch(g -> changedSource == g)) {
             for (Edge e : addedEdges) {
                 Edge edge = derive(e);
                 if (simpleGraph.add(edge)) {
                     newlyAdded.add(edge);
                 }
             }
-            return newlyAdded;
         } else {
             return Collections.emptyList();
         }
+        return newlyAdded;
+    }
+
+    @Override
+    public int staticDerivationLength() {
+        if (maxDerivationLength < 0) {
+            for (RelationGraph o : operands) {
+                maxDerivationLength = Math.max(o.staticDerivationLength() + 1, maxDerivationLength);
+            }
+        }
+        return maxDerivationLength;
     }
 
     @Override

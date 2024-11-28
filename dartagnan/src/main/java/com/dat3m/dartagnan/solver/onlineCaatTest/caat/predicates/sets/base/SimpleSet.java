@@ -2,6 +2,7 @@ package com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.sets.base;
 
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.CAATPredicate;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.Derivable;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.PredicateHierarchy;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.sets.Element;
 
 import java.util.*;
@@ -59,7 +60,7 @@ public class SimpleSet extends AbstractBaseSet {
     }
 
     @Override
-    public Collection<Element> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added) {
+    public Collection<Element> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added, PredicateHierarchy.PropagationMode mode) {
         Collection<Element> addedEles = (Collection<Element>) added;
         return addedEles.stream().filter(this::add).collect(Collectors.toList());
     }

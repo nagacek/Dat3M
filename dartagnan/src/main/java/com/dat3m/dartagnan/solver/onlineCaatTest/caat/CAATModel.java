@@ -3,7 +3,12 @@ package com.dat3m.dartagnan.solver.onlineCaatTest.caat;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.constraints.Constraint;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.domain.Domain;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.CAATPredicate;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.Derivable;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.PredicateHierarchy;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.Edge;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.RelationGraph;
+import com.dat3m.dartagnan.wmm.Relation;
+import com.dat3m.dartagnan.wmm.utils.EventGraph;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 
@@ -64,13 +69,17 @@ public class CAATModel {
         this.hierarchy.initializeToDomain(domain);
     }
 
+    public void initializeActiveSets(Map<RelationGraph, Set<Derivable>> activeSets) {
+        this.hierarchy.initializeActiveSets(activeSets);
+    }
+
     public void populate() {
         this.hierarchy.populate();
     }
     // ======================================== Validation ==============================================
 
-    public void validate(int time) {
-        this.hierarchy.validate(time);
+    public void validate(int time, boolean active) {
+        this.hierarchy.validate(time, active);
     }
 
     // ======================================== Consistency ==============================================

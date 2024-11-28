@@ -6,6 +6,8 @@ import com.dat3m.dartagnan.solver.onlineCaatTest.caat.constraints.Constraint;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.constraints.EmptinessConstraint;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.constraints.IrreflexivityConstraint;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.domain.Domain;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.Derivable;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.Edge;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.RelationGraph;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.base.SimpleGraph;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.derived.*;
@@ -16,14 +18,12 @@ import com.dat3m.dartagnan.wmm.Wmm;
 import com.dat3m.dartagnan.wmm.axiom.Axiom;
 import com.dat3m.dartagnan.wmm.axiom.ForceEncodeAxiom;
 import com.dat3m.dartagnan.wmm.definition.*;
+import com.dat3m.dartagnan.wmm.utils.EventGraph;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.Maps;
 
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class ExecutionGraph {
@@ -60,8 +60,12 @@ public class ExecutionGraph {
         caatModel.initializeToDomain(domain);
     }
 
-    public void validate(int time) {
-        caatModel.validate(time);
+    public void initializeActiveSets(Map<RelationGraph, Set<Derivable>> activeSets) {
+        caatModel.initializeActiveSets(activeSets);
+    }
+
+    public void validate(int time, boolean active) {
+        caatModel.validate(time, active);
     }
 
     // --------------------------------------------------
@@ -102,6 +106,7 @@ public class ExecutionGraph {
             Constraint constraint = getOrCreateConstraintFromAxiom(axiom);
             constraints.add(constraint);
         }
+
 
         caatModel = CAATModel.from(graphs, constraints);
     }

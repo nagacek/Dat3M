@@ -1,11 +1,10 @@
 package com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.misc;
 
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.Edge;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.MaterializedGraph;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.RelationGraph;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 /*
 IMPORTANT NOTE: As opposed to all other graphs, a Subgraph is only a snapshot of an already existing graph that
@@ -17,6 +16,11 @@ Note: This seems to perform better than a virtualized Subgraph.
 public class MaterializedSubgraphView extends MaterializedGraph {
 
     private final RelationGraph sourceGraph;
+
+    @Override
+    protected Set<Edge> computeFromInnerEdges() {
+        return new HashSet<>();
+    }
 
     @Override
     public List<RelationGraph> getDependencies() {
@@ -51,5 +55,10 @@ public class MaterializedSubgraphView extends MaterializedGraph {
     @Override
     public <TRet, TData, TContext> TRet accept(PredicateVisitor<TRet, TData, TContext> visitor, TData tData, TContext context) {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public int staticDerivationLength() {
+        return sourceGraph.staticDerivationLength();
     }
 }

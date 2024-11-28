@@ -2,6 +2,7 @@ package com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs
 
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.CAATPredicate;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.Derivable;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.PredicateHierarchy;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.misc.PredicateVisitor;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.Edge;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.MaterializedGraph;
@@ -13,6 +14,16 @@ import java.util.*;
 public class TransitiveGraph extends MaterializedGraph {
 
     private final RelationGraph inner;
+
+    // fake computation
+    @Override
+    protected Set<Edge> computeFromInnerEdges() {
+        Set<Edge> edges = new HashSet<>();
+        for (Edge e : simpleGraph.edges()) {
+            edges.add(e);
+        }
+        return edges;
+    }
 
     @Override
     public List<RelationGraph> getDependencies() {
@@ -29,7 +40,7 @@ public class TransitiveGraph extends MaterializedGraph {
 
     private Edge combine(Edge a, Edge b, int time) {
         return new Edge(a.getFirst(), b.getSecond(), time,
-                Math.max(a.getDerivationLength(), b.getDerivationLength()) + 1);
+                Math.max(a.getDerivationLength(), b.getDerivationLength()) + 1, a.isBone() && b.isBone(), a.isActive() && b.isActive());
     }
 
     @Override
@@ -73,16 +84,31 @@ public class TransitiveGraph extends MaterializedGraph {
 
     @Override
     @SuppressWarnings("unchecked")
-    public Collection<Edge> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added) {
-        if (changedSource == inner) {
-            List<Edge> newEdges = new ArrayList<>();
+    public Collection<Edge> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added, PredicateHierarchy.PropagationMode mode) {
+        List<Edge> newEdges = new ArrayList<>();
+        if (changedSource == null && (mode == PredicateHierarchy.PropagationMode.DELETE || mode == PredicateHierarchy.PropagationMode.DEFER)) {
+            for (Edge e : (Collection<Edge>)added) {
+                if (simpleGraph.add(e)) {
+                    newEdges.add(e);
+                }
+            }
+        } else if (changedSource == inner) {
             for (Edge e : (Collection<Edge>)added) {
                 updateEdge(derive(e), newEdges);
             }
-            return newEdges;
         } else {
             return Collections.emptyList();
         }
+        return newEdges;
+    }
+
+    // This is not accurate at all
+    @Override
+    public int staticDerivationLength() {
+        if (maxDerivationLength < 0) {
+            maxDerivationLength = inner.staticDerivationLength() + 1;
+        }
+        return maxDerivationLength;
     }
 
     @Override

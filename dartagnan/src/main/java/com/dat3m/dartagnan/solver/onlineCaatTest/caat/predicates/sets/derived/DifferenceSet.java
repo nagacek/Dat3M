@@ -4,6 +4,7 @@ package com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.sets.derived;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.AbstractPredicate;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.CAATPredicate;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.Derivable;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.PredicateHierarchy;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.misc.PredicateVisitor;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.sets.Element;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.sets.SetPredicate;
@@ -70,7 +71,10 @@ public class DifferenceSet extends AbstractPredicate implements SetPredicate {
 
     @Override
     @SuppressWarnings("unchecked")
-    public Collection<Element> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added) {
+    public Collection<Element> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added, PredicateHierarchy.PropagationMode mode) {
+        if (mode == PredicateHierarchy.PropagationMode.DELETE) {
+            return Collections.emptyList();
+        }
         Collection<Element> addedElems = (Collection<Element>) added;
         if (changedSource == first) {
             return addedElems.stream().filter(e -> !second.contains(e)).collect(Collectors.toList());
@@ -79,6 +83,14 @@ public class DifferenceSet extends AbstractPredicate implements SetPredicate {
         } else {
             return Collections.emptyList();
         }
+    }
+
+    @Override
+    public int staticDerivationLength() {
+        if (maxDerivationLength < 0) {
+            maxDerivationLength = Math.max(first.staticDerivationLength(), second.staticDerivationLength());
+        }
+        return maxDerivationLength;
     }
 
     @Override
