@@ -132,7 +132,7 @@ public class CompositionGraph extends MaterializedGraph {
             if (info.activeEvents()) {
                 Integer triggerTime = triggerTimes.get(edge);
                 if (triggerTime != null && triggerTime >= 0) {
-                    newEdges.add(info.edge());
+                    newEdges.add(info.edge().withTime(time));
                 }
             }
         }

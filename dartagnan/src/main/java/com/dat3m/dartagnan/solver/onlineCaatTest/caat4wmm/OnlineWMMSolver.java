@@ -69,6 +69,8 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
         this.boundarySets = new HashMap<>();
         this.boundaryBones = new ArrayList<>();
         this.inactiveBones = new ArrayList<>();
+        this.boundaryConditionalBones = new ArrayList<>();
+        this.inactiveConditionalBones = new ArrayList<>();
 
         executionGraph.initializeToDomain(domain);
         translateSets(encoder.getActiveSets(), activeSets);
@@ -98,8 +100,12 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
     private final Map<RelationGraph, Set<Derivable>> activeSets;
     private final Map<RelationGraph, Set<Derivable>> boundarySets;
 
-    private final List<HashMap<RelationGraph, Set<BoneInfo>>> boundaryBones;
-    private final List<HashMap<RelationGraph, Set<BoneInfo>>> inactiveBones;
+    /*private final List<HashMap<RelationGraph, Set<BoneInfo>>> boundaryBones;
+    private final List<HashMap<RelationGraph, Set<BoneInfo>>> inactiveBones;*/
+    private final List<HashMap<Integer, HashMap<RelationGraph, Set<BoneInfo>>>> boundaryBones;
+    private final List<HashMap<Integer, HashMap<RelationGraph, Set<BoneInfo>>>> inactiveBones;
+    private final List<HashMap<RelationGraph, Set<BoneInfo>>> boundaryConditionalBones;
+    private final List<HashMap<RelationGraph, Set<BoneInfo>>> inactiveConditionalBones;
 
     private void makeSkeleton(Context analysisContext) {
         RelationAnalysis ra = analysisContext.get(RelationAnalysis.class);
@@ -173,10 +179,11 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
         if (compositionBoneInfo != null) {
             boneInfo = compositionBoneInfo;
         } else {
-            boneInfo = new BoneInfo(edge, false, false);
+            boneInfo = new BoneInfo(edge, false, true);
         }
 
-        List<HashMap<RelationGraph, Set<BoneInfo>>> boneMaps;
+        //List<HashMap<RelationGraph, Set<BoneInfo>>> boneMaps;
+        List<HashMap<Integer, HashMap<RelationGraph, Set<BoneInfo>>>> boneMaps;
         if (isBoundary) {
             boneMaps = boundaryBones;
         } else {
@@ -184,20 +191,22 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
         }
 
         initListener(id1, boneMaps);
-        HashMap<RelationGraph, Set<BoneInfo>> boneMap = boneMaps.get(id1);
+        //HashMap<RelationGraph, Set<BoneInfo>> boneMap = boneMaps.get(id1);
+        HashMap<RelationGraph, Set<BoneInfo>> boneMap = boneMaps.get(id1).computeIfAbsent(id2, key -> new HashMap<>());
         boneMap.putIfAbsent(graph, new HashSet<>());
         Set<BoneInfo> boneSet = boneMap.get(graph);
         boneSet.add(boneInfo);
 
         initListener(id2, boneMaps);
-        boneMap = boneMaps.get(id2);
+        //boneMap = boneMaps.get(id2);
+        boneMap = boneMaps.get(id2).computeIfAbsent(id1, key -> new HashMap<>());
         boneMap.putIfAbsent(graph, new HashSet<>());
         boneSet = boneMap.get(graph);
         boneSet.add(boneInfo);
     }
 
 
-    private void initListener(int id, List<HashMap<RelationGraph, Set<BoneInfo>>> bones) {
+    private void initConditionalListener(int id, List<HashMap<RelationGraph, Set<BoneInfo>>> bones) {
         if (id < 0) {
             int i = 5;
         }
@@ -207,7 +216,16 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
             }
         }
     }
-
+    private void initListener(int id, List<HashMap<Integer, HashMap<RelationGraph, Set<BoneInfo>>>> bones) {
+        if (id < 0) {
+            int i = 5;
+        }
+        if (id >= bones.size() || bones.get(id) == null) {
+            while (bones.size() <= id) {
+                bones.add(new HashMap<>());
+            }
+        }
+    }
     private BoneInfo handleCompositionListeners(RelationGraph graph, Edge edge, boolean isActive) {
         //Relation origRel = refinementModel.translateToOriginal(boneInfo.relation());
         if (graph instanceof CompositionGraph) {
@@ -232,23 +250,24 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
             Set<Event> intersect = Sets.intersection(firstIntersect, secondIntersect);
 
             if (intersect.contains(source) || intersect.contains(target)) {
-                return new BoneInfo(edge, true, false);
+                return new BoneInfo(edge, true, true);
             }
 
             List<HashMap<RelationGraph, Set<BoneInfo>>> boneMaps;
             if (isActive) {
-                boneMaps = boundaryBones;
+                boneMaps = boundaryConditionalBones;
             } else {
-                boneMaps = inactiveBones;
+                boneMaps = inactiveConditionalBones;
             }
 
 
-            BoneInfo boneInfo = new BoneInfo(edge, false, false);
+            BoneInfo boneInfo = new BoneInfo(edge, false, true);
             Relation rel = relationMap.get(graph);
             for (Event e3 : intersect) {
                 domain.weakAddElement(e3);
                 int id = domain.weakGetId(e3);
-                initListener(id, boneMaps);
+                initConditionalListener(id, boneMaps);
+                //HashMap<RelationGraph, Set<BoneInfo>> boneMap = boneMaps.get(id);
                 HashMap<RelationGraph, Set<BoneInfo>> boneMap = boneMaps.get(id);
                 boneMap.putIfAbsent(graph, new HashSet<>());
                 Set<BoneInfo> boneSet = boneMap.get(graph);
@@ -265,17 +284,33 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
             return;
         }
 
-        HashMap<RelationGraph, Set<BoneInfo>> active = null;
+        //HashMap<RelationGraph, Set<BoneInfo>> active = null;
+        HashMap<Integer, HashMap<RelationGraph, Set<BoneInfo>>> active = null;
         if (id < boundaryBones.size()) {
             active = boundaryBones.get(id);
         }
-        HashMap<RelationGraph, Set<BoneInfo>> inactive = null;
+        //HashMap<RelationGraph, Set<BoneInfo>> inactive = null;
+        HashMap<Integer, HashMap<RelationGraph, Set<BoneInfo>>> inactive = null;
         if (id < inactiveBones.size()) {
             inactive = inactiveBones.get(id);
         }
+        HashMap<RelationGraph, Set<BoneInfo>> activeConditional = null;
+        if (id < boundaryConditionalBones.size()) {
+            activeConditional = boundaryConditionalBones.get(id);
+        }
+        //HashMap<RelationGraph, Set<BoneInfo>> inactive = null;
+        HashMap<RelationGraph, Set<BoneInfo>> inactiveConditional = null;
+        if (id < inactiveConditionalBones.size()) {
+            inactiveConditional = inactiveConditionalBones.get(id);
+        }
 
         PredicateHierarchy hierarchy = executionGraph.getCAATModel().getHierarchy();
-        for (CAATPredicate pred : hierarchy.getPredicateList()) {
+        propagateBoneInfos(active, hierarchy, id, PredicateHierarchy.PropagationMode.DEFER);
+        propagateBoneInfos(inactive, hierarchy, id, PredicateHierarchy.PropagationMode.DELETE);
+        propagateConditionalBoneInfos(activeConditional, id, PredicateHierarchy.PropagationMode.DEFER);
+        propagateConditionalBoneInfos(inactiveConditional, id, PredicateHierarchy.PropagationMode.DELETE);
+
+        /*for (CAATPredicate pred : hierarchy.getPredicateList()) {
 
             if (inactive != null && !inactive.isEmpty()) {
                 Set<BoneInfo> nonPropagateBoneInfos = inactive.get(pred);
@@ -290,7 +325,7 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
                     propagateBoneInfos(propagateBoneInfos, pred, id, PredicateHierarchy.PropagationMode.DEFER);
                 }
             }
-        }
+        }*/
         hierarchy.triggerDeferredPropagation();
 
         /*for (EdgeInfo info : boneInfo) {
@@ -331,7 +366,7 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
         }*/
     }
 
-    private void propagateBoneInfos(Set<BoneInfo> infos, CAATPredicate pred, int id, PredicateHierarchy.PropagationMode mode) {
+    /*private void propagateBoneInfos(Set<BoneInfo> infos, CAATPredicate pred, int id, PredicateHierarchy.PropagationMode mode) {
         if (infos != null) {
             RelationGraph graph = (RelationGraph) pred;
             Set<BoneInfo> activeEventInfos = infos.stream().map(info -> {
@@ -342,6 +377,37 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
                     .collect(Collectors.toSet());
             Set<Edge> propagationBones = graph.checkBoneActivation(id, backtrackPoints.size(), activeEventInfos);
             executionGraph.getCAATModel().getHierarchy().addAndPropagate(graph, propagationBones, mode);
+        }
+    }*/
+    private void propagateBoneInfos(HashMap<Integer, HashMap<RelationGraph, Set<BoneInfo>>> bones, PredicateHierarchy hierarchy, int id, PredicateHierarchy.PropagationMode mode) {
+        if (bones != null) {
+            HashMap<RelationGraph, Set<BoneInfo>> activatedBones = new HashMap<>();
+            for (var b : bones.entrySet()) {
+                if (domain.getObjectById(b.getKey()) != null) {
+                    b.getValue().forEach((graph, boneInfo) -> activatedBones.merge(graph, boneInfo, Sets::union));
+                }
+            }
+            for (var b : activatedBones.entrySet()) {
+                RelationGraph graph = b.getKey();
+                Set<BoneInfo> boneInfos = b.getValue();
+                Set<Edge> propagationBones = graph.checkBoneActivation(id, backtrackPoints.size(), boneInfos);
+                executionGraph.getCAATModel().getHierarchy().addAndPropagate(graph, propagationBones, mode);
+            }
+        }
+    }
+
+    private void propagateConditionalBoneInfos(HashMap<RelationGraph, Set<BoneInfo>> bones, int id, PredicateHierarchy.PropagationMode mode) {
+        if (bones != null) {
+            for (var b : bones.entrySet()) {
+                RelationGraph graph = b.getKey();
+                Set<BoneInfo> boneInfos = b.getValue();
+                Set<BoneInfo> compositionInfos = boneInfos.stream()
+                        .map(bone -> new BoneInfo(bone.edge(), bone.condition(),
+                                domain.getObjectById(bone.edge().getFirst()) != null && domain.getObjectById(bone.edge().getSecond()) != null))
+                        .collect(Collectors.toSet());
+                Set<Edge> propagationBones = graph.checkBoneActivation(id, backtrackPoints.size(), compositionInfos);
+                executionGraph.getCAATModel().getHierarchy().addAndPropagate(graph, propagationBones, mode);
+            }
         }
     }
 

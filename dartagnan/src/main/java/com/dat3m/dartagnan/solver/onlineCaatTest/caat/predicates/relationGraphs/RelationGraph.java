@@ -96,7 +96,7 @@ public interface RelationGraph extends CAATPredicate {
     default Set<Edge> setView() { return new SetView(this); }
 
     default Set<Edge> checkBoneActivation(int triggerId, int time, Set<BoneInfo> bones) {
-        return bones.stream().map(b -> b.edge()).collect(Collectors.toSet());
+        return bones.stream().map(b -> b.edge().withTime(time)).collect(Collectors.toSet());
     }
 
     class SetView extends AbstractPredicateSetView<Edge> {

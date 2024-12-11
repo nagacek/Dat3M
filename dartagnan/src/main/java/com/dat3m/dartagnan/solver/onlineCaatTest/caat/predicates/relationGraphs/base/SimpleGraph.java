@@ -57,7 +57,7 @@ public final class SimpleGraph extends AbstractBaseGraph {
     private HashMap<Integer, SimpleGraph.DataItem> outgoingOld = new HashMap<>();
     private HashMap<Integer, SimpleGraph.DataItem> ingoingOld = new HashMap<>();*/
 
-    //private final HashMap<Edge, Edge> edgeMap = new HashMap<>(100);
+    private final HashMap<Edge, Edge> edgeMap = new HashMap<>(100);
 
 
     @Override
@@ -156,7 +156,7 @@ public final class SimpleGraph extends AbstractBaseGraph {
     }
 
     public Edge weakGet(Edge edge) {
-        int firstId = edge.getFirst();
+        /*int firstId = edge.getFirst();
         int secondId = edge.getSecond();
         if (outgoing.size() <= firstId || ingoing.size() <= secondId) {
             return null;
@@ -182,7 +182,8 @@ public final class SimpleGraph extends AbstractBaseGraph {
                 }
             }
             return null;
-        }
+        }*/
+        return edgeMap.get(edge);
     }
 
     @Override
@@ -275,6 +276,7 @@ public final class SimpleGraph extends AbstractBaseGraph {
                 item2 = ingoing.get(secondId);
             }
             item2.add(e);
+            edgeMap.put(e, e);
         }
 
 
@@ -314,7 +316,7 @@ public final class SimpleGraph extends AbstractBaseGraph {
     // does not preserve skeleton
     public void clear() {
         maxTime = 0;
-        //edgeMap.clear();
+        edgeMap.clear();
         outgoing.clear();
         ingoing.clear();
 
@@ -423,11 +425,16 @@ public final class SimpleGraph extends AbstractBaseGraph {
     @Override
     public Set<Edge> checkBoneActivation(int triggerId, int time, Set<BoneInfo> bones) {
         HashSet<Edge> newEdges = new HashSet<>();
-        for (BoneInfo info : bones) {
+        bones.stream().forEach(info -> {
             if (info.activeEvents()) {
-                newEdges.add(info.edge());
+                newEdges.add(info.edge().withTime(time));
             }
-        }
+        });
+        /*for (BoneInfo info : bones) {
+            if (info.activeEvents()) {
+                newEdges.add(info.edge().withTime(time));
+            }
+        }*/
         return newEdges;
     }
 
@@ -505,7 +512,7 @@ public final class SimpleGraph extends AbstractBaseGraph {
             int newMaxTime = 0;
             if (maxTime > time) {
                 final List<Edge> edgeList = this.edgeList;
-                //final Map<Edge, Edge> edgeMap = SimpleGraph.this.edgeMap;
+                final Map<Edge, Edge> edgeMap = SimpleGraph.this.edgeMap;
                 int i = edgeList.size();
                 while (--i >= 0) {
                     Edge e = edgeList.get(i);
@@ -513,7 +520,7 @@ public final class SimpleGraph extends AbstractBaseGraph {
                         if (e.backtrack()) {
                             edgeList.remove(i);
                             if (deleteFromMap) {
-                                //edgeMap.remove(e);
+                                edgeMap.remove(e);
                             }
                         }
                         innerEdgeCount--;
