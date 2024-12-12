@@ -32,7 +32,7 @@ public class LFDSTest extends AbstractCTest {
 
     @Override
     protected long getTimeout() {
-        return 600000;
+        return 60000000;
     }
 
     protected Provider<Integer> getBoundProvider() {

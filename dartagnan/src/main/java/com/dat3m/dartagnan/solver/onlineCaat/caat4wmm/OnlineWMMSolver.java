@@ -10,7 +10,6 @@ import com.dat3m.dartagnan.solver.onlineCaat.caat.domain.Domain;
 import com.dat3m.dartagnan.solver.onlineCaat.caat.domain.GenericDomain;
 import com.dat3m.dartagnan.solver.onlineCaat.caat.predicates.relationGraphs.Edge;
 import com.dat3m.dartagnan.solver.onlineCaat.caat.reasoning.CAATLiteral;
-import com.dat3m.dartagnan.solver.onlineCaat.caat4wmm.RefinementModel;
 import com.dat3m.dartagnan.solver.onlineCaat.caat4wmm.coreReasoning.CoreLiteral;
 import com.dat3m.dartagnan.solver.onlineCaat.caat.predicates.relationGraphs.base.SimpleGraph;
 import com.dat3m.dartagnan.solver.onlineCaat.caat4wmm.coreReasoning.CoreReasoner;
@@ -23,6 +22,7 @@ import org.sosy_lab.java_smt.api.BooleanFormula;
 import org.sosy_lab.java_smt.api.BooleanFormulaManager;
 import org.sosy_lab.java_smt.api.PropagatorBackend;
 import org.sosy_lab.java_smt.basicimpl.AbstractUserPropagator;
+import com.dat3m.dartagnan.solver.onlineCaat.caat4wmm.RefinementModel;
 
 import java.util.*;
 
@@ -56,6 +56,7 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
     private final Deque<BooleanFormula> knownValues = new ArrayDeque<>();
     private final Map<BooleanFormula, Boolean> partialModel = new HashMap<>();
     private final Set<BooleanFormula> trueValues = new HashSet<>();
+
 
     @Override
     public void initializeWithBackend(PropagatorBackend backend) {
@@ -112,14 +113,15 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
     }
 
     // --- Some statistics ---
+    private Statistics totalStats = new Statistics();
+    public Statistics getTotalStats() { return totalStats; }
     private long totalModelExtractionTime = 0;
     private int checkCounter = 0;
 
     @Override
     public void onFinalCheck() {
         Result result = check();
-        checkCounter++;
-        totalModelExtractionTime += result.stats.modelExtractionTime;
+        totalStats.numChecks++;
 
         if (result.status == CAATSolver.Status.INCONSISTENT) {
             final List<Refiner.Conflict> conflicts = refiner.computeConflicts(result.coreReasons, encodingContext);
@@ -139,13 +141,13 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
             assert !isFirst;
         }
 
-        StringBuilder builder = new StringBuilder()
+        /*StringBuilder builder = new StringBuilder()
                 .append("Model extraction: ").append(result.stats.modelExtractionTime).append("\n")
                 .append("Population time: ").append(result.stats.caatStats.getPopulationTime()).append("\n")
                 .append("Total Model extraction: ").append(totalModelExtractionTime).append("\n");
 
         System.out.printf("------------ Check #%d ------------ \n%s", checkCounter, builder);
-        System.out.println("------------------------------------");
+        System.out.println("------------------------------------");*/
     }
 
     private void initModel() {
@@ -181,9 +183,8 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
         // ============== Run the CAATSolver ==============
         CAATSolver.Result caatResult = solver.check(executionGraph.getCAATModel());
         Result result = Result.fromCAATResult(caatResult);
-        Statistics stats = result.stats;
-        stats.modelExtractionTime = extractTime;
-        stats.modelSize = executionGraph.getDomain().size();
+        CAATSolver.Statistics stats = result.caatStats;
+        totalStats.modelExtractionTime += extractTime;
 
         if (result.getStatus() == CAATSolver.Status.INCONSISTENT) {
             // ============== Compute Core reasons ==============
@@ -192,10 +193,10 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
             for (Conjunction<CAATLiteral> baseReason : caatResult.getBaseReasons().getCubes()) {
                 coreReasons.addAll(reasoner.toCoreReasons(baseReason));
             }
-            stats.numComputedCoreReasons = coreReasons.size();
+            totalStats.numComputedCoreReasons += coreReasons.size();
             result.coreReasons = new DNF<>(coreReasons);
-            stats.numComputedReducedCoreReasons = result.coreReasons.getNumberOfCubes();
-            stats.coreReasonComputationTime = System.currentTimeMillis() - curTime;
+            totalStats.numComputedReducedCoreReasons += result.coreReasons.getNumberOfCubes();
+            totalStats.coreReasonComputationTime += System.currentTimeMillis() - curTime;
         }
 
         return result;
@@ -503,11 +504,11 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
     public static class Result {
         private CAATSolver.Status status;
         private DNF<CoreLiteral> coreReasons;
-        private Statistics stats;
+        private CAATSolver.Statistics caatStats;
 
         public CAATSolver.Status getStatus() { return status; }
         public DNF<CoreLiteral> getCoreReasons() { return coreReasons; }
-        public Statistics getStatistics() { return stats; }
+        public CAATSolver.Statistics getCaatStatistics() { return caatStats; }
 
         Result() {
             status = CAATSolver.Status.INCONCLUSIVE;
@@ -517,8 +518,7 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
         static Result fromCAATResult(CAATSolver.Result caatResult) {
             Result result = new Result();
             result.status = caatResult.getStatus();
-            result.stats = new Statistics();
-            result.stats.caatStats = caatResult.getStatistics();
+            result.caatStats =  caatResult.getStatistics();
 
             return result;
         }
@@ -527,28 +527,75 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
         public String toString() {
             return status + "\n" +
                     coreReasons + "\n" +
-                    stats;
+                    caatStats;
         }
     }
 
     public static class Statistics {
-        CAATSolver.Statistics caatStats;
         long modelExtractionTime;
         long coreReasonComputationTime;
-        int modelSize;
+        long backtrackTime;
+        long refinementTime;
+        long consistencyTime;
+        long reasoningTime;
+        long populationTime;
+
         int numComputedCoreReasons;
+        int numComputedBaseReasons;
         int numComputedReducedCoreReasons;
+        int numComputedReducedBaseReasons;
+        int numBacktracks;
+        int numChecks;
+
 
         public long getModelExtractionTime() { return modelExtractionTime; }
-        public long getPopulationTime() { return caatStats.getPopulationTime(); }
-        public long getBaseReasonComputationTime() { return caatStats.getReasonComputationTime(); }
+        public long getPopulationTime() { return populationTime; }
+        public long getBaseReasonComputationTime() { return reasoningTime; }
         public long getCoreReasonComputationTime() { return coreReasonComputationTime; }
-        public long getConsistencyCheckTime() { return caatStats.getConsistencyCheckTime(); }
-        public int getModelSize() { return modelSize; }
-        public int getNumComputedBaseReasons() { return caatStats.getNumComputedReasons(); }
-        public int getNumComputedReducedBaseReasons() { return caatStats.getNumComputedReducedReasons(); }
+        public long getConsistencyCheckTime() { return consistencyTime; }
+        public long getRefinementTime() { return refinementTime; }
+        public long getBacktrackTime() { return backtrackTime; }
+        //public int getModelSize() { return modelSize; }
+        public int getNumComputedBaseReasons() { return numComputedBaseReasons; }
+        public int getNumComputedReducedBaseReasons() { return numComputedReducedBaseReasons; }
         public int getNumComputedCoreReasons() { return numComputedCoreReasons; }
         public int getNumComputedReducedCoreReasons() { return numComputedReducedCoreReasons; }
+        public int getNumBacktracks() { return numBacktracks; }
+        public int getNumChecks() { return numChecks; }
+
+        public void clear() {
+            modelExtractionTime = 0;
+            coreReasonComputationTime = 0;
+            backtrackTime = 0;
+            refinementTime = 0;
+            consistencyTime = 0;
+            reasoningTime = 0;
+            populationTime = 0;
+
+            numComputedCoreReasons = 0;
+            numComputedBaseReasons = 0;
+            numComputedReducedCoreReasons = 0;
+            numComputedReducedBaseReasons = 0;
+            numBacktracks = 0;
+            numChecks = 0;
+        }
+
+        public void add (Statistics stats) {
+            modelExtractionTime += stats.modelExtractionTime;
+            coreReasonComputationTime += stats.coreReasonComputationTime;
+            backtrackTime += stats.backtrackTime;
+            refinementTime += stats.refinementTime;
+            consistencyTime += stats.consistencyTime;
+            reasoningTime += stats.reasoningTime;
+            populationTime += stats.populationTime;
+
+            numComputedCoreReasons += stats.numComputedCoreReasons;
+            numComputedBaseReasons += stats.numComputedBaseReasons;
+            numComputedReducedCoreReasons += stats.numComputedReducedCoreReasons;
+            numComputedReducedBaseReasons += stats.numComputedReducedBaseReasons;
+            numBacktracks += stats.numBacktracks;
+            numChecks += stats.numChecks;
+        }
 
         public String toString() {
             StringBuilder str = new StringBuilder();
@@ -557,11 +604,14 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
             str.append("Consistency check time(ms): ").append(getConsistencyCheckTime()).append("\n");
             str.append("Base Reason computation time(ms): ").append(getBaseReasonComputationTime()).append("\n");
             str.append("Core Reason computation time(ms): ").append(getCoreReasonComputationTime()).append("\n");
-            str.append("Model size (#events): ").append(getModelSize()).append("\n");
+            str.append("Refinement time(ms): ").append(getRefinementTime()).append("\n");
+            str.append("Backtrack time(ms) (#Backtracks): ").append(getBacktrackTime()).append(" (").append(getNumBacktracks()).append(")\n");
+            //str.append("Model size (#events): ").append(getModelSize()).append("\n");
             str.append("#Computed reasons (base/core): ").append(getNumComputedBaseReasons())
                     .append("/").append(getNumComputedCoreReasons()).append("\n");
             str.append("#Computed reduced reasons (base/core): ").append(getNumComputedReducedBaseReasons())
                     .append("/").append(getNumComputedReducedCoreReasons()).append("\n");
+            str.append("#Checks: ").append(getNumChecks()).append("\n");
             return str.toString();
         }
     }

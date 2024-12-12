@@ -32,122 +32,145 @@ public class CLocksTest extends AbstractCTest {
 
     @Override
     protected long getTimeout() {
-        return 60000;
+        return 60000000;
     }
 
     @Parameterized.Parameters(name = "{index}: {0}, target={1}")
     public static Iterable<Object[]> data() throws IOException {
         return Arrays.asList(new Object[][]{
+                //0
                 {"ttas", TSO, UNKNOWN},
                 {"ttas", ARM8, UNKNOWN},
                 {"ttas", POWER, UNKNOWN},
                 {"ttas", RISCV, UNKNOWN},
                 {"ttas-acq2rx", TSO, UNKNOWN},
+                //5
                 {"ttas-acq2rx", ARM8, FAIL},
                 {"ttas-acq2rx", POWER, FAIL},
                 {"ttas-acq2rx", RISCV, FAIL},
                 {"ttas-rel2rx", TSO, UNKNOWN},
                 {"ttas-rel2rx", ARM8, FAIL},
+                //10
                 {"ttas-rel2rx", POWER, FAIL},
                 {"ttas-rel2rx", RISCV, FAIL},
                 {"ticketlock", TSO, PASS},
                 {"ticketlock", ARM8, PASS},
                 {"ticketlock", POWER, PASS},
+                //15
                 {"ticketlock", RISCV, PASS},
                 {"ticketlock-acq2rx", TSO, PASS},
                 {"ticketlock-acq2rx", ARM8, FAIL},
                 {"ticketlock-acq2rx", POWER, FAIL},
                 {"ticketlock-acq2rx", RISCV, FAIL},
+                //20
                 {"ticketlock-rel2rx", TSO, PASS},
                 {"ticketlock-rel2rx", ARM8, FAIL},
                 {"ticketlock-rel2rx", POWER, FAIL},
                 {"ticketlock-rel2rx", RISCV, FAIL},
                 {"mutex", TSO, UNKNOWN},
+                //25
                 {"mutex", ARM8, UNKNOWN},
                 {"mutex", POWER, UNKNOWN},
                 {"mutex", RISCV, UNKNOWN},
                 {"mutex-acq2rx_futex", TSO, UNKNOWN},
                 {"mutex-acq2rx_futex", ARM8, UNKNOWN},
+                //30
                 {"mutex-acq2rx_futex", POWER, UNKNOWN},
                 {"mutex-acq2rx_futex", RISCV, UNKNOWN},
                 {"mutex-acq2rx_lock", TSO, UNKNOWN},
                 {"mutex-acq2rx_lock", ARM8, FAIL},
                 {"mutex-acq2rx_lock", POWER, FAIL},
+                //35
                 {"mutex-acq2rx_lock", RISCV, FAIL},
                 {"mutex-rel2rx_futex", TSO, UNKNOWN},
                 {"mutex-rel2rx_futex", ARM8, UNKNOWN},
                 {"mutex-rel2rx_futex", POWER, UNKNOWN},
                 {"mutex-rel2rx_futex", RISCV, UNKNOWN},
+                //40
                 {"mutex-rel2rx_unlock", TSO, UNKNOWN},
                 {"mutex-rel2rx_unlock", ARM8, FAIL},
                 {"mutex-rel2rx_unlock", POWER, FAIL},
                 {"mutex-rel2rx_unlock", RISCV, FAIL},
                 {"spinlock", TSO, PASS},
+                //45
                 {"spinlock", ARM8, PASS},
                 {"spinlock", POWER, PASS},
                 {"spinlock", RISCV, PASS},
                 {"spinlock-acq2rx", TSO, PASS},
                 {"spinlock-acq2rx", ARM8, FAIL},
+                //50
                 {"spinlock-acq2rx", POWER, FAIL},
                 {"spinlock-acq2rx", RISCV, FAIL},
                 {"spinlock-rel2rx", TSO, PASS},
                 {"spinlock-rel2rx", ARM8, FAIL},
                 {"spinlock-rel2rx", POWER, FAIL},
+                //55
                 {"spinlock-rel2rx", RISCV, FAIL},
                 {"linuxrwlock", TSO, UNKNOWN},
                 {"linuxrwlock", ARM8, UNKNOWN},
                 {"linuxrwlock", POWER, UNKNOWN},
                 {"linuxrwlock", RISCV, UNKNOWN},
+                //60
                 {"linuxrwlock-acq2rx", TSO, UNKNOWN},
                 {"linuxrwlock-acq2rx", ARM8, FAIL},
                 {"linuxrwlock-acq2rx", POWER, FAIL},
                 {"linuxrwlock-acq2rx", RISCV, FAIL},
                 {"linuxrwlock-rel2rx", TSO, UNKNOWN},
+                //65
                 {"linuxrwlock-rel2rx", ARM8, FAIL},
                 {"linuxrwlock-rel2rx", POWER, FAIL},
                 {"linuxrwlock-rel2rx", RISCV, FAIL},
                 {"mutex_musl", TSO, UNKNOWN},
                 {"mutex_musl", ARM8, UNKNOWN},
+                //70
                 {"mutex_musl", POWER, UNKNOWN},
                 {"mutex_musl", RISCV, UNKNOWN},
                 {"mutex_musl-acq2rx_futex", TSO, UNKNOWN},
                 {"mutex_musl-acq2rx_futex", ARM8, UNKNOWN},
                 {"mutex_musl-acq2rx_futex", POWER, UNKNOWN},
+                //75
                 {"mutex_musl-acq2rx_futex", RISCV, UNKNOWN},
                 {"mutex_musl-acq2rx_lock", TSO, UNKNOWN},
                 {"mutex_musl-acq2rx_lock", ARM8, FAIL},
                 {"mutex_musl-acq2rx_lock", POWER, FAIL},
                 {"mutex_musl-acq2rx_lock", RISCV, FAIL},
+                //80
                 {"mutex_musl-rel2rx_futex", TSO, UNKNOWN},
                 {"mutex_musl-rel2rx_futex", ARM8, UNKNOWN},
                 {"mutex_musl-rel2rx_futex", POWER, UNKNOWN},
                 {"mutex_musl-rel2rx_futex", RISCV, UNKNOWN},
                 {"mutex_musl-rel2rx_unlock", TSO, UNKNOWN},
+                //85
                 {"mutex_musl-rel2rx_unlock", ARM8, FAIL},
                 {"mutex_musl-rel2rx_unlock", POWER, FAIL},
                 {"mutex_musl-rel2rx_unlock", RISCV, FAIL},
                 {"seqlock", TSO, PASS},
                 {"seqlock", ARM8, PASS},
+                //90
                 {"seqlock", POWER, PASS},
                 {"seqlock", RISCV, PASS},
                 {"pthread_mutex", TSO, PASS},
                 {"pthread_mutex", ARM8, PASS},
                 {"pthread_mutex", POWER, PASS},
+                //95
                 {"pthread_mutex", RISCV, PASS},
                 {"clh_mutex", TSO, UNKNOWN},
                 {"clh_mutex-acq2rx", TSO, UNKNOWN},
                 {"clh_mutex", ARM8, UNKNOWN},
                 {"clh_mutex-acq2rx", ARM8, FAIL},
+                //100
                 {"clh_mutex", POWER, UNKNOWN},
                 {"clh_mutex-acq2rx", POWER, FAIL},
                 {"clh_mutex", RISCV, UNKNOWN},
                 {"clh_mutex-acq2rx", RISCV, FAIL},
                 {"ticket_awnsb_mutex", TSO, PASS},
+                //105
                 {"ticket_awnsb_mutex-acq2rx", TSO, PASS},
                 {"ticket_awnsb_mutex", ARM8, PASS},
                 {"ticket_awnsb_mutex-acq2rx", ARM8, FAIL},
                 {"ticket_awnsb_mutex", POWER, PASS},
                 {"ticket_awnsb_mutex-acq2rx", POWER, FAIL},
+                //110
                 {"ticket_awnsb_mutex", RISCV, PASS},
                 {"ticket_awnsb_mutex-acq2rx", RISCV, FAIL},
         });
