@@ -83,9 +83,6 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
     private final Stats<Conjunction<CoreLiteral>> reasonStats = new Stats<>();
     private final Stats<Refiner.Conflict> conflictStats = new Stats<>();
     private final Stats<Relation> propagationStats = new Stats<>();
-    public int baseDecisions = 0;
-    public int nonBaseDecisions = 0;
-    private boolean activate = true;
 
     public Statistics getTotalStats() {
         return totalStats;
@@ -124,7 +121,6 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
         executionGraph.getCAATModel().getHierarchy().onPush();
         curStats.modelExtractionTime += System.currentTimeMillis() - curTime;
         //System.out.println("PUSH " + backtrackPoints.size());
-        activate = true;
 
         onlineCheck();
     }
@@ -190,7 +186,6 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
                 }
             }
 
-            boolean base = false;
             for (EdgeInfo edge : info.edges()) {
                 final Relation relInFullModel = refinementModel.translateToOriginal(edge.relation());
                 final SimpleGraph graph = (SimpleGraph) executionGraph.getRelationGraph(relInFullModel);
@@ -198,9 +193,6 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
                     propagationStats.track(relInFullModel);
                     int sourceId = domain.getId(edge.source());
                     int targetId = domain.getId(edge.target());
-                    if (relInFullModel.getName().equals("rf") || relInFullModel.getName().equals("co")) {
-                        base = true;
-                    }
                     if (sourceId < 0 || targetId < 0) {
                         pendingEdges.add(new PendingEdgeInfo(edge.relation(), edge.source(), edge.target(), backtrackPoints.size(), -1));
                     } else {
@@ -209,12 +201,6 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
                     }
                 }
             }
-            if (!base && activate) {
-                baseDecisions++;
-            } else if (activate) {
-                nonBaseDecisions++;
-            }
-            activate = false;
         }
 
         curStats.modelExtractionTime += System.currentTimeMillis() - curTime;
@@ -241,8 +227,6 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
     }
 
     private final Queue<Refiner.Conflict> openPropagations = new ArrayDeque<>();
-    private final Set<Refiner.Conflict> openPropagationsSet = new HashSet<>();
-    public int duplicateConflictCounter = 0;
 
     private void progressEdges() {
         List<PendingEdgeInfo> done = new ArrayList<>();
@@ -266,9 +250,7 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
     }
     private void progressPropagation() {
         if (!openPropagations.isEmpty()) {
-            Refiner.Conflict conflict = openPropagations.poll();
-            getBackend().propagateConsequence(new BooleanFormula[0], bmgr.not(conflict.toFormula(bmgr)));
-            conflictStats.track(conflict);
+            getBackend().propagateConsequence(new BooleanFormula[0], bmgr.not(openPropagations.poll().toFormula(bmgr)));
         }
     }
 
@@ -283,8 +265,8 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
         if (result.status == CAATSolver.Status.INCONSISTENT) {
             long curTime = System.currentTimeMillis();
             final List<Refiner.Conflict> conflicts = refiner.computeConflicts(result.coreReasons, encodingContext);
-            //result.coreReasons.getCubes().forEach(reason -> reasonStats.track(reason));
-            //conflicts.forEach(c -> conflictStats.track(c));
+            result.coreReasons.getCubes().forEach(reason -> reasonStats.track(reason));
+            conflicts.forEach(c -> conflictStats.track(c));
             /*if (conflicts.isEmpty()) {
                 int i = 5;
             }*/
@@ -296,14 +278,9 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
                         conflict.getVariables().stream().allMatch(partialModel::containsKey);
                 if (isConflict) {
                     getBackend().propagateConflict(conflict.getVariables().toArray(new BooleanFormula[0]));
-                    conflictStats.track(conflict);
                     isFirst = false;
                 } else {
-                    if (openPropagationsSet.add(conflict)) {
-                        openPropagations.add(conflict);
-                    } else {
-                        duplicateConflictCounter++;
-                    }
+                    openPropagations.add(conflict);
                 }
             }
             assert !isFirst;
