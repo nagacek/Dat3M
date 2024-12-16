@@ -40,7 +40,7 @@ public final class SimpleGraph extends AbstractBaseGraph {
     private HashMap<Integer, SimpleGraph.DataItem> outgoingOld = new HashMap<>();
     private HashMap<Integer, SimpleGraph.DataItem> ingoingOld = new HashMap<>();*/
 
-    //private final HashMap<Edge, Edge> edgeMap = new HashMap<>(100);
+    private final HashMap<Edge, Edge> edgeMap = new HashMap<>(100);
 
 
     @Override
@@ -131,31 +131,7 @@ public final class SimpleGraph extends AbstractBaseGraph {
     }
 
     public Edge get(Edge edge) {
-        int firstId = edge.getFirst();
-        int secondId = edge.getSecond();
-        if (outgoing.size() <= firstId || ingoing.size() <= secondId) {
-            return null;
-        }
-        DataItem item1 = outgoing.get(firstId);
-        DataItem item2 = ingoing.get(secondId);
-        if (item1 == null || item2 == null) {
-            return null;
-        }
-        if (item1.size() <= item2.size()) {
-            for (Edge e : item1) {
-                if (e.getSecond() == secondId) {
-                    return e;
-                }
-            }
-            return null;
-        } else {
-            for (Edge e : item2) {
-                if (e.getFirst() == firstId) {
-                    return e;
-                }
-            }
-            return null;
-        }
+        return edgeMap.get(edge);
     }
 
     @Override
@@ -240,6 +216,7 @@ public final class SimpleGraph extends AbstractBaseGraph {
 
 
         //validate();
+        edgeMap.put(e, e);
 
         return true;
     }
@@ -254,7 +231,7 @@ public final class SimpleGraph extends AbstractBaseGraph {
 
     public void clear() {
         maxTime = 0;
-        //edgeMap.clear();
+        edgeMap.clear();
         outgoing.clear();
         ingoing.clear();
 
@@ -407,7 +384,7 @@ public final class SimpleGraph extends AbstractBaseGraph {
                         edgeList.remove(i);
                         if (deleteFromMap) {
                             SimpleGraph.this.edgeCount--;
-                            //edgeMap.remove(e);
+                            edgeMap.remove(e);
                         }
                     } else {
                         newMaxTime = Math.max(e.getTime(), newMaxTime);
