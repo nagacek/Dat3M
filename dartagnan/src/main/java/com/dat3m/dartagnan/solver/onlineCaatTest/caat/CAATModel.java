@@ -76,7 +76,14 @@ public class CAATModel {
     // ======================================== Consistency ==============================================
 
     public List<Constraint> getViolatedConstraints() {
-        return constraints.stream().filter(Constraint::checkForViolations).collect(Collectors.toList());
+        LinkedList<Constraint> violatedConstraints = new LinkedList<>();
+        for (Constraint constraint : constraints) {
+            if (constraint.checkForViolations()) {
+                violatedConstraints.add(constraint);
+            }
+        }
+        return violatedConstraints;
+        //return constraints.stream().filter(Constraint::checkForViolations).collect(Collectors.toList());
     }
 
     public boolean checkInconsistency() {
