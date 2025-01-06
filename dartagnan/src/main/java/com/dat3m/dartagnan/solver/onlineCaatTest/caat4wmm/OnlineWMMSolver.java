@@ -6,28 +6,18 @@ import com.dat3m.dartagnan.program.event.Tag;
 import com.dat3m.dartagnan.solver.onlineCaatTest.Decoder;
 import com.dat3m.dartagnan.solver.onlineCaatTest.EdgeInfo;
 import com.dat3m.dartagnan.solver.onlineCaatTest.PendingEdgeInfo;
-import com.dat3m.dartagnan.solver.onlineCaatTest.caat.CAATModel;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.CAATSolver;
-import com.dat3m.dartagnan.solver.onlineCaatTest.caat.domain.Domain;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.domain.GenericDomain;
-import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.CAATPredicate;
-import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.PredicateHierarchy;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.Edge;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.RelationGraph;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.base.SimpleGraph;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.reasoning.CAATLiteral;
-import com.dat3m.dartagnan.solver.onlineCaatTest.caat4wmm.ExecutionGraph;
-import com.dat3m.dartagnan.solver.onlineCaatTest.caat4wmm.RefinementModel;
-import com.dat3m.dartagnan.solver.onlineCaatTest.caat4wmm.Refiner;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat4wmm.coreReasoning.CoreLiteral;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat4wmm.coreReasoning.CoreReasoner;
 import com.dat3m.dartagnan.utils.logic.Conjunction;
 import com.dat3m.dartagnan.utils.logic.DNF;
 import com.dat3m.dartagnan.verification.Context;
 import com.dat3m.dartagnan.wmm.Relation;
-import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
-import com.google.common.collect.BiMap;
-import io.github.cvc5.Stat;
 import org.sosy_lab.java_smt.api.BooleanFormula;
 import org.sosy_lab.java_smt.api.BooleanFormulaManager;
 import org.sosy_lab.java_smt.api.PropagatorBackend;
@@ -88,6 +78,7 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
     private final Map<BooleanFormula, Boolean> partialModel = new HashMap<>();
     private final Set<BooleanFormula> trueValues = new HashSet<>();
     private final GenericDomain<Event> domain = new GenericDomain<>();
+    private final Map<RelationGraph, List<Edge>> batchEdges = new HashMap<>();
 
 
 
@@ -104,6 +95,8 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
 
     @Override
     public void onPush() {
+        processBatchEdges(backtrackPoints.size());
+
         backtrackPoints.push(knownValues.size());
         domain.push();
         long curTime = System.currentTimeMillis();
@@ -116,6 +109,7 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
 
     @Override
     public void onPop(int numLevels) {
+
         long curTime = System.currentTimeMillis();
         int oldDomainSize = domain.size();
         int oldTime = backtrackPoints.size();
@@ -133,6 +127,8 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
             popLevels--;
             backtrackKnownValuesTo = backtrackPoints.pop();
         }
+
+        processBatchEdges(backtrackPoints.size());
 
         executionGraph.backtrackTo(backtrackPoints.size());
         backtrackEdgesTo(backtrackPoints.size());
@@ -159,7 +155,8 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
         long curTime = System.currentTimeMillis();
         knownValues.push(expr);
         partialModel.put(expr, value);
-        progressEdges();
+        // moved to onPush/onPop for batch processing
+        //progressEdges();
         if (value) {
             trueValues.add(expr);
 
@@ -183,7 +180,10 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
                         pendingEdges.add(new PendingEdgeInfo(edge.relation(), edge.source(), edge.target(), backtrackPoints.size(), -1));
                     } else {
                         Edge e = new Edge(sourceId, targetId).withTime(backtrackPoints.size());
-                        executionGraph.getCAATModel().getHierarchy().addAndPropagate(graph, Collections.singleton(e));
+                        List<Edge> graphBatch = batchEdges.computeIfAbsent(graph, g -> new ArrayList<>());
+                        graphBatch.add(e);
+                        // moved to onPush/onPop for batch processing
+                        //executionGraph.getCAATModel().getHierarchy().addAndPropagate(graph, Collections.singleton(e));
                     }
                 }
             }
@@ -193,6 +193,17 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
         curTime = System.currentTimeMillis();
         progressPropagation();
         curStats.refinementTime += System.currentTimeMillis() - curTime;
+    }
+
+    private void processBatchEdges(int time) {
+        for (var batch : batchEdges.entrySet()) {
+            if (batch.getValue().get(0).getTime() > time) {
+                break;
+            }
+            executionGraph.getCAATModel().getHierarchy().addAndPropagate(batch.getKey(), batch.getValue());
+        }
+        batchEdges.clear();
+        progressEdges();
     }
 
 
@@ -313,6 +324,8 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
 
     @Override
     public void onFinalCheck() {
+        processBatchEdges(backtrackPoints.size());
+
         Result result = onlineCheck();
 
         totalStats.add(curStats);
