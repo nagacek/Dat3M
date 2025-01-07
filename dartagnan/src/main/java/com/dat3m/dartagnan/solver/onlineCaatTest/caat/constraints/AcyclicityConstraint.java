@@ -27,6 +27,7 @@ public class AcyclicityConstraint extends AbstractConstraint {
     private final List<DenseIntegerSet> violatingSccs = new ArrayList<>();
     private final MediumDenseIntegerSet markedNodes = new MediumDenseIntegerSet();
     private ArrayList<Node> nodeMap = new ArrayList<>();
+    private boolean noChanges = true;
 
     public AcyclicityConstraint(RelationGraph constrainedGraph) {
         this.constrainedGraph = constrainedGraph;
@@ -41,7 +42,7 @@ public class AcyclicityConstraint extends AbstractConstraint {
     public boolean checkForViolations() {
         if (!violatingSccs.isEmpty()) {
             return true;
-        } else if (markedNodes.isEmpty()) {
+        } else if (noChanges) {
             return false;
         }
         ensureCapacity();
@@ -49,7 +50,7 @@ public class AcyclicityConstraint extends AbstractConstraint {
         tarjan();
         violatingSccs.sort(Comparator.comparingInt(Set::size));
         if (violatingSccs.isEmpty()) {
-            markedNodes.clear();
+            noChanges = true;
         }
         return !violatingSccs.isEmpty();
     }
@@ -157,7 +158,9 @@ public class AcyclicityConstraint extends AbstractConstraint {
     public void onChanged(CAATPredicate predicate, Collection<? extends Derivable> added) {
         for (Edge e : (Collection<Edge>)added) {
             markedNodes.ensureCapacity(e.getFirst() + 1);
-            markedNodes.add(e.getFirst());
+            if (markedNodes.add(e.getFirst())) {
+                noChanges = false;
+            }
         }
     }
 
@@ -171,6 +174,7 @@ public class AcyclicityConstraint extends AbstractConstraint {
     public void onBacktrack(CAATPredicate predicate, int time) {
         //cancelChanges();
         markedNodes.resetToLevel((short)time);
+        noChanges = false;
 
         //System.out.println("\nMarked Nodes on Backtrack in Constraint " + thisCounter + ": ");
         //System.out.println(markedNodes);
@@ -208,6 +212,7 @@ public class AcyclicityConstraint extends AbstractConstraint {
     private final Deque<Node> stack = new ArrayDeque<>();
     private int index = 0;
     private void tarjan() {
+
         index = 0;
         stack.clear();
 
