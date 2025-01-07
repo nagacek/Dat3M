@@ -1,13 +1,13 @@
 package com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.derived;
 
 
-import com.dat3m.dartagnan.solver.caat.misc.EdgeDirection;
-import com.dat3m.dartagnan.solver.caat.predicates.AbstractPredicate;
-import com.dat3m.dartagnan.solver.caat.predicates.CAATPredicate;
-import com.dat3m.dartagnan.solver.caat.predicates.Derivable;
-import com.dat3m.dartagnan.solver.caat.predicates.misc.PredicateVisitor;
-import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.Edge;
-import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.RelationGraph;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.misc.EdgeDirection;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.AbstractPredicate;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.CAATPredicate;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.Derivable;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.misc.PredicateVisitor;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.Edge;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.RelationGraph;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -32,6 +32,11 @@ public class ReflexiveClosureGraph extends AbstractPredicate implements Relation
     @Override
     public Edge get(Edge edge) {
         return edge.isLoop() ? edge.with(0, 0) : inner.get(edge);
+    }
+
+    @Override
+    public Edge weakGet(Edge edge) {
+        return edge.isLoop() ? edge.with(0, 0) : inner.weakGet(edge);
     }
 
     @Override
@@ -88,6 +93,11 @@ public class ReflexiveClosureGraph extends AbstractPredicate implements Relation
     }
 
     @Override
+    public void addBones(Collection<? extends Derivable> bones) {
+        inner.addBones(bones);
+    }
+
+    @Override
     public <TRet, TData, TContext> TRet accept(PredicateVisitor<TRet, TData, TContext> visitor, TData data, TContext context) {
         return visitor.visitReflexiveClosure(this, data, context);
     }
@@ -109,6 +119,21 @@ public class ReflexiveClosureGraph extends AbstractPredicate implements Relation
         return Stream.concat(
                 Stream.of(new Edge(e, e)),
                 inner.edgeStream(e, dir).filter(edge -> !edge.isLoop())
+        );
+    }
+
+    @Override
+    public Stream<Edge> weakEdgeStream() {
+        return IntStream.range(0, domain.size())
+                .mapToObj(e -> weakEdgeStream(e, EdgeDirection.OUTGOING))
+                .flatMap(s -> s);
+    }
+
+    @Override
+    public Stream<Edge> weakEdgeStream(int e, EdgeDirection dir) {
+        return Stream.concat(
+                Stream.of(new Edge(e, e)),
+                inner.weakEdgeStream(e, dir).filter(edge -> !edge.isLoop())
         );
     }
 

@@ -30,6 +30,9 @@ public abstract class MaterializedGraph extends AbstractPredicate implements Rel
     }
 
     @Override
+    public Edge weakGet(Edge edge) { return simpleGraph.weakGet(edge); }
+
+    @Override
     public boolean containsById(int a, int b) {
         return simpleGraph.containsById(a, b);
     }
@@ -37,6 +40,11 @@ public abstract class MaterializedGraph extends AbstractPredicate implements Rel
     @Override
     public boolean contains(Edge edge) {
         return simpleGraph.contains(edge);
+    }
+
+    @Override
+    public void addBones(Collection<? extends Derivable> bones) {
+        simpleGraph.addBones(bones);
     }
 
     @Override
@@ -86,8 +94,18 @@ public abstract class MaterializedGraph extends AbstractPredicate implements Rel
     }
 
     @Override
+    public Stream<Edge> weakEdgeStream() {
+        return simpleGraph.weakEdgeStream();
+    }
+
+    @Override
     public Stream<Edge> edgeStream(int e, EdgeDirection dir) {
         return simpleGraph.edgeStream(e, dir);
+    }
+
+    @Override
+    public Stream<Edge> weakEdgeStream(int e, EdgeDirection dir) {
+        return simpleGraph.weakEdgeStream(e, dir);
     }
 
     @Override
@@ -116,6 +134,11 @@ public abstract class MaterializedGraph extends AbstractPredicate implements Rel
     @Override
     public boolean isEmpty() {
         return simpleGraph.isEmpty();
+    }
+
+    @Override
+    public void validate(int time) {
+        simpleGraph.validate(time);
     }
 
 }

@@ -1,19 +1,32 @@
 package com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs;
 
 
+import com.dat3m.dartagnan.program.event.Backtrackable;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.AbstractDerivable;
 
-public class Edge extends AbstractDerivable implements Comparable<Edge> {
+public class Edge extends AbstractDerivable implements Comparable<Edge>, Backtrackable {
+
     protected final int dId1;
     protected final int dId2;
+
 
     public int getFirst() { return dId1; }
     public int getSecond() { return dId2; }
 
-    public Edge(int id1, int id2, int time, int derivLength) {
-        super(time, derivLength);
+    public Edge(int id1, int id2, int time, int derivLength, boolean isBone, boolean isActive) {
+        super(time, derivLength, isBone, isActive);
         this.dId1 = id1;
         this.dId2 = id2;
+    }
+
+    public Edge(int id1, int id2, int time, int derivLength, boolean isBone) {
+        super(time, derivLength, isBone);
+        this.dId1 = id1;
+        this.dId2 = id2;
+    }
+
+    public Edge(int id1, int id2, int time, int derivLength) {
+        this(id1, id2, time, derivLength, false);
     }
 
     public Edge(int id1, int id2) {
@@ -22,15 +35,27 @@ public class Edge extends AbstractDerivable implements Comparable<Edge> {
 
 
     @Override
-    public Edge with(int time, int derivationLength) { return new Edge(dId1, dId2, time, derivationLength); }
+    public Edge with(int time, int derivationLength) { return new Edge(dId1, dId2, time, derivationLength, isBone(), isActive()); }
     @Override
     public Edge withTime(int time) { return with(time, derivLength); }
     @Override
     public Edge withDerivationLength(int derivationLength) { return with(time, derivationLength); }
-
+    @Override
+    public Edge asBone() { return new Edge(dId1, dId2, time, derivLength, true); }
 
     public boolean isLoop() { return dId1 == dId2; }
     public Edge inverse() { return new Edge(dId2, dId1, time, derivLength); }
+
+
+    @Override
+    public boolean backtrack() {
+        if (isBone()) {
+            setActive(false);
+            return false;
+        } else {
+            return true;
+        }
+    }
 
     @Override
     public int compareTo(Edge o) {
@@ -64,4 +89,5 @@ public class Edge extends AbstractDerivable implements Comparable<Edge> {
     public String toString() {
         return "(" + dId1 + "," + dId2 + ")";
     }
+
 }

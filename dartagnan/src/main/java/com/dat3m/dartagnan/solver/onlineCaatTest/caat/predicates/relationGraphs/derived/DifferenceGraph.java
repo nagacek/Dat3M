@@ -42,6 +42,9 @@ public class DifferenceGraph extends AbstractPredicate implements RelationGraph 
     }
 
     @Override
+    public Edge weakGet(Edge edge) { return get(edge); }
+
+    @Override
     public boolean contains(Edge edge) {
         return first.contains(edge) && !second.contains(edge);
     }
@@ -82,9 +85,15 @@ public class DifferenceGraph extends AbstractPredicate implements RelationGraph 
     }
 
     @Override
+    public Stream<Edge> weakEdgeStream() { return edgeStream(); }
+
+    @Override
     public Stream<Edge> edgeStream(int e, EdgeDirection dir) {
         return first.edgeStream(e, dir).filter(edge -> !second.contains(edge));
     }
+
+    @Override
+    public Stream<Edge> weakEdgeStream(int e, EdgeDirection dir) { return edgeStream(e, dir); }
 
     @Override
     @SuppressWarnings("unchecked")
@@ -98,6 +107,9 @@ public class DifferenceGraph extends AbstractPredicate implements RelationGraph 
             return Collections.emptyList();
         }
     }
+
+    @Override
+    public void addBones(Collection<? extends Derivable> bones) { }
 
     @Override
     public void backtrackTo(int time) { }

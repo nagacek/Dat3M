@@ -2,9 +2,11 @@ package com.dat3m.dartagnan.solver.onlineCaatTest.caat4wmm.basePredicates;
 
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.domain.Domain;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.misc.EdgeDirection;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.Derivable;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.Edge;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.base.SimpleGraph;
 
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.stream.Stream;
 
@@ -24,6 +26,15 @@ public abstract class MaterializedWMMGraph extends AbstractWMMGraph {
     @Override
     public Edge get(Edge edge) {
         return simpleGraph.get(edge);
+    }
+
+    @Override
+    public Edge weakGet(Edge edge) { return simpleGraph.weakGet(edge); }
+
+    // TODO: is this useful? they are static edges, aren't they?
+    @Override
+    public void addBones(Collection<? extends Derivable> bones) {
+        simpleGraph.addBones(bones);
     }
 
     @Override
@@ -83,8 +94,18 @@ public abstract class MaterializedWMMGraph extends AbstractWMMGraph {
     }
 
     @Override
+    public Stream<Edge> weakEdgeStream() {
+        return simpleGraph.weakEdgeStream();
+    }
+
+    @Override
     public Stream<Edge> edgeStream(int e, EdgeDirection dir) {
         return simpleGraph.edgeStream(e, dir);
+    }
+
+    @Override
+    public Stream<Edge> weakEdgeStream(int e, EdgeDirection dir) {
+        return simpleGraph.weakEdgeStream(e, dir);
     }
 
     @Override

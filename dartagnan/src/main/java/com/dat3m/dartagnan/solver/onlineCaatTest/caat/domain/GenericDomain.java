@@ -1,13 +1,15 @@
 package com.dat3m.dartagnan.solver.onlineCaatTest.caat.domain;
 
+import com.dat3m.dartagnan.program.event.Backtrackable;
 import com.dat3m.dartagnan.program.event.Event;
+import java.util.function.Function;
 
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Set;
 import java.util.TreeMap;
 
-public class GenericDomain<T> implements Domain<T> {
+public class GenericDomain<T extends Backtrackable> implements Domain<T> {
 
     private final DenseIdBiMap<T> domainMap;
 
@@ -25,6 +27,14 @@ public class GenericDomain<T> implements Domain<T> {
     // returns smallest unoccupied id
     public int resetElements(int clusterNum) {
         return domainMap.removeObjectsFromTop(clusterNum);
+    }
+
+    public int removeElement(T element, Function<T, Boolean> cb) {
+        return domainMap.removeObject(element, cb);
+    }
+
+    public int removeElement(T element) {
+        return domainMap.removeObject(element, t -> true);
     }
 
     @Override

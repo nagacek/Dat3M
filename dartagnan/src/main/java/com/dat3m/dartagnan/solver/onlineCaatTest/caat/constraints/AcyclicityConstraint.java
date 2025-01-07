@@ -23,6 +23,8 @@ public class AcyclicityConstraint extends AbstractConstraint {
     private static final ObjectPool<DenseIntegerSet> SET_COLLECTION_POOL =
             new ObjectPool<>(DenseIntegerSet::new, 10);
 
+    private static final int MAX_OVERSHOOT = 2;
+
 
     private final List<DenseIntegerSet> violatingSccs = new ArrayList<>();
     private final MediumDenseIntegerSet markedNodes = new MediumDenseIntegerSet();

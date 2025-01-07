@@ -1,18 +1,20 @@
 package com.dat3m.dartagnan.solver.onlineCaatTest.caat.domain;
 
 
+import com.dat3m.dartagnan.program.event.Backtrackable;
 import com.google.common.base.Preconditions;
 
 import java.util.*;
+import java.util.function.Function;
 
 /*
     This class is intended to map some domain D into a dense range of ids [0, ..., |D| - 1].
  */
-public class DenseIdBiMap<T> {
+public class DenseIdBiMap<T extends Backtrackable> {
 
     private final Map<T, Integer> objToIdMap;
     private List<T> idToObjMap;
-    private final ArrayList<Integer> backtrackPoints;
+    private final Stack<Integer> backtrackPoints;
 
     @SuppressWarnings("unchecked")
     private DenseIdBiMap(int expectedMaxId, Map<T, Integer> objToIdMap) {
@@ -21,20 +23,20 @@ public class DenseIdBiMap<T> {
 
         this.objToIdMap = objToIdMap;
         this.idToObjMap = new ArrayList<>(expectedMaxId);
-        this.backtrackPoints = new ArrayList<>(expectedMaxId);
+        this.backtrackPoints = new Stack<>();
     }
 
     public DenseIdBiMap() {
         this.objToIdMap = new HashMap<>();
         this.idToObjMap = new ArrayList<>();
-        this.backtrackPoints = new ArrayList<>();
+        this.backtrackPoints = new Stack<>();
     }
 
-    public static <V> DenseIdBiMap<V> createHashBased(int expectedMaxId) {
+    public static <V extends Backtrackable> DenseIdBiMap<V> createHashBased(int expectedMaxId) {
         return new DenseIdBiMap<>(expectedMaxId, new HashMap<>(4 * expectedMaxId / 3));
     }
 
-    public static <V> DenseIdBiMap<V> createIdentityBased(int expectedMaxId) {
+    public static <V extends Backtrackable> DenseIdBiMap<V> createIdentityBased(int expectedMaxId) {
         return new DenseIdBiMap<>(expectedMaxId, new IdentityHashMap<>(4 * expectedMaxId / 3));
     }
 
@@ -44,12 +46,12 @@ public class DenseIdBiMap<T> {
 
     public int push() {
         int level = size();
-        backtrackPoints.add(level);
-        return level;
+        backtrackPoints.push(level);
+        return backtrackPoints.size();
     }
 
     public int addObject(T obj) {
-        final int nextId = size();
+        final int nextId = absoluteSize();
         if (objToIdMap.putIfAbsent(obj, nextId) == null) {
             idToObjMap.add(obj);
             assert(idToObjMap.get(nextId).equals(obj));
@@ -59,13 +61,28 @@ public class DenseIdBiMap<T> {
         }
     }
 
+    public int removeObject(T obj, Function<T, Boolean> cb) {
+        int id = getId(obj);
+        if (id < 0) {
+            return -1;
+        }
+        T internalObj = getObject(id);
+        if (cb.apply(internalObj)) {
+            idToObjMap.remove(id);
+            objToIdMap.remove(internalObj);
+        } else {
+            objToIdMap.put(internalObj, id);
+        }
+        return id;
+    }
+
     public int removeObjectsFromTop(int number) {
         if (number > backtrackPoints.size() || number <= 0) {
             return -1;
         }
         int level = -1;
         for (int i = 0; i < number; i++) {
-            level = backtrackPoints.remove(backtrackPoints.size() - 1);
+            level = backtrackPoints.pop();
             for(int size = size() - 1; size >= level; size--) {
                 T obj = getObject(size);
                 objToIdMap.remove(obj);
@@ -89,6 +106,10 @@ public class DenseIdBiMap<T> {
     public int size() {
         return idToObjMap.size();
     }
+    public int absoluteSize() {
+        return objToIdMap.size();
+    }
+
 
     public void clear() {
         idToObjMap.clear();

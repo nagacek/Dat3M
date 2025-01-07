@@ -3,15 +3,16 @@ package com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.misc.EdgeDirection;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.CAATPredicate;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.Derivable;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.PredicateHierarchy;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.Edge;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Stream;
 
 public class EmptyGraph extends AbstractBaseGraph {
+
+    @Override
+    public void validate (int time) {}
 
     @Override
     public void backtrackTo(int time) { }
@@ -21,8 +22,15 @@ public class EmptyGraph extends AbstractBaseGraph {
         return Collections.emptyList();
     }
 
+
+    @Override
+    public void addBones(Collection<? extends Derivable> bones) {}
+
     @Override
     public Edge get(Edge edge) { return null; }
+
+    @Override
+    public Edge weakGet(Edge edge) { return null; }
 
     @Override
     public Edge get(Derivable value) { return null; }
@@ -59,11 +67,20 @@ public class EmptyGraph extends AbstractBaseGraph {
     public Iterable<Edge> edges() { return Collections.emptyList(); }
 
     @Override
+    public Iterable<Edge> weakEdges() { return Collections.emptyList(); }
+
+    @Override
     public Iterable<Edge> edges(int e, EdgeDirection dir) { return Collections.emptyList(); }
 
     @Override
     public Stream<Edge> edgeStream() { return Stream.empty(); }
 
     @Override
+    public Stream<Edge> weakEdgeStream() { return Stream.empty(); }
+
+    @Override
     public Stream<Edge> edgeStream(int e, EdgeDirection dir) { return Stream.empty(); }
+
+    @Override
+    public Stream<Edge> weakEdgeStream(int e, EdgeDirection dir) { return Stream.empty(); }
 }

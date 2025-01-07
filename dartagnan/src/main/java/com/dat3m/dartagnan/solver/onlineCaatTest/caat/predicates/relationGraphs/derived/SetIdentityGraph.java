@@ -1,14 +1,15 @@
 package com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.derived;
 
-import com.dat3m.dartagnan.solver.caat.misc.EdgeDirection;
-import com.dat3m.dartagnan.solver.caat.predicates.AbstractPredicate;
-import com.dat3m.dartagnan.solver.caat.predicates.CAATPredicate;
-import com.dat3m.dartagnan.solver.caat.predicates.Derivable;
-import com.dat3m.dartagnan.solver.caat.predicates.misc.PredicateVisitor;
-import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.Edge;
-import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.RelationGraph;
-import com.dat3m.dartagnan.solver.caat.predicates.sets.Element;
-import com.dat3m.dartagnan.solver.caat.predicates.sets.SetPredicate;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.misc.EdgeDirection;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.AbstractPredicate;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.CAATPredicate;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.Derivable;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.PredicateHierarchy;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.misc.PredicateVisitor;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.Edge;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.RelationGraph;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.sets.Element;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.sets.SetPredicate;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -49,6 +50,11 @@ public class SetIdentityGraph extends AbstractPredicate implements RelationGraph
     }
 
     @Override
+    public void addBones(Collection<? extends Derivable> bones) {
+
+    }
+
+    @Override
     public Edge get(Edge edge) {
         if (edge.isLoop()) {
             Element e = inner.getById(edge.getFirst());
@@ -56,6 +62,11 @@ public class SetIdentityGraph extends AbstractPredicate implements RelationGraph
         } else {
             return null;
         }
+    }
+
+    @Override
+    public Edge weakGet(Edge edge) {
+        return get(edge);
     }
 
     @Override
@@ -90,5 +101,15 @@ public class SetIdentityGraph extends AbstractPredicate implements RelationGraph
     public Stream<Edge> edgeStream(int id, EdgeDirection dir) {
         Element e = inner.getById(id);
         return e != null ? Stream.of(derive(e)) : Stream.empty();
+    }
+
+    @Override
+    public Stream<Edge> weakEdgeStream() {
+        return edgeStream();
+    }
+
+    @Override
+    public Stream<Edge> weakEdgeStream(int e, EdgeDirection dir) {
+        return edgeStream(e, dir);
     }
 }

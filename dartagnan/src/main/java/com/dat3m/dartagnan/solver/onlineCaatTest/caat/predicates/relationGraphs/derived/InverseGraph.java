@@ -36,6 +36,9 @@ public class InverseGraph extends AbstractPredicate implements RelationGraph {
     }
 
     @Override
+    public Edge weakGet(Edge edge) { return get(edge); }
+
+    @Override
     public int size(int e, EdgeDirection dir) {
         return 0;
     }
@@ -82,7 +85,7 @@ public class InverseGraph extends AbstractPredicate implements RelationGraph {
 
 
     private Edge derive(Edge e) {
-        return new Edge(e.getSecond(), e.getFirst(), e.getTime(), e.getDerivationLength() + 1);
+        return new Edge(e.getSecond(), e.getFirst(), e.getTime(), e.getDerivationLength() + 1, e.isBone(), e.isActive());
     }
 
     @Override
@@ -91,8 +94,18 @@ public class InverseGraph extends AbstractPredicate implements RelationGraph {
     }
 
     @Override
+    public Stream<Edge> weakEdgeStream() {
+        return inner.weakEdgeStream().map(this::derive);
+    }
+
+    @Override
     public Stream<Edge> edgeStream(int e, EdgeDirection dir) {
         return inner.edgeStream(e, dir.flip()).map(this::derive);
+    }
+
+    @Override
+    public Stream<Edge> weakEdgeStream(int e, EdgeDirection dir) {
+        return inner.weakEdgeStream(e, dir.flip()).map(this::derive);
     }
 
     @Override
@@ -114,6 +127,9 @@ public class InverseGraph extends AbstractPredicate implements RelationGraph {
             return Collections.emptyList();
         }
     }
+
+    @Override
+    public void addBones(Collection<? extends Derivable> bones) { }
 
 
     @Override

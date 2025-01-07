@@ -3,6 +3,7 @@ package com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.misc.EdgeDirection;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.misc.EdgeList;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.Derivable;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.PredicateHierarchy;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.Edge;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.domain.Domain;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.CAATPredicate;
@@ -10,7 +11,7 @@ import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.base.AbstractBaseGraph;
 
 import java.util.*;
-import java.util.stream.Collectors;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 
 
@@ -127,10 +128,42 @@ public final class SimpleGraph extends AbstractBaseGraph {
 
     public Collection<Edge> getEdges(int e, EdgeDirection dir) {
         DataItem item = getItem(e, dir);
-        return item == null ? Collections.emptyList() : item.edgeList;
+        return item == null ? Collections.emptyList() : item.stream().toList();
     }
 
     public Edge get(Edge edge) {
+        Edge returnEdge = weakGet(edge);
+        return returnEdge != null && returnEdge.isActive() ? returnEdge : null;
+    }
+
+    public Edge weakGet(Edge edge) {
+        /*int firstId = edge.getFirst();
+        int secondId = edge.getSecond();
+        if (outgoing.size() <= firstId || ingoing.size() <= secondId) {
+            return null;
+        }
+        DataItem item1 = outgoing.get(firstId);
+        DataItem item2 = ingoing.get(secondId);
+        if (item1 == null || item2 == null) {
+            return null;
+        }
+        if (item1.size() <= item2.size()) {
+            for (Iterator<Edge> it = item1.weakIterator(); it.hasNext(); ) {
+                Edge next = it.next();
+                if (next.getSecond() == secondId) {
+                    return next;
+                }
+            }
+            return null;
+        } else {
+            for (Iterator<Edge> it = item2.weakIterator(); it.hasNext();) {
+                Edge next = it.next();
+                if (next.getFirst() == firstId) {
+                    return next;
+                }
+            }
+            return null;
+        }*/
         return edgeMap.get(edge);
     }
 
@@ -149,8 +182,22 @@ public final class SimpleGraph extends AbstractBaseGraph {
         return get(e) != null;
     }
 
+    public void addBones(Collection<? extends Derivable> bones) {
+        for (Edge bone : (Collection<Edge>) bones) {
+            assert(bone.isBone());
+            if (weakGet(bone) == null) {
+                add(bone);
+            }
+        }
+    }
+
     public boolean add(Edge e) {
-        if (contains(e)) {
+        assert(!(!e.isBone() && !e.isActive()));
+        boolean weak = e.isBone() && !e.isActive();
+
+        Edge edge = weakGet(e);
+
+        if (edge != null && edge.isActive()) {
             return false;
         }
 
@@ -160,51 +207,70 @@ public final class SimpleGraph extends AbstractBaseGraph {
         }*/
 
         //System.out.println("***********");
+        if (edge != null && edge.isBone()) {
+            if (!weak) {
+                edge.setActive(true, e.getDerivationLength(), e.getTime());
+                maxTime = Math.max(maxTime, e.getTime());
+                outgoing.get(edge.getFirst()).updateMaxTime(e.getTime());
+                outgoing.get(edge.getFirst()).increaseCount();
+                ingoing.get(edge.getSecond()).updateMaxTime(e.getTime());
+                ingoing.get(edge.getSecond()).increaseCount();
+            } else {
+                return false;
+            }
+        } else {
+
+            int firstId = e.getFirst();
+            int secondId = e.getSecond();
+            maxTime = Math.max(maxTime, e.getTime());
+
+            if (outgoing.size() <= firstId) {
+                //System.out.println("Resize OUT-GRAPH " + thisCount + " from " + outgoing.size() + " to " + (firstId+1));
+                outgoing.ensureCapacity(firstId + 1);
+                while (outgoing.size() <= firstId) {
+                    outgoing.add(null);
+                }
+            }
+            DataItem item1;
+            if (outgoing.get(firstId) == null) {
+                outgoing.remove(firstId);
+                item1 = new DataItem(true);
+                outgoing.add(firstId, item1);
+            } else {
+                item1 = outgoing.get(firstId);
+            }
+            item1.add(e);
+
+            if (ingoing.size() <= secondId) {
+                //System.out.println("Resize IN-GRAPH " + thisCount + " from " + ingoing.size() + " to " + (secondId+1));
+                ingoing.ensureCapacity(secondId + 1);
+                while (ingoing.size() <= secondId) {
+                    ingoing.add(null);
+                }
+            }
+            DataItem item2;
+            if (ingoing.get(secondId) == null) {
+                ingoing.remove(secondId);
+                item2 = new DataItem(false);
+                ingoing.add(secondId, item2);
+            } else {
+                item2 = ingoing.get(secondId);
+            }
+            item2.add(e);
+            edgeMap.put(e, e);
+        }
+
 
         int firstId = e.getFirst();
         int secondId = e.getSecond();
-        maxTime = Math.max(maxTime, e.getTime());
-
-        if (outgoing.size() <= firstId) {
-            //System.out.println("Resize OUT-GRAPH " + thisCount + " from " + outgoing.size() + " to " + (firstId+1));
-            outgoing.ensureCapacity(firstId + 1);
-            while (outgoing.size() <= firstId) {
-                outgoing.add(null);
-            }
-        }
-        DataItem item1;
-        if (outgoing.get(firstId) == null) {
-            outgoing.remove(firstId);
-            item1 = new DataItem(true);
-            outgoing.add(firstId, item1);
-        } else {
-            item1 = outgoing.get(firstId);
-        }
-        item1.add(e);
-
-        if (ingoing.size() <= secondId) {
-            //System.out.println("Resize IN-GRAPH " + thisCount + " from " + ingoing.size() + " to " + (secondId+1));
-            ingoing.ensureCapacity(secondId + 1);
-            while (ingoing.size() <= secondId) {
-                ingoing.add(null);
-            }
-        }
-        DataItem item2;
-        if (ingoing.get(secondId) == null) {
-            ingoing.remove(secondId);
-            item2 = new DataItem(false);
-            ingoing.add(secondId, item2);
-        } else {
-            item2 = ingoing.get(secondId);
-        }
-        item2.add(e);
-
         if (numEvents <= Math.max(firstId, secondId)) {
             numEvents = Math.max(firstId, secondId) + 1;
         }
 
-        maxTime = Math.max(maxTime, e.getTime());
-        edgeCount++;
+        if (!weak) {
+            maxTime = Math.max(maxTime, e.getTime());
+            edgeCount++;
+        }
 
         /*outgoingOld.putIfAbsent(firstId, new SimpleGraph.DataItem(false));
         SimpleGraph.DataItem item1Old = outgoingOld.get(firstId);
@@ -216,7 +282,6 @@ public final class SimpleGraph extends AbstractBaseGraph {
 
 
         //validate();
-        edgeMap.put(e, e);
 
         return true;
     }
@@ -229,6 +294,7 @@ public final class SimpleGraph extends AbstractBaseGraph {
         return changed;
     }
 
+    // does not preserve skeleton
     public void clear() {
         maxTime = 0;
         edgeMap.clear();
@@ -237,6 +303,13 @@ public final class SimpleGraph extends AbstractBaseGraph {
 
         /*outgoingOld.clear();
         ingoingOld.clear();*/
+    }
+
+    @Override
+    public void validate(int time) {
+        for (Edge e : edgeMap.values()) {
+            assert(!e.isActive() || e.getTime() <= time);
+        }
     }
 
     /*@Override
@@ -275,7 +348,7 @@ public final class SimpleGraph extends AbstractBaseGraph {
 
     public Stream<Edge> edgeInStream() {
         return ingoing.stream()
-                .filter(item -> item != null && !item.isEmpty())
+                .filter(item -> item != null && !item.weakIsEmpty())
                 .flatMap(DataItem::stream);
     }
 
@@ -294,14 +367,27 @@ public final class SimpleGraph extends AbstractBaseGraph {
     @Override
     public Stream<Edge> edgeStream() {
         return outgoing.stream()
-                .filter(item -> item != null && !item.isEmpty())
+                .filter(item -> item != null && !item.weakIsEmpty())
                 .flatMap(DataItem::stream);
+    }
+
+    @Override
+    public Stream<Edge> weakEdgeStream() {
+        return outgoing.stream()
+                .filter(item -> item != null && !item.weakIsEmpty())
+                .flatMap(DataItem::weakStream);
     }
 
     @Override
     public Stream<Edge> edgeStream(int e, EdgeDirection dir) {
         DataItem item = getItem(e, dir);
         return item == null ? Stream.empty() : item.stream();
+    }
+
+    @Override
+    public Stream<Edge> weakEdgeStream(int e, EdgeDirection dir) {
+        DataItem item = getItem(e, dir);
+        return item == null ? Stream.empty() : item.weakStream();
     }
 
     @Override
@@ -333,33 +419,55 @@ public final class SimpleGraph extends AbstractBaseGraph {
         final List<Edge> edgeList;
         final boolean deleteFromMap;
         int maxTime;
+        int innerEdgeCount;
 
         public DataItem(boolean deleteFromMap) {
             edgeList = new EdgeList(20);
             this.deleteFromMap = deleteFromMap;
             maxTime = 0;
+            innerEdgeCount = 0;
         }
 
         public int size() {
-            return edgeList.size();
+            return innerEdgeCount;
         }
 
-        public boolean isEmpty() {
+        public int weakSize() { return edgeList.size(); }
+
+        public boolean weakIsEmpty() {
             return edgeList.isEmpty();
         }
 
         public boolean add(Edge e) {
             edgeList.add(e);
             maxTime = Math.max(maxTime, e.getTime());
+            if (e.isActive()) {
+                innerEdgeCount++;
+            }
             return true;
+        }
+
+        public void increaseCount() {
+            innerEdgeCount++;
+        }
+
+        public void updateMaxTime(int time) {
+            maxTime = Math.max(maxTime, time);
         }
 
 
         public Iterator<Edge> iterator() {
+            return edgeList.stream().filter(e -> e.isActive()).iterator();
+        }
+        public Iterator<Edge> weakIterator() {
             return edgeList.iterator();
         }
 
         public Stream<Edge> stream() {
+            return edgeList.stream().filter(e -> e.isActive());
+        }
+
+        public Stream<Edge> weakStream() {
             return edgeList.stream();
         }
 
@@ -376,19 +484,23 @@ public final class SimpleGraph extends AbstractBaseGraph {
             int newMaxTime = 0;
             if (maxTime > time) {
                 final List<Edge> edgeList = this.edgeList;
-                //final Map<Edge, Edge> edgeMap = SimpleGraph.this.edgeMap;
+                final Map<Edge, Edge> edgeMap = SimpleGraph.this.edgeMap;
                 int i = edgeList.size();
                 while (--i >= 0) {
                     Edge e = edgeList.get(i);
                     if (e.getTime() > time) {
-                        edgeList.remove(i);
+                        if (e.backtrack()) {
+                            edgeList.remove(i);
+                            if (deleteFromMap) {
+                                edgeMap.remove(e);
+                            }
+                        }
+                        innerEdgeCount--;
                         if (deleteFromMap) {
                             SimpleGraph.this.edgeCount--;
-                            edgeMap.remove(e);
                         }
                     } else {
                         newMaxTime = Math.max(e.getTime(), newMaxTime);
-                        break;
                     }
                 }
                 maxTime = newMaxTime;
@@ -419,14 +531,21 @@ public final class SimpleGraph extends AbstractBaseGraph {
                 innerIndex = 0;
                 while (indexIterator.hasNext()) {
                     DataItem item = indexIterator.next();
-                    if (item != null && !item.isEmpty()) {
+                    if (item != null && !item.weakIsEmpty()) {
                         innerList = item.edgeList;
                         edge = innerList.get(0);
+                        if (edge != null && !edge.isActive()) {
+                            findNext();
+                        }
                         return;
                     }
                 }
             } else {
                 edge = innerList.get(innerIndex);
+            }
+
+            if (edge != null && !edge.isActive()) {
+                findNext();
             }
         }
 

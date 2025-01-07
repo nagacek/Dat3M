@@ -72,7 +72,12 @@ public class IntersectionGraph extends MaterializedGraph {
         int time = edge.getTime();
         int length = edge.getDerivationLength();
         for (RelationGraph g : operands) {
-            Edge e = g.get(edge);
+            Edge e;
+            if (edge.isBone() && !edge.isActive()) {
+                e = g.weakGet(edge);
+            } else {
+                e = g.get(edge);
+            }
             if (e == null) {
                 return null;
             }

@@ -26,4 +26,7 @@ public abstract class AbstractWMMGraph extends AbstractWMMPredicate implements R
     public Collection<Edge> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added) {
         return Collections.emptyList();
     }
+
+    @Override
+    public void addBones(Collection<? extends Derivable> bones) {}
 }

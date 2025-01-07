@@ -25,6 +25,8 @@ public abstract class AbstractEvent implements Event {
     private transient AbstractEvent successor;
     private transient AbstractEvent predecessor;
 
+    private transient boolean isActive;
+
     protected AbstractEvent() {
         tags = new HashSet<>();
     }
@@ -256,6 +258,23 @@ public abstract class AbstractEvent implements Event {
     }
 
     // ======================================== Miscellaneous ========================================
+
+    @Override
+    public boolean isActive() {
+        return isActive;
+    }
+
+    @Override
+    public void setActive(boolean activeness) {
+        isActive = activeness;
+    }
+
+    @Override
+    public boolean backtrack() {
+        setActive(false);
+        return false;
+
+    }
 
     @Override
     public int compareTo(Event e) {

@@ -67,12 +67,19 @@ public class CartesianGraph extends AbstractPredicate implements RelationGraph {
         return addedEdges;
     }
 
+
+    @Override
+    public void addBones(Collection<? extends Derivable> bones) { }
+
     @Override
     public Edge get(Edge edge) {
         Element a = first.getById(edge.getFirst());
         Element b = second.getById(edge.getSecond());
         return (a != null && b != null) ? derive(a, b) : null;
     }
+
+    @Override
+    public Edge weakGet(Edge edge) { return get(edge); }
 
     @Override
     public boolean contains(Edge edge) {
@@ -125,6 +132,11 @@ public class CartesianGraph extends AbstractPredicate implements RelationGraph {
     }
 
     @Override
+    public Stream<Edge> weakEdgeStream() {
+        return edgeStream();
+    }
+
+    @Override
     public Stream<Edge> edgeStream(int e, EdgeDirection dir) {
         if (dir == EdgeDirection.INGOING) {
             Element a = first.getById(e);
@@ -133,5 +145,10 @@ public class CartesianGraph extends AbstractPredicate implements RelationGraph {
             Element b = second.getById(e);
             return b != null ? first.elementStream().map(a -> derive(a, b)) : Stream.empty();
         }
+    }
+
+    @Override
+    public Stream<Edge> weakEdgeStream(int e, EdgeDirection dir) {
+        return edgeStream(e, dir);
     }
 }
