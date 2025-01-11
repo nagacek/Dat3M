@@ -99,12 +99,13 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
 
         backtrackPoints.push(knownValues.size());
         domain.push();
+
+        onlineCheck();
         long curTime = System.currentTimeMillis();
         executionGraph.getCAATModel().getHierarchy().onPush();
         curStats.modelExtractionTime += System.currentTimeMillis() - curTime;
         //System.out.println("PUSH " + backtrackPoints.size());
 
-        onlineCheck();
     }
 
     @Override

@@ -170,6 +170,7 @@ public class AcyclicityConstraint extends AbstractConstraint {
     public void onPush() {
         //applyChanges();
         markedNodes.increaseLevel();
+        cleanUp();
     }
 
     @Override
