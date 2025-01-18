@@ -210,38 +210,6 @@ public class OnlineRefinementSolver extends ModelChecker {
         BooleanFormula propertyFormula = propertyEncoder.encodeProperties(task.getProperty());
         prover.addConstraint(propertyFormula);
 
-        //TODO remove test code
-        /*Relation ob = refinementModel.getOriginalModel().getRelation("ob");
-        Relation rf = refinementModel.getOriginalModel().getRelation("rf");
-        Set<Relation> relationSet = new HashSet<>();
-        relationSet.add(ob);
-        relationSet.add(rf);
-
-        HashMap<Integer, Event> neededEvents = new HashMap<>();
-        var eventGraphs = fullEncoder.getEventGraphs(relationSet);
-        for (Event e1 : eventGraphs.get(ob).getDomain()) {
-            if (e1.getGlobalId() == 198 || e1.getGlobalId() == 255) {
-                neededEvents.put(e1.getGlobalId(), e1);
-            }
-        }
-
-        for (Event e2 : eventGraphs.get(ob).getRange()) {
-            if (e2.getGlobalId() == 143 || e2.getGlobalId() == 200) {
-                neededEvents.put(e2.getGlobalId(), e2);
-            }
-        }
-
-
-        BooleanFormulaManager bmgr = context.getBooleanFormulaManager();
-        BooleanFormula testFormula = bmgr.makeTrue();
-        testFormula = bmgr.and(testFormula, fullEncoder.computeEdgeEncoding(ob, neededEvents.get(198), neededEvents.get(143)));
-        testFormula = bmgr.and(testFormula, fullEncoder.computeEdgeEncoding(ob, neededEvents.get(255), neededEvents.get(200)));
-        testFormula = bmgr.and(testFormula, bmgr.implication(fullEncoder.getInitialEncoding(rf, neededEvents.get(143), neededEvents.get(198)), bmgr.not(fullEncoder.getInitialEncoding(ob, neededEvents.get(198), neededEvents.get(143)))));
-        testFormula = bmgr.and(testFormula, bmgr.implication(fullEncoder.getInitialEncoding(rf, neededEvents.get(200), neededEvents.get(255)), bmgr.not(fullEncoder.getInitialEncoding(ob, neededEvents.get(255), neededEvents.get(200)))));
-
-        prover.push();
-        prover.addConstraint(testFormula);*/
-
 
         boolean isUnsat = prover.isUnsat();
 

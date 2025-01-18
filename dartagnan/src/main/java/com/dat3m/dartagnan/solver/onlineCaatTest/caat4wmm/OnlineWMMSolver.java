@@ -53,10 +53,6 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
     private final RefinementModel refinementModel;
     private final WmmEncoder encoder;
 
-    // used for (semi-) offline solving
-    /*private final ExecutionGraph offlineExecutionGraph;
-    private final CoreReasoner offlineReasoner;
-    private final CAATSolver offlineSolver;*/
     public OnlineWMMSolver(RefinementModel refinementModel, Context analysisContext, EncodingContext encCtx, WmmEncoder encoder) {
         this.refinementModel = refinementModel;
         this.encodingContext = encCtx;
@@ -75,7 +71,6 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
         this.relationMap = executionGraph.getRelationGraphMap().inverse();
 
         initTheroyPropagation();
-        //System.out.println("START");
     }
 
     //-------------------------------------------------------------------------------------------------------
@@ -150,35 +145,12 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
             for (CAATLiteral overshoot : propagation.getSecond()) {
 
                 if (!overshootRepresenterMap.containsKey(overshoot) && overshoot instanceof EdgeLiteral overshootEdge) {
-                //if (toggle && overshoot instanceof EdgeLiteral overshootEdge) {
-                    /*if (!overshoot.getName().contains("ob")) {
-                        int i = 5;
-                        openTheoryPropagations.poll();
-                        return progressTheoryPropagation();
-                    }
-                    RelationTuple tuple2 = toRelationTuple(overshootEdge);
-                    Edge edge = new Edge(tuple2.first().getGlobalId(), tuple2.second().getGlobalId());
-                    HashSet<Edge> controlSet = new HashSet<>();
-                    //controlSet.add(new Edge(172, 4));
-                    controlSet.add(new Edge(198, 143));
-                    //controlSet.add(new Edge(141, 257));
-                    controlSet.add(new Edge(255, 200));*/
 
-                    /*if (!controlSet.contains(edge)) {
-                        int i = 5;
-                        openTheoryPropagations.poll();
-                        return progressTheoryPropagation();
-                    }*/
                     RelationTuple tuple = toRelationTuple(overshootEdge);
                     BooleanFormula encoding = encoder.computeEdgeEncoding(tuple.rel(), tuple.first(), tuple.second());
                     getBackend().propagateConsequence(new BooleanFormula[0], encoding);
 
                     overshootRepresenterMap.put(overshootEdge, encoder.getInitialEncoding(tuple.rel(), tuple.first(), tuple.second()));
-
-                    /*if (overshootRepresenterMap.size() >= 2) {
-                        System.err.println("FOUND IT");
-                    }*/
-                    //toggle = false;
                     return true;
                 }
                 consequences.add(overshootRepresenterMap.get(overshoot));
@@ -192,10 +164,6 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
             BooleanFormula propagationPre = propagation.getFirst().toFormula(bmgr);
 
 
-            //toggle = true;
-            //Pair<Refiner. Conflict, Set<CAATLiteral>> oldPair = openTheoryPropagations.poll();
-            //openTheoryPropagations.add(oldPair);
-            //System.out.println("" + propagationPre + " => " + propagationCons);
             // comment out for all the overhead and (almost) none of the benefits
             getBackend().propagateConsequence(new BooleanFormula[0],  bmgr.implication(propagationPre, propagationCons));
 
@@ -391,7 +359,6 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
 
     private Result onlineCheck() {
         Result result = check();
-        //Result offlineResult = checkOffline();
         curStats.numChecks++;
         curStats.consistencyTime += result.caatStats.getConsistencyCheckTime();
         curStats.reasoningTime += result.caatStats.getReasonComputationTime();
