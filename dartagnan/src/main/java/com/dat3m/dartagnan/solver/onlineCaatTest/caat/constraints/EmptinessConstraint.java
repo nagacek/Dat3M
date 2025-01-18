@@ -56,4 +56,10 @@ public class EmptinessConstraint extends AbstractConstraint {
         return violations.stream().map(Collections::singletonList).collect(Collectors.toList());
     }
 
+    @Override
+    public List<List<? extends Derivable>> getUndershootViolations() { return List.of(); }
+
+    @Override
+    public List<List<? extends Derivable>> getOvershootEdges() { return List.of(); }
+
 }

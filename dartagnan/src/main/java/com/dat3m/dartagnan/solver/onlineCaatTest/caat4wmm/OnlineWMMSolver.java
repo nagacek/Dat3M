@@ -1,23 +1,37 @@
 package com.dat3m.dartagnan.solver.onlineCaatTest.caat4wmm;
 
 import com.dat3m.dartagnan.encoding.EncodingContext;
+import com.dat3m.dartagnan.encoding.WmmEncoder;
 import com.dat3m.dartagnan.program.event.Event;
 import com.dat3m.dartagnan.program.event.Tag;
 import com.dat3m.dartagnan.solver.onlineCaatTest.Decoder;
 import com.dat3m.dartagnan.solver.onlineCaatTest.EdgeInfo;
 import com.dat3m.dartagnan.solver.onlineCaatTest.PendingEdgeInfo;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.CAATSolver;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.constraints.Constraint;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.domain.GenericDomain;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.domain.SolverDomain;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.CAATPredicate;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.Derivable;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.Edge;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.RelationGraph;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.base.SimpleGraph;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.reasoning.CAATLiteral;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.reasoning.EdgeLiteral;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat4wmm.coreReasoning.CoreLiteral;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat4wmm.coreReasoning.CoreReasoner;
+import com.dat3m.dartagnan.utils.collections.Pair;
 import com.dat3m.dartagnan.utils.logic.Conjunction;
 import com.dat3m.dartagnan.utils.logic.DNF;
 import com.dat3m.dartagnan.verification.Context;
 import com.dat3m.dartagnan.wmm.Relation;
+import com.dat3m.dartagnan.wmm.axiom.Axiom;
+import com.dat3m.dartagnan.wmm.utils.BaseEdgeEncodingResult;
+import com.dat3m.dartagnan.wmm.utils.EventGraph;
+import com.dat3m.dartagnan.wmm.utils.RelationTuple;
+import com.dat3m.dartagnan.wmm.utils.Tuple;
+import com.google.common.collect.BiMap;
+import com.google.common.collect.Sets;
 import org.sosy_lab.java_smt.api.BooleanFormula;
 import org.sosy_lab.java_smt.api.BooleanFormulaManager;
 import org.sosy_lab.java_smt.api.PropagatorBackend;
@@ -37,13 +51,13 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
     private final Refiner refiner;
     private final BooleanFormulaManager bmgr;
     private final RefinementModel refinementModel;
+    private final WmmEncoder encoder;
 
     // used for (semi-) offline solving
     /*private final ExecutionGraph offlineExecutionGraph;
     private final CoreReasoner offlineReasoner;
     private final CAATSolver offlineSolver;*/
-
-    public OnlineWMMSolver(RefinementModel refinementModel, Context analysisContext, EncodingContext encCtx) {
+    public OnlineWMMSolver(RefinementModel refinementModel, Context analysisContext, EncodingContext encCtx, WmmEncoder encoder) {
         this.refinementModel = refinementModel;
         this.encodingContext = encCtx;
         this.executionGraph = new ExecutionGraph(refinementModel);
@@ -53,12 +67,15 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
         this.solver = CAATSolver.create();
         this.bmgr = encCtx.getFormulaManager().getBooleanFormulaManager();
 
+
         executionGraph.initializeToDomain(domain);
 
-        // used for (semi-) offline solving
-        /*this.offlineExecutionGraph = new ExecutionGraph(refinementModel);
-        this.offlineReasoner = new CoreReasoner(analysisContext, offlineExecutionGraph);
-        this.offlineSolver = CAATSolver.create();*/
+
+        this.encoder = encoder;
+        this.relationMap = executionGraph.getRelationGraphMap().inverse();
+
+        initTheroyPropagation();
+        //System.out.println("START");
     }
 
     //-------------------------------------------------------------------------------------------------------
@@ -77,8 +94,118 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
     private final Deque<BooleanFormula> knownValues = new ArrayDeque<>();
     private final Map<BooleanFormula, Boolean> partialModel = new HashMap<>();
     private final Set<BooleanFormula> trueValues = new HashSet<>();
-    private final GenericDomain<Event> domain = new GenericDomain<>();
+    private final SolverDomain domain = new SolverDomain();
     private final Map<RelationGraph, List<Edge>> batchEdges = new HashMap<>();
+
+    // ============== Theory Propagation ====================
+
+    private final BiMap<RelationGraph, Relation> relationMap;
+    Set<Pair<Conjunction<CAATLiteral>, Set<CAATLiteral>>> usedTheoryLemmas = new HashSet<>();
+    Set<Pair<Set<BooleanFormula>, Set<CAATLiteral>>> usedTheoryPropagations = new HashSet<>();
+    HashMap<Conjunction<CAATLiteral>, Set<Conjunction<CoreLiteral>>> undershootCoreReasonMap = new HashMap<>();
+    HashMap<CAATLiteral, BooleanFormula> overshootRepresenterMap = new HashMap<>();
+
+    Queue<Pair<Refiner.Conflict, Set<CAATLiteral>>> openTheoryPropagations = new ArrayDeque<>();
+
+    boolean toggle = true;
+
+    private void initTheroyPropagation() {
+        Set<Relation> constrainedRelations = refinementModel.getOriginalModel().getAxioms()
+                .stream().map(Axiom::getRelation).collect(Collectors.toSet());
+        Map<Relation, EventGraph> activeSets = encoder.getEventGraphs(constrainedRelations);
+        Map<RelationGraph, Set<Derivable>> activeGraphs = new HashMap<>();
+        translateSets(activeSets, activeGraphs);
+        activeGraphs.forEach((graph, set) -> graph.addBones(set.stream().map(Derivable::asBone).collect(Collectors.toSet())));
+        executionGraph.getConstraints().forEach(c -> {
+            CAATPredicate pred = c.getConstrainedPredicate();
+            if (pred instanceof RelationGraph graph) {
+                c.processActiveGraph(activeGraphs.get(graph));
+            }
+        });
+    }
+
+
+    private boolean progressTheoryPropagation() {
+        if (!openTheoryPropagations.isEmpty()) {
+            var propagation = openTheoryPropagations.peek();
+
+            Set<BooleanFormula> assignmentList = new HashSet<>();
+            assignmentList.addAll(propagation.getFirst().getVariables());
+            Pair<Set<BooleanFormula>, Set<CAATLiteral>> pair = new Pair<>(assignmentList, propagation.getSecond());
+            if (usedTheoryPropagations.contains(pair)) {
+                openTheoryPropagations.poll();
+                return progressTheoryPropagation();
+            }
+
+            for (BooleanFormula assignment : assignmentList) {
+                if (!partialModel.containsKey(assignment)) {
+                    openTheoryPropagations.poll();
+                    return progressPropagation();
+                }
+            }
+            BooleanFormula[] assignments = propagation.getFirst().getVariables().toArray(new BooleanFormula[0]);
+            assignmentList.toArray(assignments);
+
+            List<BooleanFormula> consequences = new ArrayList<>(propagation.getSecond().size());
+            for (CAATLiteral overshoot : propagation.getSecond()) {
+
+                if (!overshootRepresenterMap.containsKey(overshoot) && overshoot instanceof EdgeLiteral overshootEdge) {
+                //if (toggle && overshoot instanceof EdgeLiteral overshootEdge) {
+                    /*if (!overshoot.getName().contains("ob")) {
+                        int i = 5;
+                        openTheoryPropagations.poll();
+                        return progressTheoryPropagation();
+                    }
+                    RelationTuple tuple2 = toRelationTuple(overshootEdge);
+                    Edge edge = new Edge(tuple2.first().getGlobalId(), tuple2.second().getGlobalId());
+                    HashSet<Edge> controlSet = new HashSet<>();
+                    //controlSet.add(new Edge(172, 4));
+                    controlSet.add(new Edge(198, 143));
+                    //controlSet.add(new Edge(141, 257));
+                    controlSet.add(new Edge(255, 200));*/
+
+                    /*if (!controlSet.contains(edge)) {
+                        int i = 5;
+                        openTheoryPropagations.poll();
+                        return progressTheoryPropagation();
+                    }*/
+                    RelationTuple tuple = toRelationTuple(overshootEdge);
+                    BooleanFormula encoding = encoder.computeEdgeEncoding(tuple.rel(), tuple.first(), tuple.second());
+                    getBackend().propagateConsequence(new BooleanFormula[0], encoding);
+
+                    overshootRepresenterMap.put(overshootEdge, encoder.getInitialEncoding(tuple.rel(), tuple.first(), tuple.second()));
+
+                    /*if (overshootRepresenterMap.size() >= 2) {
+                        System.err.println("FOUND IT");
+                    }*/
+                    //toggle = false;
+                    return true;
+                }
+                consequences.add(overshootRepresenterMap.get(overshoot));
+
+            }
+
+            openTheoryPropagations.poll();
+            usedTheoryPropagations.add(pair);
+
+            BooleanFormula propagationCons = bmgr.not(bmgr.and(consequences));
+            BooleanFormula propagationPre = propagation.getFirst().toFormula(bmgr);
+
+
+            //toggle = true;
+            //Pair<Refiner. Conflict, Set<CAATLiteral>> oldPair = openTheoryPropagations.poll();
+            //openTheoryPropagations.add(oldPair);
+            //System.out.println("" + propagationPre + " => " + propagationCons);
+            // comment out for all the overhead and (almost) none of the benefits
+            getBackend().propagateConsequence(new BooleanFormula[0],  bmgr.implication(propagationPre, propagationCons));
+
+
+            return true;
+        }
+        return false;
+    }
+
+    // ======================================================
 
 
 
@@ -101,6 +228,7 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
         domain.push();
 
         onlineCheck();
+
         long curTime = System.currentTimeMillis();
         executionGraph.getCAATModel().getHierarchy().onPush();
         curStats.modelExtractionTime += System.currentTimeMillis() - curTime;
@@ -172,6 +300,11 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
             }
 
             for (EdgeInfo edge : info.edges()) {
+                if (edge.relation().getNameOrTerm().contains("rf") &&
+                        edge.source().getGlobalId() == 143 &&
+                        edge.target().getGlobalId() == 198) {
+                    int i = 5;
+                }
                 final Relation relInFullModel = refinementModel.translateToOriginal(edge.relation());
                 final SimpleGraph graph = (SimpleGraph) executionGraph.getRelationGraph(relInFullModel);
                 if (graph != null) {
@@ -192,7 +325,9 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
 
         curStats.modelExtractionTime += System.currentTimeMillis() - curTime;
         curTime = System.currentTimeMillis();
-        progressPropagation();
+        if(!progressPropagation()) {
+            progressTheoryPropagation();
+        }
         curStats.refinementTime += System.currentTimeMillis() - curTime;
     }
 
@@ -246,10 +381,12 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
         }
         pendingEdges.removeAll(done);
     }
-    private void progressPropagation() {
+    private boolean progressPropagation() {
         if (!openPropagations.isEmpty()) {
             getBackend().propagateConsequence(new BooleanFormula[0], bmgr.not(openPropagations.poll().toFormula(bmgr)));
+            return true;
         }
+        return false;
     }
 
     private Result onlineCheck() {
@@ -280,44 +417,28 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
             }
             assert !isFirst;
             curStats.refinementTime += System.currentTimeMillis() - curTime;
-        }
-
-        // compares online graph to (semi-) offline graph
-        /*
-        if (offlineResult.status != result.status) {
-            System.out.println("\nRESULT SHOULD BE " + offlineResult.status + " BUT IS " + result.status);
-        }
-        HashMap<Relation, List<Edge>> wrongEdges = new HashMap<>();
-        HashMap<Relation, List<Edge>> missingEdges = new HashMap<>();
-
-        BiMap<Relation, RelationGraph> offlineGraphs = offlineExecutionGraph.getRelationGraphMap();
-        BiMap<Relation, RelationGraph> graphs = executionGraph.getRelationGraphMap();
-
-        for (Map.Entry<Relation, RelationGraph> relationTuple : graphs.entrySet()) {
-            List<Edge> wrong = relationTuple.getValue().edgeStream().filter(e -> offlineGraphs.get(relationTuple.getKey()).edgeStream().noneMatch(offlineE -> e.equals(offlineE))).collect(Collectors.toList());
-            if (!wrong.isEmpty()) {
-                wrongEdges.put(relationTuple.getKey(), wrong);
-            }
-        }
-
-        for (Map.Entry<Relation, RelationGraph> relationTuple : offlineGraphs.entrySet()) {
-            List<Edge> missing = relationTuple.getValue().edgeStream().filter(offlineE -> graphs.get(relationTuple.getKey()).edgeStream().noneMatch(e -> offlineE.equals(e))).collect(Collectors.toList());
-            if (!missing.isEmpty()) {
-                missingEdges.put(relationTuple.getKey(), missing);
-            }
-        }
-
-        List<Map.Entry> nonEmpty = graphs.entrySet().stream().filter(tuple -> !tuple.getValue().isEmpty()).collect(Collectors.toList());
-
-        if (!wrongEdges.isEmpty() || !missingEdges.isEmpty()) {
+        } else {
             int i = 5;
         }
 
-        PredicateHierarchy offlinePredicateHierarchy = offlineExecutionGraph.getCAATModel().getHierarchy();
-        List<CAATPredicate> offlinePredicates = offlinePredicateHierarchy.getPredicateList();
-        PredicateHierarchy predicateHierarchy = executionGraph.getCAATModel().getHierarchy();
-        List<CAATPredicate> predicates = predicateHierarchy.getPredicateList();
-        */
+        // ================ Prepare Theory Propagation ======================
+        if (result.nearlyViolationCoreReasons != null && !result.nearlyViolationCoreReasons.isEmpty()) {
+            for (var vio : result.nearlyViolationCoreReasons) {
+                Set<Conjunction<CoreLiteral>> undershoot = vio.getFirst();
+                DNF<CoreLiteral> undershootDNF = new DNF<>(undershoot);
+                Set<CAATLiteral> overshoots = vio.getSecond();
+
+                List<Refiner.Conflict> undershootConflicts = refiner.computeConflicts(undershootDNF, encodingContext);
+
+                if (undershootConflicts.size() > 1) {
+                    int i = 5;
+                }
+
+                for (Refiner.Conflict singleUndershootConflict : undershootConflicts) {
+                    openTheoryPropagations.add(new Pair<>(singleUndershootConflict, overshoots));
+                }
+            }
+        }
 
         return result;
     }
@@ -333,34 +454,10 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
         curStats.clear();
 
         if (result.status != CAATSolver.Status.INCONSISTENT) {
+            System.out.println("#Overshoot edges: " + overshootRepresenterMap.size());
         }
-
     }
 
-    // used for (semi-) offline solving only
-    /*private void  initModel() {
-        List<EdgeInfo> edges = new ArrayList<>();
-        for (BooleanFormula assigned : trueValues) {
-            Decoder.Info info = decoder.decode(assigned);
-            edges.addAll(info.edges());
-        }
-
-        // Init domain
-        offlineExecutionGraph.initializeToDomain(domain);
-
-        // Setup base relation graphs
-        for (EdgeInfo edge : edges) {
-            final Relation relInFullModel = refinementModel.translateToOriginal(edge.relation());
-            final SimpleGraph graph = (SimpleGraph) offlineExecutionGraph.getRelationGraph(relInFullModel);
-            if (graph != null) {
-                int sourceId = domain.getId(edge.source());
-                int targetId = domain.getId(edge.target());
-                int edgeTime = Math.max(sourceId, targetId);
-                Edge e = (new Edge(sourceId, targetId)).withTime(edgeTime);
-                graph.add(e);
-            }
-        }
-    }*/
 
     private Result check() {
         // ============== Run the CAATSolver ==============
@@ -383,37 +480,132 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
             curStats.coreReasonComputationTime += System.currentTimeMillis() - curTime;
         }
 
-        return result;
-    }
-    // used for (semi-) offline solving only
-    /*private Result checkOffline() {
-        // ============ Extract CAAT base model ==============
-        long curTime = System.currentTimeMillis();
-        initModel();
-        long extractTime = System.currentTimeMillis() - curTime;
+        // ================= Prepare Theory Propagation ===================
+        if (!caatResult.getNearlyViolationReasons().isEmpty()) {
+            result.nearlyViolationCoreReasons = new ArrayList<>(caatResult.getNearlyViolationReasons().size());
+            List<Set<Conjunction<CoreLiteral>>> nearlyCoreReasons = new ArrayList<>(caatResult.getNearlyViolationReasons().size());
+            for (var vio : result.nearlyViolationReasons) {
+                Set<Conjunction<CoreLiteral>> nearlyCoreReason = reasoner.toCoreReasons(vio.getFirst());
 
-        // ============== Run the CAATSolver ==============
-        CAATSolver.Result caatResult = offlineSolver.check(offlineExecutionGraph.getCAATModel(), true);
-        Result result = Result.fromCAATResult(caatResult);
-        Statistics stats = result.stats;
-        stats.modelExtractionTime = extractTime;
-        stats.modelSize = offlineExecutionGraph.getDomain().size();
-
-        if (result.getStatus() == CAATSolver.Status.INCONSISTENT) {
-            // ============== Compute Core reasons ==============
-            curTime = System.currentTimeMillis();
-            List<Conjunction<CoreLiteral>> coreReasons = new ArrayList<>(caatResult.getBaseReasons().getNumberOfCubes());
-            for (Conjunction<CAATLiteral> baseReason : caatResult.getBaseReasons().getCubes()) {
-                coreReasons.addAll(offlineReasoner.toCoreReasons(baseReason));
+                if (!usedTheoryLemmas.contains(vio)) {
+                    if (!vio.getFirst().getLiterals().isEmpty()) {
+                        result.nearlyViolationCoreReasons.add(new Pair<>(nearlyCoreReason, vio.getSecond()));
+                    }
+                    usedTheoryLemmas.add(vio);
+                }
             }
-            stats.numComputedCoreReasons = coreReasons.size();
-            result.coreReasons = new DNF<>(coreReasons);
-            stats.numComputedReducedCoreReasons = result.coreReasons.getNumberOfCubes();
-            stats.coreReasonComputationTime = System.currentTimeMillis() - curTime;
         }
 
         return result;
-    }*/
+    }
+
+    // -----------------------------------------------------------------------------------------------------
+    // Helper Methods
+
+    private DNF<CAATLiteral> getEncodingYield(EdgeLiteral from, BaseEdgeEncodingResult encodingResult) {
+        RelationTuple relationTuple = toRelationTuple(from);
+        return getEncodingYield(relationTuple, encodingResult, Set.of());
+    }
+
+    private DNF<CAATLiteral> getEncodingYield(RelationTuple from, BaseEdgeEncodingResult encodingResult, Set<RelationTuple> recurseSet) {
+        boolean contained = false;
+        DNF<CAATLiteral> encoding = null;
+
+        if (executionGraph.getCutRelations().contains(from.rel())) {
+            return new DNF<>(toCAATLiteral(from));
+        }
+
+        if (from.neg()) {
+            return new DNF<>(toCAATLiteral(from));
+        }
+
+        Set<RelationTuple> and = encodingResult.and().get(from);
+        if (and != null) {
+            encoding = DNF.TRUE();
+            for (RelationTuple tuple : and) {
+                if (!recurseSet.contains(tuple)) {
+                    encoding = encoding.and(getEncodingYield(tuple, encodingResult, Sets.union(recurseSet, Set.of(from))));
+                    contained = true;
+                }
+            }
+        }
+
+        Set<RelationTuple> or = encodingResult.or().get(from);
+        if (or != null) {
+            encoding = DNF.FALSE();
+            for (RelationTuple tuple : or) {
+                if (!recurseSet.contains(tuple)) {
+                    encoding = encoding.or(getEncodingYield(tuple, encodingResult, Sets.union(recurseSet, Set.of(from))));
+                    contained = true;
+                }
+            }
+        }
+
+        Set<Set<RelationTuple>> orAnd = encodingResult.orAnd().get(from);
+        if (orAnd != null) {
+            encoding = DNF.FALSE();
+            for (Set<RelationTuple> conjunction : orAnd) {
+                DNF<CAATLiteral> inner = DNF.TRUE();
+                for (RelationTuple tuple : conjunction) {
+                    if (!recurseSet.contains(tuple)) {
+                        inner = inner.and(getEncodingYield(tuple, encodingResult, Sets.union(recurseSet, Set.of(from))));
+                    }
+                }
+                encoding = encoding.or(inner);
+                contained = true;
+            }
+        }
+
+        if (!contained) {
+            return new DNF<>(toCAATLiteral(from));
+        }
+
+        return encoding;
+    }
+
+    private RelationTuple toRelationTuple(EdgeLiteral lit) {
+        Relation rel = relationMap.get(lit.getPredicate());
+        Edge edge = lit.getData();
+        Event e1 = domain.weakGetObjectById(edge.getFirst());
+        Event e2 = domain.weakGetObjectById(edge.getSecond());
+        return new RelationTuple(rel, new Tuple(e1, e2));
+    }
+
+    private EdgeLiteral toCAATLiteral(RelationTuple relationTuple) {
+        RelationGraph graph = executionGraph.getRelationGraph(relationTuple.rel());
+        if (graph == null) {
+            int i = 5;
+        }
+        Tuple tuple = relationTuple.tuple();
+        domain.weakAddElement(tuple.first());
+        domain.weakAddElement(tuple.second());
+        int id1 = domain.weakGetId(tuple.first());
+        int id2 = domain.weakGetId(tuple.second());
+        return new EdgeLiteral(graph, new Edge(id1, id2), !relationTuple.neg());
+    }
+
+
+    private void translateSets(Map<Relation, EventGraph> rawSets, Map<RelationGraph, Set<Derivable>> newSets) {
+        for (Relation r : rawSets.keySet()) {
+            RelationGraph graph = executionGraph.getRelationGraph(r);
+            if (graph == null) {
+                graph = executionGraph.getRelationGraph(refinementModel.translateToOriginal(r));
+            }
+            newSets.putIfAbsent(graph, new HashSet<>());
+            Set<Derivable> translatedEdges = newSets.get(graph);
+            Map<Event, Set<Event>> containedEdges = rawSets.get(r).getOutMap();
+            for (Event e1 : containedEdges.keySet()) {
+                domain.weakAddElement(e1);
+                for (Event e2 : containedEdges.get(e1)) {
+                    domain.weakAddElement(e2);
+                    int id1 = domain.weakGetId(e1);
+                    int id2 = domain.weakGetId(e2);
+                    Edge newEdge = new Edge(id1, id2);
+                    translatedEdges.add(newEdge);
+                }
+            }
+        }
+    }
 
     // ------------------------------------------------------------------------------------------------------
     // Classes
@@ -422,6 +614,8 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
         private CAATSolver.Status status;
         private DNF<CoreLiteral> coreReasons;
         private CAATSolver.Statistics caatStats;
+        private List<Pair<Conjunction<CAATLiteral>, Set<CAATLiteral>>> nearlyViolationReasons;
+        private List<Pair<Set<Conjunction<CoreLiteral>>, Set<CAATLiteral>>> nearlyViolationCoreReasons;
 
         public CAATSolver.Status getStatus() { return status; }
         public DNF<CoreLiteral> getCoreReasons() { return coreReasons; }
@@ -436,6 +630,7 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
             Result result = new Result();
             result.status = caatResult.getStatus();
             result.caatStats =  caatResult.getStatistics();
+            result.nearlyViolationReasons = caatResult.getNearlyViolationReasons();
 
             return result;
         }

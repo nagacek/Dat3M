@@ -23,8 +23,7 @@ import com.dat3m.dartagnan.wmm.Wmm;
 import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import com.dat3m.dartagnan.wmm.axiom.Axiom;
 import com.dat3m.dartagnan.wmm.definition.*;
-import com.dat3m.dartagnan.wmm.utils.EventGraph;
-import com.dat3m.dartagnan.wmm.utils.Flag;
+import com.dat3m.dartagnan.wmm.utils.*;
 import com.google.common.collect.Iterables;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -41,6 +40,7 @@ import static com.dat3m.dartagnan.program.event.Tag.*;
 import static com.dat3m.dartagnan.wmm.RelationNameRepository.RF;
 import static com.dat3m.dartagnan.wmm.utils.EventGraph.difference;
 import static com.google.common.base.Verify.verify;
+import static java.lang.Boolean.FALSE;
 import static java.lang.Boolean.TRUE;
 
 @Options
@@ -148,6 +148,345 @@ public class WmmEncoder implements Encoder {
                         .filter((e1, e2) -> TRUE.equals(model.evaluate(context.execution(e1, e2))));
         encodeSet.addAll(mustEncodeSet);
         return encodeSet;
+    }
+
+    public Map<Relation, EventGraph> getEventGraphs(Set<Relation> relations) {
+        Map<Relation, EventGraph> eventGraphs = new HashMap<>();
+        for (Relation r : relations) {
+            EventGraph encodeSet = encodeSets.getOrDefault(r, EventGraph.empty());
+            EventGraph mustEncodeSet = context.getAnalysisContext().get(RelationAnalysis.class).getKnowledge(r).getMustSet();
+            encodeSet.addAll(mustEncodeSet);
+            eventGraphs.put(r, encodeSet);
+        }
+        return eventGraphs;
+    }
+
+    public BooleanFormula computeEdgeEncoding(Relation rel, Event e1, Event e2) {
+        RelationBaseEdgeEncoder enc = new RelationBaseEdgeEncoder(e1, e2);
+        rel.getDefinition().accept(enc);
+        return enc.bmgr.and(enc.enc);
+    }
+
+    public BooleanFormula getInitialEncoding(Relation rel, Event e1, Event e2) {
+        return context.edge(rel, e1, e2);
+    }
+
+    private final class RelationBaseEdgeEncoder implements Constraint.Visitor<Void> {
+        Event e1;
+        Event e2;
+        final RelationAnalysis ra = context.getAnalysisContext().requires(RelationAnalysis.class);
+
+        BooleanFormulaManager bmgr = context.getBooleanFormulaManager();
+        List<BooleanFormula> enc = new ArrayList<>();
+
+        Set<RelationTuple> encTuples = new HashSet<>();
+
+
+        private RelationBaseEdgeEncoder(Event e1, Event e2) {
+            this.e1 = e1;
+            this.e2 = e2;
+        }
+
+        //TODO: check if edge().encode() returns false; further encoding is not needed
+        @Override
+        public Void visitDefinition(Definition def) {
+            return null;
+        }
+
+        @Override
+        public Void visitUnion(Union union) {
+            final Relation rel = union.getDefinedRelation();
+            final List<Relation> operands = union.getOperands();
+            final Event local1 = e1;
+            final Event local2 = e2;
+            EventGraph must = ra.getKnowledge(rel).getMustSet();
+
+            BooleanFormula edge = context.edge(rel, local1, local2);
+
+            encTuples.add(new RelationTuple(rel, local1, local2));
+            if (must.contains(local1, local2)) {
+                enc.add(bmgr.equivalence(edge, context.execution(local1, local2)));
+            } else {
+                List<BooleanFormula> inner = new ArrayList<>(operands.size());
+                for (Relation op : operands) {
+                    BooleanFormula innerEdge = context.edge(op, local1, local2);
+                    inner.add(innerEdge);
+
+                    if (!encTuples.contains(new RelationTuple(op, local1, local2))) {
+                        e1 = local1;
+                        e2 = local2;
+                        op.getDefinition().accept(this);
+                    }
+                }
+                enc.add(bmgr.equivalence(edge, bmgr.or(inner)));
+            }
+            return null;
+        }
+
+        @Override
+        public Void visitIntersection(Intersection inter) {
+            final Relation rel = inter.getDefinedRelation();
+            final List<Relation> operands = inter.getOperands();
+            final RelationAnalysis.Knowledge k = ra.getKnowledge(rel);
+            final Event local1 = e1;
+            final Event local2 = e2;
+            RelationAnalysis.Knowledge[] knowledges = operands.stream().map(ra::getKnowledge).toArray(RelationAnalysis.Knowledge[]::new);
+
+            BooleanFormula edge = context.edge(rel, local1, local2);
+
+            encTuples.add(new RelationTuple(rel, local1, local2));
+
+            if (k.getMustSet().contains(e1, e2)) {
+                enc.add(bmgr.equivalence(edge, context.execution(local1, local2)));
+            } else {
+                List<BooleanFormula> inner = new ArrayList<>(operands.size());
+                for (int i = 0; i < operands.size(); i++) {
+                    if (!knowledges[i].getMustSet().contains(local1, local2)) {
+                        Relation innerRel = operands.get(i);
+                        inner.add(context.edge(operands.get(i), local1, local2));
+
+                        if (!encTuples.contains(new RelationTuple(innerRel, local1, local2))) {
+                            e1 = local1;
+                            e2 = local2;
+                            innerRel.getDefinition().accept(this);
+                        }
+                    }
+                }
+                enc.add(bmgr.equivalence(edge, bmgr.and(inner)));
+            }
+            return null;
+        }
+
+        @Override
+        public Void visitDifference(Difference diff) {
+            final Relation rel = diff.getDefinedRelation();
+            final Relation r1 = diff.getMinuend();
+            final Relation r2 = diff.getSubtrahend();
+            final RelationAnalysis.Knowledge k = ra.getKnowledge(rel);
+            final Event local1 = e1;
+            final Event local2 = e2;
+
+            BooleanFormula edge = context.edge(rel, local1, local2);
+
+            encTuples.add(new RelationTuple(rel, local1, local2));
+
+            if (k.getMustSet().contains(local1, local2)) {
+                enc.add(bmgr.equivalence(edge, context.execution(local1, local2)));
+            } else {
+                BooleanFormula minuend = context.edge(r1, local1, local2);
+                BooleanFormula subtrahend = bmgr.not(context.edge(r2, local1, local2));
+                enc.add(bmgr.equivalence(edge, bmgr.and(minuend, subtrahend)));
+
+                if (!encTuples.contains(new RelationTuple(r1, local1, local2))) {
+                    e1 = local1;
+                    e2 = local2;
+                    r1.getDefinition().accept(this);
+                }
+                if (!encTuples.contains(new RelationTuple(r2, local2, local1))) {
+                    e1 = local1;
+                    e2 = local2;
+                    r2.getDefinition().accept(this);
+                }
+            }
+            return null;
+        }
+
+        @Override
+        public Void visitComposition(Composition comp) {
+            final Relation rel = comp.getDefinedRelation();
+            final Relation r1 = comp.getLeftOperand();
+            final Relation r2 = comp.getRightOperand();
+            final RelationAnalysis.Knowledge k = ra.getKnowledge(rel);
+            final RelationAnalysis.Knowledge k1 = ra.getKnowledge(r1);
+            final RelationAnalysis.Knowledge k2 = ra.getKnowledge(r2);
+            final Event local1 = e1;
+            final Event local2 = e2;
+
+            BooleanFormula edge = context.edge(rel, local1, local2);
+
+            encTuples.add(new RelationTuple(rel, local1, local2));
+
+            if (k.getMustSet().contains(local1, local2)) {
+                enc.add(bmgr.equivalence(edge, context.execution(local1, local2)));
+            } else {
+                Set<Event> intermediate = k1.getMaySet().getOutMap().get(local1);
+
+                if (intermediate == null) {
+                    enc.add(bmgr.equivalence(edge, bmgr.makeFalse()));
+                    return null;
+                }
+                boolean composable = false;
+
+                BooleanFormula expr = bmgr.makeFalse();
+                for (Event e : intermediate) {
+                    if (k2.getMaySet().contains(e, local2)) {
+                        BooleanFormula first = context.edge(r1, local1, e);
+                        BooleanFormula second = context.edge(r2, e, local2);
+                        expr = bmgr.or(expr, bmgr.and(first, second));
+
+                        if (!encTuples.contains(new RelationTuple(r1, local1, e))) {
+                            e1 = local1;
+                            e2 = e;
+                            r1.getDefinition().accept(this);
+                        }
+                        if (!encTuples.contains(new RelationTuple(r2, e, local2))) {
+                            e1 = e;
+                            e2 = local2;
+                            r2.getDefinition().accept(this);
+                        }
+                        composable = true;
+                    }
+                }
+                if (!composable) {
+                    enc.add(bmgr.equivalence(edge, bmgr.makeFalse()));
+                } else {
+                    enc.add(bmgr.equivalence(edge, expr));
+                }
+            }
+            return null;
+        }
+
+        @Override
+        public Void visitDomainIdentity(DomainIdentity domId) {
+            final Relation rel = domId.getDefinedRelation();
+            final Relation r1 = domId.getOperand();
+            final Event local1 = e1;
+            final Event local2 = e2;
+            Set<Event> mayOut = ra.getKnowledge(r1).getMaySet().getOutMap().getOrDefault(local1, Set.of());
+
+            BooleanFormula edge = context.edge(rel, local1, local2);
+
+            encTuples.add(new RelationTuple(rel, local1, local2));
+
+            BooleanFormula opt = bmgr.makeFalse();
+            for (Event e2Alt : mayOut) {
+                opt = bmgr.or(opt, context.edge(r1, local1, e2Alt));
+
+                if (!encTuples.contains(new RelationTuple(r1, local1, e2Alt))) {
+                    e1 = local1;
+                    e2 = e2Alt;
+                    r1.getDefinition().accept(this);
+                }
+            }
+            enc.add(bmgr.equivalence(edge, opt));
+
+            return null;
+        }
+
+        @Override
+        public Void visitRangeIdentity(RangeIdentity rangeId) {
+            final Relation rel = rangeId.getDefinedRelation();
+            final Relation r1 = rangeId.getOperand();
+            final Event local1 = e1;
+            final Event local2 = e2;
+
+            Set<Event> mayIn = ra.getKnowledge(r1).getMaySet().getInMap().getOrDefault(local1, Set.of());
+
+            BooleanFormula edge = context.edge(rel, local1, local2);
+
+            encTuples.add(new RelationTuple(rel, local1, local2));
+
+            BooleanFormula opt = bmgr.makeFalse();
+            for (Event e1Alt : mayIn) {
+                opt = bmgr.or(opt, context.edge(r1, e1Alt, local2));
+
+                if (!encTuples.contains(new RelationTuple(r1, e1Alt, local2))) {
+                    e1 = e1Alt;
+                    e2 = e2;
+                    r1.getDefinition().accept(this);
+                }
+            }
+            enc.add(bmgr.equivalence(edge, opt));
+            return null;
+        }
+
+        @Override
+        public Void visitTransitiveClosure(TransitiveClosure trans) {
+            final Relation rel = trans.getDefinedRelation();
+            final Relation r1 = trans.getOperand();
+            final EventGraph relMustSet = ra.getKnowledge(rel).getMustSet();
+            final EventGraph relMaySet = ra.getKnowledge(rel).getMaySet();
+            final EventGraph r1MaySet = ra.getKnowledge(r1).getMaySet();
+            final Event local1 = e1;
+            final Event local2 = e2;
+
+            BooleanFormula edge = context.edge(rel, local1, local2);
+
+            encTuples.add(new RelationTuple(rel, local1, local2));
+
+
+            if (relMustSet.contains(e1, e2)) {
+                enc.add(bmgr.equivalence(edge, context.execution(local1, local2)));
+            } else {
+                BooleanFormula orClause = bmgr.makeFalse();
+
+                if (r1MaySet.contains(local1, local2)) {
+                    orClause = bmgr.or(orClause, context.edge(r1, local1, local2));
+
+                    if (!encTuples.contains(new RelationTuple(r1, local1, local2))) {
+                        e1 = local1;
+                        e2 = local2;
+                        r1.getDefinition().accept(this);
+                    }
+                }
+
+                for (Event e : r1MaySet.getRange(local1)) {
+                    BooleanFormula first;
+                    BooleanFormula second;
+                    if (e.getGlobalId() != local1.getGlobalId() && e.getGlobalId() != local2.getGlobalId() && relMaySet.contains(e, local2)) {
+                        if (!relMustSet.contains(local1, e)) {
+                            first = context.edge(r1, local1, e);
+
+                            if (!encTuples.contains(new RelationTuple(r1, local1, e))) {
+                                e1 = local1;
+                                e2 = e;
+                                r1.getDefinition().accept(this);
+                            }
+                        } else {
+                            first = context.execution(local1, e);
+                        }
+
+                        second = context.edge(rel, e, local2);
+                        if (!encTuples.contains(new RelationTuple(rel, e, local2))) {
+                            e1 = e;
+                            e2 = local2;
+                            rel.getDefinition().accept(this);
+                        }
+
+                        orClause = bmgr.or(orClause, bmgr.and(first, second));
+                    }
+                }
+                enc.add(bmgr.equivalence(edge, orClause));
+            }
+            return null;
+        }
+
+        @Override
+        public Void visitInverse(Inverse inv) {
+            final Relation rel = inv.getDefinedRelation();
+            final Relation r1 = inv.getOperand();
+            final Event local1 = e1;
+            final Event local2 = e2;
+            EventGraph mustSet = ra.getKnowledge(rel).getMustSet();
+
+            BooleanFormula edge = context.edge(rel, local1, local2);
+
+            encTuples.add(new RelationTuple(rel, local1, local2));
+
+            if (mustSet.contains(local1, local2)) {
+                enc.add(bmgr.equivalence(edge, context.execution(local1, local2)));
+            } else {
+                BooleanFormula invEdge = context.edge(r1, local2, local1);
+                enc.add(bmgr.equivalence(edge, invEdge));
+
+                if (!encTuples.contains(new RelationTuple(r1, local2, local1))) {
+                    e1 = local2;
+                    e2 = local1;
+                    r1.getDefinition().accept(this);
+                }
+            }
+            return null;
+        }
     }
 
     private final class RelationEncoder implements Constraint.Visitor<Void> {

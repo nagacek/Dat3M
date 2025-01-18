@@ -1,6 +1,7 @@
 package com.dat3m.dartagnan.solver.onlineCaatTest.caat.misc;
 
 
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.AbstractDerivable;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.Edge;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.RelationGraph;
 
@@ -50,7 +51,7 @@ public class PathAlgorithm {
                 // Forward BFS
                 int curSize = queue1.size();
                 while (curSize-- > 0 && !found) {
-                    for (Edge next : graph.outEdges(queue1.poll())) {
+                    for (Edge next : graph.weakOutEdges(queue1.poll())) {
                         if (!filter.test(next)) {
                             continue;
                         }
@@ -72,7 +73,7 @@ public class PathAlgorithm {
                 // Backward BFS
                 int curSize = queue2.size();
                 while (curSize-- > 0 && !found) {
-                    for (Edge next : graph.inEdges(queue2.poll())) {
+                    for (Edge next : graph.weakInEdges(queue2.poll())) {
                         if (!filter.test(next)) {
                             continue;
                         }
@@ -119,14 +120,19 @@ public class PathAlgorithm {
 
     // =============================== Public Methods ===============================
 
-    public static List<Edge> findShortestPath(RelationGraph graph, int start, int end) {
-        Predicate<Edge> alwaysTrueFilter = (edge -> true);
-        return findShortestPath(graph, start, end, alwaysTrueFilter);
+    public static List<Edge> findShortestPath(RelationGraph graph, int start, int end, boolean active) {
+        Predicate<Edge> filter;
+        if (active) {
+            filter = Edge::isActive;
+        } else {
+            filter = (edge -> true);
+        }
+        return findShortestPath(graph, start, end, filter);
     }
 
 
     public static List<Edge> findShortestPath(RelationGraph graph, int start, int end, int derivationBound) {
-        Predicate<Edge> filter = (edge -> edge.getDerivationLength() <= derivationBound);
+        Predicate<Edge> filter = (edge -> edge.getDerivationLength() <= derivationBound && edge.isActive());
         return findShortestPath(graph, start, end, filter);
     }
 }

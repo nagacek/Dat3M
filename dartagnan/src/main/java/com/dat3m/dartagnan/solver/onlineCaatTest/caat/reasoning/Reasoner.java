@@ -10,10 +10,13 @@ import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.RelationGraph;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.sets.Element;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.sets.SetPredicate;
+import com.dat3m.dartagnan.utils.collections.Pair;
 import com.dat3m.dartagnan.utils.logic.Conjunction;
 import com.dat3m.dartagnan.utils.logic.DNF;
+import com.dat3m.dartagnan.wmm.Relation;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static com.dat3m.dartagnan.solver.onlineCaatTest.caat.misc.PathAlgorithm.findShortestPath;
 
@@ -35,23 +38,10 @@ public class Reasoner {
 
         CAATPredicate pred = constraint.getConstrainedPredicate();
         Collection<? extends Collection<? extends Derivable>> violations = constraint.getViolations();
-        List<Conjunction<CAATLiteral>> reasonList = new ArrayList<>(violations.size());
 
-        if (constraint instanceof AcyclicityConstraint) {
-            // For acyclicity constraints, it is likely that we encounter the same
-            // edge multiple times (as it can be part of different cycles)
-            // so we memoize the computed reasons and reuse them if possible.
-            final RelationGraph constrainedGraph = (RelationGraph) pred;
-            final int mapSize = violations.stream().mapToInt(Collection::size).sum() * 4 / 3;
-            final Map<Edge, Conjunction<CAATLiteral>> reasonMap = new HashMap<>(mapSize);
+        List<Conjunction<CAATLiteral>> reasonList = handleAcyclicityReasons(constraint, violations);
 
-            for (Collection<Edge> violation : (Collection<Collection<Edge>>)violations) {
-                Conjunction<CAATLiteral> reason = violation.stream()
-                        .map(edge -> reasonMap.computeIfAbsent(edge, key -> computeReason(constrainedGraph, key)))
-                        .reduce(Conjunction.TRUE(), Conjunction::and);
-                reasonList.add(reason);
-            }
-        } else {
+        if (!(constraint instanceof AcyclicityConstraint)) {
             for (Collection<? extends Derivable> violation : violations) {
                 Conjunction<CAATLiteral> reason = violation.stream()
                         .map(edge -> computeReason(pred, edge))
@@ -60,11 +50,68 @@ public class Reasoner {
             }
         }
 
-        if (reasonList.isEmpty()) {
-            int i = 5;
-        }
-
         return new DNF<>(reasonList);
+    }
+
+    public List<Pair<Conjunction<CAATLiteral>, Set<CAATLiteral>>> computeNearlyViolationResaons(Constraint constraint) {
+        if (!constraint.checkForNearlyViolations()) {
+            return Collections.emptyList();
+        }
+        CAATPredicate pred = constraint.getConstrainedPredicate();
+        Collection<? extends Collection<? extends Derivable>> violations = constraint.getUndershootViolations();
+
+
+        if (constraint instanceof AcyclicityConstraint acyc) {
+            List<Conjunction<CAATLiteral>> undershootReasons = handleAcyclicityReasons(constraint, violations);
+            List<List<Edge>> overshootEdgeList = (List<List<Edge>>)constraint.getOvershootEdges();
+
+            List<Pair<Conjunction<CAATLiteral>, Set<CAATLiteral>>> result = new ArrayList<>(undershootReasons.size());
+            for (int i = 0; i < undershootReasons.size(); i++) {
+                Conjunction<CAATLiteral> reason = undershootReasons.get(i);
+                Set<CAATLiteral> overshootLiterals = overshootEdgeList.get(i).stream().map(edge ->
+                        (CAATLiteral)new EdgeLiteral(acyc.getConstrainedPredicate(), edge, true)).collect(Collectors.toSet());
+
+                result.add(new Pair<>(reason, overshootLiterals));
+            }
+            return result;
+        }
+        return Collections.emptyList();
+    }
+
+    private List<Pair<Conjunction<CAATLiteral>, List<CAATLiteral>>> match(List<Conjunction<CAATLiteral>> list1, List<List<CAATLiteral>> list2) {
+        if (list1.size() != list2.size()) {
+            return Collections.emptyList();
+        }
+        List<Pair<Conjunction<CAATLiteral>, List<CAATLiteral>>> result = new ArrayList<>();
+        for (int i = 0; i < list1.size(); i++) {
+            result.add(new Pair<>(list1.get(i), list2.get(i)));
+        }
+        return result;
+    }
+
+    private List<Conjunction<CAATLiteral>> handleAcyclicityReasons(Constraint constraint,
+                                                                   Collection<? extends Collection<? extends Derivable>> violations) {
+        List<Conjunction<CAATLiteral>> reasonList = new ArrayList<>(violations.size());
+
+        if (constraint instanceof AcyclicityConstraint) {
+            // For acyclicity constraints, it is likely that we encounter the same
+            // edge multiple times (as it can be part of different cycles)
+            // so we memoize the computed reasons and reuse them if possible.
+            final RelationGraph constrainedGraph = (RelationGraph) constraint.getConstrainedPredicate();
+            final int mapSize = violations.stream().mapToInt(Collection::size).sum() * 4 / 3;
+            final Map<Edge, Conjunction<CAATLiteral>> reasonMap = new HashMap<>(mapSize);
+
+            for (Collection<Edge> violation : (Collection<Collection<Edge>>)violations) {
+                if (constrainedGraph.getName().contains("ob") && violation.size() == 1) {
+                    int i = 5;
+                }
+                Conjunction<CAATLiteral> reason = violation.stream()
+                        .map(edge -> reasonMap.computeIfAbsent(edge, key -> computeReason(constrainedGraph, key)))
+                        .reduce(Conjunction.TRUE(), Conjunction::and);
+                reasonList.add(reason);
+            }
+        }
+        return reasonList;
     }
 
     public Conjunction<CAATLiteral> computeReason(CAATPredicate pred, Derivable prop) {

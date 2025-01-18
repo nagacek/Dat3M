@@ -23,13 +23,18 @@ public class AcyclicityConstraint extends AbstractConstraint {
     private static final ObjectPool<DenseIntegerSet> SET_COLLECTION_POOL =
             new ObjectPool<>(DenseIntegerSet::new, 10);
 
-    private static final int MAX_OVERSHOOT = 2;
+    private static final int MAX_OVERSHOOT = 1;
 
 
     private final List<DenseIntegerSet> violatingSccs = new ArrayList<>();
     private final MediumDenseIntegerSet markedNodes = new MediumDenseIntegerSet();
     private ArrayList<Node> nodeMap = new ArrayList<>();
     private boolean noChanges = true;
+
+
+    private final List<List<Edge>> cycles = new ArrayList<>();
+    private final List<List<Edge>> undershootCycles = new ArrayList<>();
+    private final List<List<Edge>> overshootEdges = new ArrayList<>();
 
     public AcyclicityConstraint(RelationGraph constrainedGraph) {
         this.constrainedGraph = constrainedGraph;
@@ -59,15 +64,40 @@ public class AcyclicityConstraint extends AbstractConstraint {
 
     @Override
     public List<List<Edge>> getViolations() {
+        computeViolations();
+
         if (violatingSccs.isEmpty()) {
             return Collections.emptyList();
         }
+
+        return cycles;
+    }
+
+    @Override
+    public boolean checkForNearlyViolations() {
+        return !undershootCycles.isEmpty();
+    }
+
+    @Override
+    public List<List<Edge>> getUndershootViolations() {
+        return undershootCycles;
+    }
+
+    @Override
+    public List<List<Edge>> getOvershootEdges() {
+        return overshootEdges;
+    }
+
+    private void computeViolations() {
+        cycles.clear();
+        undershootCycles.clear();
+        overshootEdges.clear();
+
         //System.out.println("NEW CALL");
 
         ensureCapacity();
         //applyChanges();
 
-        List<List<Edge>> cycles = new ArrayList<>();
         // Current implementation: For all marked events <e> in all SCCs:
         // (1) find a shortest path C from <e> to <e> (=cycle)
         // (2) remove all nodes in C from the search space (those nodes are likely to give the same cycle)
@@ -76,10 +106,19 @@ public class AcyclicityConstraint extends AbstractConstraint {
         for (Set<Integer> scc : violatingSccs) {
             MaterializedSubgraphView subgraph = new MaterializedSubgraphView(constrainedGraph, scc);
             Set<Integer> nodes = new HashSet<>(Sets.intersection(scc, markedNodes));
+            Set<Integer> overshootNodes = new HashSet<>();
             while (!nodes.isEmpty()) {
                 int e = nodes.stream().findAny().get();
 
-                List<Edge> cycle = PathAlgorithm.findShortestPath(subgraph, e, e);
+                List<Edge> cycle = PathAlgorithm.findShortestPath(subgraph, e, e, true);
+
+                // mark node for overshoot cycle
+                if (cycle.isEmpty()) {
+                    overshootNodes.add(e);
+                    nodes.remove(e);
+                    continue;
+                }
+
                 cycle = new ArrayList<>(cycle);
                 cycle.forEach(edge -> nodes.remove(edge.getFirst()));
                 //TODO: Most cycles have chords, so a specialized algorithm that avoids
@@ -89,14 +128,32 @@ public class AcyclicityConstraint extends AbstractConstraint {
                     cycles.add(cycle);
                 }
             }
+            while(!overshootNodes.isEmpty()) {
+                List<Edge> innerOvershootEdges = new ArrayList<>();
+                int e = overshootNodes.stream().findAny().get();
+                List<Edge> overshootCycle = PathAlgorithm.findShortestPath(subgraph, e, e, false);
+                overshootCycle.forEach(edge -> {
+                    overshootNodes.remove(edge.getFirst());
+                    if (!edge.isActive()) {
+                        innerOvershootEdges.add(edge);
+                    }
+                });
+                overshootCycle.removeAll(innerOvershootEdges);
+                //reduceChordsAndNormalize(overshootCycle);
+                undershootCycles.add(overshootCycle);
+                overshootEdges.add(innerOvershootEdges);
+            }
         }
 
         /*if (cycles.isEmpty()) {
             int i = 5;
         }*/
-
-        return cycles;
     }
+
+    /*@Override
+    public void findAugmentedViolations() {
+
+    }*/
 
     private void reduceChordsAndNormalize(List<Edge> cycle) {
         // Reduces chords by iteratively merging first and last edge if possible
@@ -159,8 +216,8 @@ public class AcyclicityConstraint extends AbstractConstraint {
     @SuppressWarnings("unchecked")
     public void onChanged(CAATPredicate predicate, Collection<? extends Derivable> added) {
         for (Edge e : (Collection<Edge>)added) {
-            markedNodes.ensureCapacity(e.getFirst() + 1);
-            if (markedNodes.add(e.getFirst())) {
+            markedNodes.ensureCapacity(Math.max(e.getFirst(), e.getSecond()) + 1);
+            if (markedNodes.add(e.getFirst()) || markedNodes.add(e.getSecond())) {
                 noChanges = false;
             }
         }
@@ -207,6 +264,9 @@ public class AcyclicityConstraint extends AbstractConstraint {
         violatingSccs.forEach(SET_COLLECTION_POOL::returnToPool);
         violatingSccs.clear();
         nodeMap.clear();
+        cycles.clear();
+        undershootCycles.clear();
+        overshootEdges.clear();
     }
 
 
@@ -224,26 +284,36 @@ public class AcyclicityConstraint extends AbstractConstraint {
         }
 
         for (Node node : nodeMap) {
-            if (!node.wasVisited()) {
+            if (!node.wasVisited() && markedNodes.contains(node.id)) {
                 strongConnect(node);
             }
         }
     }
 
+    private void strongConnect(Node v) { strongConnect(v, MAX_OVERSHOOT); }
+
     // The TEMP_LIST is used to temporary hold the nodes in an SCC.
     // The SCC will only actually get created if it is violating! (selfloop or size > 1)
     private static final ArrayList<Integer> TEMP_LIST = new ArrayList<>();
-    private void strongConnect(Node v) {
+    private void strongConnect(Node v, int overshoot) {
         v.index = index;
         v.lowlink = index;
         stack.push(v);
         v.isOnStack = true;
         index++;
 
-        for (Edge e : constrainedGraph.outEdges(v.id)) {
+        for (Edge e : constrainedGraph.weakOutEdges(v.id)) {
+            int innerOvershoot = overshoot;
+            if (!e.isActive()) {
+                if (overshoot > 0) {
+                    innerOvershoot--;
+                } else {
+                    continue;
+                }
+            }
             Node w = nodeMap.get(e.getSecond());
             if (!w.wasVisited()) {
-                strongConnect(w);
+                strongConnect(w, innerOvershoot);
                 v.lowlink = Math.min(v.lowlink, w.lowlink);
             } else if (w.isOnStack) {
                 v.lowlink = Math.min(v.lowlink, w.index);

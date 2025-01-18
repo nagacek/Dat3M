@@ -62,10 +62,17 @@ public interface RelationGraph extends CAATPredicate {
 
 
     default Stream<Edge> outEdgeStream(int e) {
-        return edgeStream(e, EdgeDirection.OUTGOING);
+        return weakEdgeStream(e, EdgeDirection.OUTGOING);
     }
     default Stream<Edge> inEdgeStream(int e) {
-        return edgeStream(e, EdgeDirection.INGOING);
+        return weakEdgeStream(e, EdgeDirection.INGOING);
+    }
+
+    default Stream<Edge> weakOutEdgeStream(int e) {
+        return weakEdgeStream(e, EdgeDirection.OUTGOING);
+    }
+    default Stream<Edge> weakInEdgeStream(int e) {
+        return weakEdgeStream(e, EdgeDirection.INGOING);
     }
 
     default Iterator<Edge> edgeIterator() {
@@ -93,6 +100,9 @@ public interface RelationGraph extends CAATPredicate {
 
     default Iterable<Edge> inEdges(int e) { return edges(e, EdgeDirection.INGOING); }
     default Iterable<Edge> outEdges(int e) {  return edges(e, EdgeDirection.OUTGOING); }
+
+    default Iterable<Edge> weakInEdges(int e) { return weakEdges(e, EdgeDirection.INGOING); }
+    default Iterable<Edge> weakOutEdges(int e) {  return weakEdges(e, EdgeDirection.OUTGOING); }
 
     @Override
     default Set<Edge> setView() { return new SetView(this); }

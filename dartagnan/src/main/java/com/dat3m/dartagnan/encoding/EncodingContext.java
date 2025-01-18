@@ -337,6 +337,9 @@ public final class EncodingContext {
 
     public EdgeEncoder edge(Relation relation) {
         RelationAnalysis.Knowledge k = relationAnalysis.getKnowledge(relation);
+        if (k == null) {
+            int i = 5;
+        }
         EventGraph may = k.getMaySet();
         EventGraph must = k.getMustSet();
         EdgeEncoder variable = relation.getDefinition().getEdgeVariableEncoder(this);

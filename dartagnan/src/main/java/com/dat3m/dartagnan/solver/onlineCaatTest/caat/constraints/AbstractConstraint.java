@@ -2,6 +2,10 @@ package com.dat3m.dartagnan.solver.onlineCaatTest.caat.constraints;
 
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.domain.Domain;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.CAATPredicate;
+import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.Derivable;
+
+import java.util.Collection;
+import java.util.List;
 
 public abstract class AbstractConstraint implements Constraint {
 
@@ -16,5 +20,8 @@ public abstract class AbstractConstraint implements Constraint {
     public void onPopulation(CAATPredicate predicate) {
         onChanged(predicate, predicate.setView());
     }
+
+    @Override
+    public boolean checkForNearlyViolations() { return false; }
 
 }

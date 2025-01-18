@@ -38,6 +38,8 @@ public class Refiner {
 
         public List<BooleanFormula> getVariables() { return Lists.transform(assignment, ConflictLiteral::var); }
 
+        public List<BooleanFormula> getLiterals(BooleanFormulaManager bmgr) { return Lists.transform(assignment, l -> l.value ? l.var : bmgr.not(l.var)); }
+
         public BooleanFormula toFormula(BooleanFormulaManager bmgr) {
             return assignment.stream()
                     .map(l -> l.value ? l.var : bmgr.not(l.var))

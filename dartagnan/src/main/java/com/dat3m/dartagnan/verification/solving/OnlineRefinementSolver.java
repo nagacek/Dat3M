@@ -23,6 +23,7 @@ import com.dat3m.dartagnan.wmm.axiom.Axiom;
 import com.dat3m.dartagnan.wmm.axiom.Emptiness;
 import com.dat3m.dartagnan.wmm.definition.*;
 import com.dat3m.dartagnan.wmm.utils.Cut;
+import com.dat3m.dartagnan.wmm.utils.EventGraph;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import org.apache.logging.log4j.LogManager;
@@ -31,15 +32,9 @@ import org.sosy_lab.common.configuration.Configuration;
 import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.common.configuration.Option;
 import org.sosy_lab.common.configuration.Options;
-import org.sosy_lab.java_smt.api.BooleanFormula;
-import org.sosy_lab.java_smt.api.ProverEnvironment;
-import org.sosy_lab.java_smt.api.SolverContext;
-import org.sosy_lab.java_smt.api.SolverException;
+import org.sosy_lab.java_smt.api.*;
 
-import java.util.EnumSet;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static com.dat3m.dartagnan.configuration.OptionNames.BASELINE;
@@ -192,13 +187,18 @@ public class OnlineRefinementSolver extends ModelChecker {
         final SymmetryEncoder symmetryEncoder = SymmetryEncoder.withContext(context);
         final WmmEncoder baselineEncoder = WmmEncoder.withContext(context);
 
-        final OnlineWMMSolver userPropagator = new OnlineWMMSolver(refinementModel, analysisContext, context);
+        final WmmEncoder fullEncoder = WmmEncoder.withContext(EncodingContext.of(task, analysisContext, ctx.getFormulaManager()));
+
+        final OnlineWMMSolver userPropagator = new OnlineWMMSolver(refinementModel, analysisContext, context, fullEncoder);
         final Property.Type propertyType = Property.getCombinedType(task.getProperty(), task);
 
         logger.info("Starting encoding using " + ctx.getVersion());
-        prover.addConstraint(programEncoder.encodeFullProgram());
-        prover.addConstraint(baselineEncoder.encodeFullMemoryModel());
-        prover.addConstraint(symmetryEncoder.encodeFullSymmetryBreaking());
+        BooleanFormula programFormula = programEncoder.encodeFullProgram();
+        prover.addConstraint(programFormula);
+        BooleanFormula memoryModelFormula = baselineEncoder.encodeFullMemoryModel();
+        prover.addConstraint(memoryModelFormula);
+        BooleanFormula symmetryFormula = symmetryEncoder.encodeFullSymmetryBreaking();
+        prover.addConstraint(symmetryFormula);
 
         prover.registerUserPropagator(userPropagator);
 
@@ -207,7 +207,41 @@ public class OnlineRefinementSolver extends ModelChecker {
 
         logger.info("Checking target property.");
         prover.push();
-        prover.addConstraint(propertyEncoder.encodeProperties(task.getProperty()));
+        BooleanFormula propertyFormula = propertyEncoder.encodeProperties(task.getProperty());
+        prover.addConstraint(propertyFormula);
+
+        //TODO remove test code
+        /*Relation ob = refinementModel.getOriginalModel().getRelation("ob");
+        Relation rf = refinementModel.getOriginalModel().getRelation("rf");
+        Set<Relation> relationSet = new HashSet<>();
+        relationSet.add(ob);
+        relationSet.add(rf);
+
+        HashMap<Integer, Event> neededEvents = new HashMap<>();
+        var eventGraphs = fullEncoder.getEventGraphs(relationSet);
+        for (Event e1 : eventGraphs.get(ob).getDomain()) {
+            if (e1.getGlobalId() == 198 || e1.getGlobalId() == 255) {
+                neededEvents.put(e1.getGlobalId(), e1);
+            }
+        }
+
+        for (Event e2 : eventGraphs.get(ob).getRange()) {
+            if (e2.getGlobalId() == 143 || e2.getGlobalId() == 200) {
+                neededEvents.put(e2.getGlobalId(), e2);
+            }
+        }
+
+
+        BooleanFormulaManager bmgr = context.getBooleanFormulaManager();
+        BooleanFormula testFormula = bmgr.makeTrue();
+        testFormula = bmgr.and(testFormula, fullEncoder.computeEdgeEncoding(ob, neededEvents.get(198), neededEvents.get(143)));
+        testFormula = bmgr.and(testFormula, fullEncoder.computeEdgeEncoding(ob, neededEvents.get(255), neededEvents.get(200)));
+        testFormula = bmgr.and(testFormula, bmgr.implication(fullEncoder.getInitialEncoding(rf, neededEvents.get(143), neededEvents.get(198)), bmgr.not(fullEncoder.getInitialEncoding(ob, neededEvents.get(198), neededEvents.get(143)))));
+        testFormula = bmgr.and(testFormula, bmgr.implication(fullEncoder.getInitialEncoding(rf, neededEvents.get(200), neededEvents.get(255)), bmgr.not(fullEncoder.getInitialEncoding(ob, neededEvents.get(255), neededEvents.get(200)))));
+
+        prover.push();
+        prover.addConstraint(testFormula);*/
+
 
         boolean isUnsat = prover.isUnsat();
 

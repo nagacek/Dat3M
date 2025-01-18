@@ -91,6 +91,7 @@ public class SolverDomain extends GenericDomain<Event>{
         return ev;
     }
 
+    @Override
     public Event weakGetObjectById(int id) {
         return super.getObjectById(id);
     }

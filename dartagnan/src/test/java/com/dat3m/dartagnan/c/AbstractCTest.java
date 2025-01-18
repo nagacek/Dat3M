@@ -84,7 +84,7 @@ public abstract class AbstractCTest {
     protected final Provider<Configuration> configurationProvider = getConfigurationProvider();
     protected final Provider<VerificationTask> taskProvider = Providers.createTask(programProvider, wmmProvider, propertyProvider, targetProvider, boundProvider, configurationProvider);
     protected final Provider<SolverContext> contextProvider = Providers.createSolverContextFromManager(shutdownManagerProvider, solverProvider);
-    protected final Provider<ProverEnvironment> proverProvider = Providers.createProverWithFixedOptions(contextProvider, SolverContext.ProverOptions.GENERATE_MODELS);
+    protected final Provider<ProverEnvironment> proverProvider = Providers.createProverWithFixedOptions(contextProvider, SolverContext.ProverOptions.GENERATE_MODELS, SolverContext.ProverOptions.GENERATE_UNSAT_CORE);
 
     // Special rules
     protected final Timeout timeout = Timeout.millis(getTimeout());

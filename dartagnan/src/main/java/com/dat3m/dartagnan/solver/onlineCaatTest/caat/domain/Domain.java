@@ -9,5 +9,6 @@ public interface Domain<T> {
     Collection<T> getElements();
     int getId(Object obj);
     T getObjectById(int id);
+    default T weakGetObjectById(int id) { return getObjectById(id); }
 }
 

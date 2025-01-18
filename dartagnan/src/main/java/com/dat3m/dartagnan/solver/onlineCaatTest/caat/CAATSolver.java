@@ -5,14 +5,16 @@ import com.dat3m.dartagnan.solver.onlineCaatTest.caat.constraints.Constraint;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.misc.PathAlgorithm;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.reasoning.CAATLiteral;
 import com.dat3m.dartagnan.solver.onlineCaatTest.caat.reasoning.Reasoner;
+import com.dat3m.dartagnan.utils.collections.Pair;
 import com.dat3m.dartagnan.utils.logic.Conjunction;
 import com.dat3m.dartagnan.utils.logic.DNF;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
-import static com.dat3m.dartagnan.solver.onlineCaatTest.caat.CAATSolver.Status.CONSISTENT;
-import static com.dat3m.dartagnan.solver.onlineCaatTest.caat.CAATSolver.Status.INCONSISTENT;
+import static com.dat3m.dartagnan.solver.onlineCaatTest.caat.CAATSolver.Status.*;
 
 
 public class CAATSolver {
@@ -72,16 +74,23 @@ public class CAATSolver {
         // ============== Check for inconsistencies ===============
         curTime = System.currentTimeMillis();
         List<Constraint> violatedConstraints = model.getViolatedConstraints();
-        Status status = violatedConstraints.isEmpty() ? CONSISTENT : INCONSISTENT;
-        result.setStatus(status);
+        Status status = violatedConstraints.isEmpty() ? CONSISTENT : POSSLIBLY_INCONSISTENT;
         stats.consistencyCheckTime = System.currentTimeMillis() - curTime;
 
-        if (status == INCONSISTENT) {
+        if (status == POSSLIBLY_INCONSISTENT) {
             // ============== Compute reasons ===============
             curTime = System.currentTimeMillis();
             result.setBaseReasons(computeInconsistencyReasons(violatedConstraints));
+            result.setStatus(result.baseReasons.getCubes().isEmpty() ? CONSISTENT : INCONSISTENT);
             stats.reasonComputationTime += (System.currentTimeMillis() - curTime);
+
+            // ============= Prepare Theory Propagation ==================
+            List<Pair<Conjunction<CAATLiteral>, Set<CAATLiteral>>> nearlyViolated = computeNearInconsistencyReasons(model.getConstraints());
+            result.nearlyViolationReasons = nearlyViolated;
+        } else {
+            result.setStatus(CONSISTENT);
         }
+
 
         return result;
     }
@@ -109,15 +118,25 @@ public class CAATSolver {
         return result;
     }
 
+    private List<Pair<Conjunction<CAATLiteral>, Set<CAATLiteral>>> computeNearInconsistencyReasons(Set<Constraint> constraints) {
+        List<Pair<Conjunction<CAATLiteral>, Set<CAATLiteral>>> reasons = new ArrayList<>();
+        for (Constraint constraint : constraints) {
+             reasons.addAll(reasoner.computeNearlyViolationResaons(constraint));
+        }
+        return reasons;
+    }
+
     // ======================================== Inner Classes ==============================================
 
     public static class Result {
         private Status status;
         private DNF<CAATLiteral> baseReasons;
+        private List<Pair<Conjunction<CAATLiteral>, Set<CAATLiteral>>> nearlyViolationReasons;
         private final Statistics stats;
 
         public Status getStatus() { return status; }
         public DNF<CAATLiteral> getBaseReasons() { return baseReasons; }
+        public List<Pair<Conjunction<CAATLiteral>, Set<CAATLiteral>>> getNearlyViolationReasons() { return nearlyViolationReasons; }
         public Statistics getStatistics() { return stats; }
 
         void setStatus(Status status) { this.status = status; }
@@ -129,6 +148,7 @@ public class CAATSolver {
             stats = new Statistics();
             status = Status.INCONCLUSIVE;
             baseReasons = DNF.FALSE();
+            nearlyViolationReasons = Collections.emptyList();
         }
 
         @Override
@@ -165,7 +185,7 @@ public class CAATSolver {
     }
 
     public enum Status {
-        CONSISTENT, INCONSISTENT, INCONCLUSIVE;
+        CONSISTENT, POSSLIBLY_INCONSISTENT, INCONSISTENT, INCONCLUSIVE;
 
         @Override
         public String toString() {

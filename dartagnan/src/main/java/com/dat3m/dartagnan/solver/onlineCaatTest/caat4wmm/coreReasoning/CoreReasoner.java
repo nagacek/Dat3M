@@ -54,15 +54,19 @@ public class CoreReasoner {
             List<CoreLiteral> coreReason = new ArrayList<>(baseReason.getSize());
             for (CAATLiteral lit : baseReason.getLiterals()) {
                 if (lit instanceof ElementLiteral elLit) {
-                    final Event e = perm.apply(domain.getObjectById(elLit.getData().getId()));
+                    final Event e = perm.apply(domain.weakGetObjectById(elLit.getData().getId()));
                     // We only have static tags, so all of them reduce to execution literals
                     coreReason.add(new ExecLiteral(e, lit.isNegative()));
                 } else {
                     final EdgeLiteral edgeLit = (EdgeLiteral) lit;
                     final Edge edge = edgeLit.getData();
-                    final Event e1 = perm.apply(domain.getObjectById(edge.getFirst()));
-                    final Event e2 = perm.apply(domain.getObjectById(edge.getSecond()));
+                    final Event e1 = perm.apply(domain.weakGetObjectById(edge.getFirst()));
+                    final Event e2 = perm.apply(domain.weakGetObjectById(edge.getSecond()));
                     final Relation rel = executionGraph.getRelationGraphMap().inverse().get(edgeLit.getPredicate());
+
+                    if (rel == null) {
+                        int i = 5;
+                    }
 
                     if (lit.isPositive() && ra.getKnowledge(rel).getMustSet().contains(e1, e2)) {
                         // Statically present edges

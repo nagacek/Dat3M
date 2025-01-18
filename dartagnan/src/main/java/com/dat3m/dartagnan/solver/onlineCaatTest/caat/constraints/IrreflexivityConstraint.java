@@ -38,6 +38,12 @@ public class IrreflexivityConstraint extends AbstractConstraint {
     }
 
     @Override
+    public List<List<? extends Derivable>> getUndershootViolations() { return List.of(); }
+
+    @Override
+    public List<List<? extends Derivable>> getOvershootEdges() { return List.of(); }
+
+    @Override
     public void onDomainInit(CAATPredicate predicate, Domain<?> domain) {
         super.onDomainInit(predicate, domain);
         violatingEdges.clear();

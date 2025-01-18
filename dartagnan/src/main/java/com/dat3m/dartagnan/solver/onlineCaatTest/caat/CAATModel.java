@@ -80,6 +80,8 @@ public class CAATModel {
         for (Constraint constraint : constraints) {
             if (constraint.checkForViolations()) {
                 violatedConstraints.add(constraint);
+            } else if (!constraint.getViolations().isEmpty()) {
+                int i = 5;
             }
         }
         return violatedConstraints;
