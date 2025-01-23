@@ -5,16 +5,17 @@ import java.util.function.IntConsumer;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-public class DenseIntegerSet implements Set<Integer> {
+public class MediumDenseIntegerSet implements Set<Integer> {
 
-    private boolean[] elements = new boolean[0];
+    private short[] elements = new short[0];
     int size = 0;
+    short level = 1;
 
-    public DenseIntegerSet() {
+    public MediumDenseIntegerSet() {
         this(20);
     }
 
-    public DenseIntegerSet(int capacity) {
+    public MediumDenseIntegerSet(int capacity) {
         ensureCapacity(capacity);
     }
 
@@ -31,13 +32,26 @@ public class DenseIntegerSet implements Set<Integer> {
         return size == 0;
     }
 
+    public void increaseLevel() {
+        level++;
+    }
+
+    public void resetToLevel(short newLevel) {
+        for (int i = 0; i < elements.length; i++) {
+            if (elements[i] > newLevel + 1) {
+                elements[i] = 0;
+            }
+        }
+        level = (short)(newLevel + 1);
+    }
+
     @Override
     public boolean contains(Object o) {
         return o instanceof Integer && contains((int) o);
     }
 
     public boolean contains(int e) {
-        return e < elements.length && elements[e];
+        return e < elements.length && elements[e] > 0;
     }
 
     @Override
@@ -48,7 +62,7 @@ public class DenseIntegerSet implements Set<Integer> {
 
     @Override
     public Stream<Integer> stream() { return intStream().boxed(); }
-    public IntStream intStream() { return IntStream.range(0, elements.length).filter(i -> elements[i]); }
+    public IntStream intStream() { return IntStream.range(0, elements.length).filter(i -> elements[i] > 0); }
 
     @Override
     public Object[] toArray() { return stream().toArray(); }
@@ -60,7 +74,7 @@ public class DenseIntegerSet implements Set<Integer> {
     public boolean add(int ele) {
         boolean contains = contains(ele);
         if (!contains) {
-            elements[ele] = true;
+            elements[ele] = level;
             size++;
         }
         return contains;
@@ -74,7 +88,7 @@ public class DenseIntegerSet implements Set<Integer> {
     public boolean remove(int ele) {
         boolean contains = contains(ele);
         if (contains) {
-            elements[ele] = false;
+            elements[ele] = 0;
             size--;
         }
         return contains;
@@ -108,8 +122,8 @@ public class DenseIntegerSet implements Set<Integer> {
     public boolean retainAll(Collection<?> c) {
         boolean changed = false;
         for (int i = 0; i < elements.length; i++) {
-            if (elements[i] && !c.contains(i)) {
-                elements[i] = false;
+            if (elements[i] > 0 && !c.contains(i)) {
+                elements[i] = 0;
                 size--;
                 changed = true;
             }
@@ -129,7 +143,7 @@ public class DenseIntegerSet implements Set<Integer> {
     @Override
     public void clear() {
         if (size > 0) {
-            Arrays.fill(elements, false);
+            Arrays.fill(elements, (short)0);
             size = 0;
         }
     }
@@ -137,11 +151,11 @@ public class DenseIntegerSet implements Set<Integer> {
 
 
     private static class SetIterator implements PrimitiveIterator.OfInt {
-        final boolean[] elements;
+        final short[] elements;
         int index;
         int size;
 
-        public SetIterator(boolean[] elements, int size) {
+        public SetIterator(short[] elements, int size) {
             this.elements = elements;
             this.size = size;
             index = -1;
@@ -155,18 +169,18 @@ public class DenseIntegerSet implements Set<Integer> {
 
         @Override
         public int nextInt() {
-            while (!elements[++index]) { }
-            size--;
+            while (elements[++index] <= 0) { }
+            this.size--;
             return index;
         }
 
         @Override
         public void forEachRemaining(IntConsumer action) {
             int size = this.size;
-            final boolean[] elements = this.elements;
+            final short[] elements = this.elements;
             int i = -1;
             while (size > 0) {
-                if (elements[++i]) {
+                if (elements[++i] > 0) {
                     action.accept(i);
                     size--;
                 }

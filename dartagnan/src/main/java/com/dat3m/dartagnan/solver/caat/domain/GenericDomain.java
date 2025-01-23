@@ -14,9 +14,31 @@ public class GenericDomain<T> implements Domain<T> {
         }
     }
 
+    public GenericDomain() {
+        domainMap = new DenseIdBiMap<>();
+    }
+
+    // returns smallest unoccupied id
+    public int resetElements(int clusterNum) {
+        return domainMap.removeObjectsFromTop(clusterNum);
+    }
+
     @Override
     public int size() {
         return domainMap.size();
+    }
+
+    public int push() { return domainMap.push(); }
+
+    public int addElement(T el) { return domainMap.addObject(el); }
+
+    public boolean addAll(Collection<T> els) {
+        for (T el : els) {
+            if (addElement(el) < 0) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override

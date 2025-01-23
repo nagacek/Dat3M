@@ -9,6 +9,7 @@ import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.RelLiteral;
 import com.dat3m.dartagnan.utils.logic.Conjunction;
 import com.dat3m.dartagnan.utils.logic.DNF;
 import com.dat3m.dartagnan.wmm.Relation;
+import com.google.common.collect.Lists;
 import org.sosy_lab.java_smt.api.BooleanFormula;
 import org.sosy_lab.java_smt.api.BooleanFormulaManager;
 
@@ -21,33 +22,54 @@ import java.util.List;
 public class Refiner {
 
     private final RefinementModel refinementModel;
+
     public Refiner(RefinementModel refinementModel) {
         this.refinementModel = refinementModel;
     }
 
-    public BooleanFormula refine(DNF<CoreLiteral> coreReasons, EncodingContext context) {
-        final BooleanFormulaManager bmgr = context.getBooleanFormulaManager();
-        List<BooleanFormula> refinement = new ArrayList<>();
-        for (Conjunction<CoreLiteral> reason : coreReasons.getCubes()) {
-            BooleanFormula clause = bmgr.makeFalse();
-            for (CoreLiteral lit : reason.getLiterals()) {
-                final BooleanFormula litFormula = encode(lit, context);
-                if (bmgr.isFalse(litFormula)) {
-                    clause = bmgr.makeTrue();
-                    break;
-                } else {
-                    clause = bmgr.or(clause, bmgr.not(litFormula));
-                }
-            }
-            if (!bmgr.isTrue(clause)) {
-                refinement.add(clause);
-            }
+    public record ConflictLiteral(BooleanFormula var, boolean value) {
+        @Override
+        public String toString() {
+            return (value ? "" : "!") + var;
         }
-        return bmgr.and(refinement);
     }
 
-    private BooleanFormula encode(CoreLiteral literal, EncodingContext encoder) {
-        final BooleanFormulaManager bmgr = encoder.getBooleanFormulaManager();
+    public record Conflict(List<ConflictLiteral> assignment) {
+
+        public List<BooleanFormula> getVariables() { return Lists.transform(assignment, ConflictLiteral::var); }
+
+        public BooleanFormula toFormula(BooleanFormulaManager bmgr) {
+            return assignment.stream()
+                    .map(l -> l.value ? l.var : bmgr.not(l.var))
+                    .reduce(bmgr.makeTrue(), bmgr::and);
+        }
+    }
+
+    public List<Conflict> computeConflicts(DNF<CoreLiteral> coreReasons, EncodingContext context) {
+        if (coreReasons.isTriviallyTrue() || coreReasons.isFalse()) {
+            int i = 5;
+        }
+        final BooleanFormulaManager bmgr  = context.getBooleanFormulaManager();
+        final List<Conflict> conflicts = new ArrayList<>();
+        for (Conjunction<CoreLiteral> reason : coreReasons.getCubes()) {
+            List<ConflictLiteral> assignment = new ArrayList<>();
+            for (CoreLiteral lit : reason.getLiterals()) {
+                final ConflictLiteral conflictLiteral = toConflictLiteral(lit, context);
+                if (bmgr.isFalse(conflictLiteral.var) && conflictLiteral.value) {
+                    assignment = null;
+                    break;
+                } else {
+                    assignment.add(conflictLiteral);
+                }
+            }
+            if (assignment != null) {
+                conflicts.add(new Conflict(assignment));
+            }
+        }
+        return conflicts;
+    }
+
+    private ConflictLiteral toConflictLiteral(CoreLiteral literal, EncodingContext encoder) {
         final BooleanFormula enc;
         if (literal instanceof ExecLiteral lit) {
             enc = encoder.execution(lit.getEvent());
@@ -57,10 +79,10 @@ public class Refiner {
             final Relation rel = refinementModel.translateToBase(lit.getRelation());
             enc = encoder.edge(rel, lit.getSource(), lit.getTarget());
         } else {
-            throw new IllegalArgumentException("CoreLiteral " + literal + " is not supported");
+            throw new IllegalArgumentException("CoreLiteral " + literal.toString() + " is not supported");
         }
 
-        return literal.isNegative() ? bmgr.not(enc) : enc;
+        return new ConflictLiteral(enc, literal.isPositive());
     }
 
 }

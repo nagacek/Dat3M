@@ -54,14 +54,20 @@ public class CAATSolver {
             - Return results about the computation
      */
     public Result check(CAATModel model) {
+        return check(model, false);
+    }
+
+    public Result check(CAATModel model, boolean populate) {
         Result result = new Result();
         stats = result.getStatistics();
 
         PathAlgorithm.ensureCapacity(model.getDomain().size());
         // ============== Populate derived predicates ===============
         long curTime = System.currentTimeMillis();
-        model.populate();
-        stats.populationTime = System.currentTimeMillis() - curTime;
+        if (populate) {
+            model.populate();
+            stats.populationTime = System.currentTimeMillis() - curTime;
+        }
 
         // ============== Check for inconsistencies ===============
         curTime = System.currentTimeMillis();
@@ -84,10 +90,19 @@ public class CAATSolver {
 
     private DNF<CAATLiteral> computeInconsistencyReasons(List<Constraint> violatedConstraints) {
         List<Conjunction<CAATLiteral>> reasons = new ArrayList<>();
+        //System.out.println("*********************");
         for (Constraint constraint : violatedConstraints) {
-            reasons.addAll(reasoner.computeViolationReasons(constraint).getCubes());
+            var cubes = reasoner.computeViolationReasons(constraint).getCubes();
+            reasons.addAll(cubes);
+            if (cubes.isEmpty()) {
+                int i = 5;
+            }
+            //System.out.println("WAS IN LOOP");
         }
         stats.numComputedReasons += reasons.size();
+        if (reasons.isEmpty()) {
+            int i = 5;
+        }
         DNF<CAATLiteral> result = new DNF<>(reasons); // The conversion to DNF removes duplicates and dominated clauses
         stats.numComputedReducedReasons += result.getNumberOfCubes();
 

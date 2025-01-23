@@ -51,10 +51,12 @@ public interface CAATPredicate extends Dependent<CAATPredicate> {
     // Gives a view on this predicate as a Set<Derivable>
     Set<? extends Derivable> setView();
 
+    void validate(int time);
+
 
     // ======================================== Defaults ==============================================
 
-    default int size() { return (int)valueStream().count(); }; // Returns the exact(!) size of this predicate
+    default int size() { return (int)valueStream().count(); } // Returns the exact(!) size of this predicate
     default boolean contains(Derivable value) { return get(value) != null; }
     default boolean isEmpty() { return size() == 0; }
 

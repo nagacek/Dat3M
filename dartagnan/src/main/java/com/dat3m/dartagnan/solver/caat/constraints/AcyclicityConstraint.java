@@ -3,6 +3,7 @@ package com.dat3m.dartagnan.solver.caat.constraints;
 
 import com.dat3m.dartagnan.solver.caat.domain.Domain;
 import com.dat3m.dartagnan.solver.caat.misc.DenseIntegerSet;
+import com.dat3m.dartagnan.solver.caat.misc.MediumDenseIntegerSet;
 import com.dat3m.dartagnan.solver.caat.misc.ObjectPool;
 import com.dat3m.dartagnan.solver.caat.misc.PathAlgorithm;
 import com.dat3m.dartagnan.solver.caat.predicates.CAATPredicate;
@@ -24,8 +25,9 @@ public class AcyclicityConstraint extends AbstractConstraint {
 
 
     private final List<DenseIntegerSet> violatingSccs = new ArrayList<>();
-    private final DenseIntegerSet markedNodes = new DenseIntegerSet();
-    private Node[] nodeMap;
+    private final MediumDenseIntegerSet markedNodes = new MediumDenseIntegerSet();
+    private ArrayList<Node> nodeMap = new ArrayList<>();
+    private boolean noChanges = true;
 
     public AcyclicityConstraint(RelationGraph constrainedGraph) {
         this.constrainedGraph = constrainedGraph;
@@ -40,13 +42,15 @@ public class AcyclicityConstraint extends AbstractConstraint {
     public boolean checkForViolations() {
         if (!violatingSccs.isEmpty()) {
             return true;
-        } else if (markedNodes.isEmpty()) {
+        } else if (noChanges) {
             return false;
         }
+        ensureCapacity();
+        //applyChanges();
         tarjan();
         violatingSccs.sort(Comparator.comparingInt(Set::size));
         if (violatingSccs.isEmpty()) {
-            markedNodes.clear();
+            noChanges = true;
         }
         return !violatingSccs.isEmpty();
     }
@@ -56,12 +60,17 @@ public class AcyclicityConstraint extends AbstractConstraint {
         if (violatingSccs.isEmpty()) {
             return Collections.emptyList();
         }
+        //System.out.println("NEW CALL");
+
+        ensureCapacity();
+        //applyChanges();
 
         List<List<Edge>> cycles = new ArrayList<>();
         // Current implementation: For all marked events <e> in all SCCs:
         // (1) find a shortest path C from <e> to <e> (=cycle)
         // (2) remove all nodes in C from the search space (those nodes are likely to give the same cycle)
         // (3) remove chords and normalize cycle order (starting from element with smallest id)
+        //System.out.println("NEW SCC");
         for (Set<Integer> scc : violatingSccs) {
             MaterializedSubgraphView subgraph = new MaterializedSubgraphView(constrainedGraph, scc);
             Set<Integer> nodes = new HashSet<>(Sets.intersection(scc, markedNodes));
@@ -70,7 +79,6 @@ public class AcyclicityConstraint extends AbstractConstraint {
 
                 List<Edge> cycle = PathAlgorithm.findShortestPath(subgraph, e, e);
                 cycle = new ArrayList<>(cycle);
-
                 cycle.forEach(edge -> nodes.remove(edge.getFirst()));
                 //TODO: Most cycles have chords, so a specialized algorithm that avoids
                 // chords altogether would be great
@@ -80,6 +88,10 @@ public class AcyclicityConstraint extends AbstractConstraint {
                 }
             }
         }
+
+        /*if (cycles.isEmpty()) {
+            int i = 5;
+        }*/
 
         return cycles;
     }
@@ -121,16 +133,52 @@ public class AcyclicityConstraint extends AbstractConstraint {
         Collections.rotate(cycle, -first);
     }
 
-    @Override
-    @SuppressWarnings("unchecked")
-    public void onChanged(CAATPredicate predicate, Collection<? extends Derivable> added) {
-        for (Edge e : (Collection<Edge>)added) {
-            markedNodes.add(e.getFirst());
+    /*private final ArrayList<Integer> toAdd = new ArrayList<>();
+
+    private void applyChanges() {
+        ensureCapacity();
+        markedNodes.addAll(toAdd);
+        toAdd.clear();
+    }
+
+    private void cancelChanges() {
+        ensureCapacity();
+        toAdd.clear();
+    }*/
+
+    private void ensureCapacity() {
+        markedNodes.ensureCapacity(domain.size());
+        while (nodeMap.size() < domain.size()) {
+            nodeMap.add(new Node(nodeMap.size()));
         }
     }
 
     @Override
+    @SuppressWarnings("unchecked")
+    public void onChanged(CAATPredicate predicate, Collection<? extends Derivable> added) {
+        for (Edge e : (Collection<Edge>)added) {
+            markedNodes.ensureCapacity(e.getFirst() + 1);
+            if (markedNodes.add(e.getFirst())) {
+                noChanges = false;
+            }
+        }
+    }
+
+    @Override
+    public void onPush() {
+        //applyChanges();
+        markedNodes.increaseLevel();
+        cleanUp();
+    }
+
+    @Override
     public void onBacktrack(CAATPredicate predicate, int time) {
+        //cancelChanges();
+        markedNodes.resetToLevel((short)time);
+        noChanges = false;
+
+        //System.out.println("\nMarked Nodes on Backtrack in Constraint " + thisCounter + ": ");
+        //System.out.println(markedNodes);
         cleanUp();
     }
 
@@ -138,11 +186,12 @@ public class AcyclicityConstraint extends AbstractConstraint {
     public void onDomainInit(CAATPredicate predicate, Domain<?> domain) {
         super.onDomainInit(predicate, domain);
         cleanUp();
-        int domSize = domain.size();;
+        int domSize = domain.size();
+        markedNodes.clear();
         markedNodes.ensureCapacity(domSize);
-        nodeMap = new Node[domSize];
+        nodeMap = new ArrayList<>(domSize);
         for (int i = 0; i < domSize; i++) {
-            nodeMap[i] = new Node(i);
+            nodeMap.add(i, new Node(i));
         }
     }
 
@@ -155,7 +204,7 @@ public class AcyclicityConstraint extends AbstractConstraint {
     private void cleanUp() {
         violatingSccs.forEach(SET_COLLECTION_POOL::returnToPool);
         violatingSccs.clear();
-        markedNodes.clear();
+        nodeMap.clear();
     }
 
 
@@ -164,6 +213,7 @@ public class AcyclicityConstraint extends AbstractConstraint {
     private final Deque<Node> stack = new ArrayDeque<>();
     private int index = 0;
     private void tarjan() {
+
         index = 0;
         stack.clear();
 
@@ -189,7 +239,7 @@ public class AcyclicityConstraint extends AbstractConstraint {
         index++;
 
         for (Edge e : constrainedGraph.outEdges(v.id)) {
-            Node w = nodeMap[e.getSecond()];
+            Node w = nodeMap.get(e.getSecond());
             if (!w.wasVisited()) {
                 strongConnect(w);
                 v.lowlink = Math.min(v.lowlink, w.lowlink);
