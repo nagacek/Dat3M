@@ -16,22 +16,23 @@ import java.util.*;
 public abstract class AbstractEvent implements Event {
 
     private final MetadataMap metadataMap = new MetadataMap();
-    private final Set<String> tags;
+    private final TagSet tags;
     private final Set<EventUser> currentUsers = new HashSet<>();
-    // This id is dynamically changing during processing.
+    // These ids are dynamically changing during processing.
     private transient int globalId = -1; // (Global) ID within a program
+    private transient int localId = -1; // (Local) ID within a function
 
     private transient Function function; // The function this event belongs to
     private transient AbstractEvent successor;
     private transient AbstractEvent predecessor;
 
     protected AbstractEvent() {
-        tags = new HashSet<>();
+        tags = new TagSet();
     }
 
     protected AbstractEvent(AbstractEvent other) {
         copyAllMetadataFrom(other);
-        this.tags = other.tags; // TODO: Dangerous code! A Copy-on-Write Set should be used (e.g. PersistentSet/Map)
+        this.tags = other.tags.copy();
     }
 
     @Override
@@ -40,8 +41,12 @@ public abstract class AbstractEvent implements Event {
     public void setGlobalId(int id) { this.globalId = id; }
 
     @Override
-    public Function getFunction() { return function; }
+    public int getLocalId() { return localId; }
+    @Override
+    public void setLocalId(int id) { this.localId = id; }
 
+    @Override
+    public Function getFunction() { return function; }
     @Override
     public void setFunction(Function function) {
         this.function = Preconditions.checkNotNull(function);
@@ -263,9 +268,15 @@ public abstract class AbstractEvent implements Event {
             return 0;
         }
         int result = Integer.compare(this.getGlobalId(), e.getGlobalId());
-        if (result == 0) {
+        if (result == 0 && this.getGlobalId() != -1) {
             final String error = String.format("Events %s and %s are different but have the same global id %d",
                     this, e, e.getGlobalId());
+            throw new IllegalStateException(error);
+        }
+        result = (result != 0) ? result :  (Integer.compare(this.getLocalId(), e.getLocalId()));
+        if (result == 0) {
+            final String error = String.format("Events %s and %s are different but have the same local id %d",
+                    this, e, e.getLocalId());
             throw new IllegalStateException(error);
         }
         return result;

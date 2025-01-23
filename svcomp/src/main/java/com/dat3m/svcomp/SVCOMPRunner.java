@@ -2,8 +2,8 @@ package com.dat3m.svcomp;
 
 import com.dat3m.dartagnan.parsers.witness.ParserWitness;
 import com.dat3m.dartagnan.utils.options.BaseOptions;
+import com.dat3m.dartagnan.witness.graphml.WitnessGraph;
 import com.dat3m.dartagnan.configuration.Property;
-import com.dat3m.dartagnan.witness.WitnessGraph;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.io.Files;
 import org.sosy_lab.common.configuration.Configuration;
@@ -24,8 +24,7 @@ import org.apache.logging.log4j.Logger;
 
 import static com.dat3m.dartagnan.configuration.OptionInfo.collectOptions;
 import static com.dat3m.dartagnan.configuration.OptionNames.*;
-import static com.dat3m.dartagnan.parsers.program.utils.Compilation.*;
-import static com.dat3m.dartagnan.witness.GraphAttributes.UNROLLBOUND;
+import static com.dat3m.dartagnan.witness.graphml.GraphAttributes.UNROLLBOUND;
 import static java.lang.Integer.parseInt;
 
 @Options
@@ -51,21 +50,6 @@ public class SVCOMPRunner extends BaseOptions {
     }
 
     @Option(
-        name=UMIN,
-        description="Starting unrolling bound <integer>.")
-    private int umin = 1;
-
-    @Option(
-        name=UMAX,
-        description="Ending unrolling bound <integer>.")
-    private int umax = Integer.MAX_VALUE;
-
-    @Option(
-        name=STEP,
-        description="Step size for the increasing unrolling bound <integer>.")
-    private int step = 1;
-
-    @Option(
         name=VALIDATE,
         description="Run Dartagnan as a violation witness validator. Argument is the path to the witness file.")
     private String witnessPath;
@@ -89,6 +73,9 @@ public class SVCOMPRunner extends BaseOptions {
         File fileModel = new File(Arrays.stream(args).filter(a -> a.endsWith(".cat")).findFirst().get());
         String programPath = Arrays.stream(args).filter(a -> supportedFormats.stream().anyMatch(a::endsWith)).findFirst().get();
         File fileProgram = new File(programPath);
+        // To be sure we do not mixed benchmarks, if the bounds file exists, delete it
+        final String boundsFilePath = System.getenv("DAT3M_OUTPUT") + "/bounds.csv";
+        new File(boundsFilePath).delete();
 
         String[] argKeyword = Arrays.stream(args)
             .filter(s->s.startsWith("-"))
@@ -111,23 +98,20 @@ public class SVCOMPRunner extends BaseOptions {
             }
         }
 
-        int bound = witness.hasAttributed(UNROLLBOUND.toString()) ? parseInt(witness.getAttributed(UNROLLBOUND.toString())) : r.umin;
+        int bound = witness.hasAttributed(UNROLLBOUND.toString()) ? parseInt(witness.getAttributed(UNROLLBOUND.toString())) : 1;
 
-        File file;
         String output = "UNKNOWN";
         while(output.equals("UNKNOWN")) {
-            file = compileWithClang(fileProgram, "");
-            file = applyLlvmPasses(file);    
-
-            String llvmName = System.getenv().get("DAT3M_HOME") + "/output/" + Files.getNameWithoutExtension(programPath) + "-opt.ll";
-	        
             ArrayList<String> cmd = new ArrayList<>();
             cmd.add("java");
             cmd.add("-Dlog4j.configurationFile=" + System.getenv().get("DAT3M_HOME") + "/dartagnan/src/main/resources/log4j2.xml");
             cmd.add("-DLOGNAME=" + Files.getNameWithoutExtension(programPath));
             cmd.addAll(Arrays.asList("-jar", System.getenv().get("DAT3M_HOME") + "/dartagnan/target/dartagnan.jar"));
             cmd.add(fileModel.toString());
-            cmd.add(llvmName);
+            cmd.add(programPath);
+            cmd.add("svcomp.properties");
+            cmd.add("--bound.load=" + boundsFilePath);
+            cmd.add("--bound.save=" + boundsFilePath);
             cmd.add(String.format("--%s=%s", PROPERTY, r.property.asStringOption()));
             cmd.add(String.format("--%s=%s", BOUND, bound));
             cmd.add(String.format("--%s=%s", WITNESS_ORIGINAL_PROGRAM_PATH, programPath));
@@ -159,19 +143,12 @@ public class SVCOMPRunner extends BaseOptions {
                 System.out.println(e.getMessage());
                 System.exit(0);
             }
-            if(bound > r.umax) {
-                System.out.println("PASS");
-                break;
-            }
-            // We always do iterations 1 and 2 and then use the step
-            bound = bound == 1 ? 2 : bound + r.step;
         }
     }
     
     private static List<String> filterOptions(Configuration config) {
     	
-        // BOUND is computed based on umin and the information from the witness
-        List<String> skip = Arrays.asList(PROPERTYPATH, UMIN, UMAX, STEP, BOUND);
+        List<String> skip = Arrays.asList(PROPERTYPATH);
     	
         return Arrays.stream(config.asPropertiesString().split("\n")).
             filter(p -> skip.stream().noneMatch(s -> s.equals(p.split(" = ")[0]))).

@@ -27,7 +27,7 @@ public class LFDSTest extends AbstractCTest {
 
     @Override
     protected Provider<String> getProgramPathProvider() {
-        return Provider.fromSupplier(() -> getTestResourcePath("lfds/" + name + ".ll"));
+        return () -> getTestResourcePath("lfds/" + name + ".ll");
     }
 
     @Override
@@ -36,7 +36,7 @@ public class LFDSTest extends AbstractCTest {
     }
 
     protected Provider<Integer> getBoundProvider() {
-        return Provider.fromSupplier(() -> 2);
+        return () -> 2;
     }
 
     @Parameterized.Parameters(name = "{index}: {0}, target={1}")

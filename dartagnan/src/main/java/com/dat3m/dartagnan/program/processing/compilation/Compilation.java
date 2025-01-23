@@ -81,7 +81,11 @@ public class Compilation implements ProgramProcessor {
             logger.warn("Skipped compilation: Program is already compiled to {}", program.getArch());
             return;
         }
-
+        // TODO: Refactor processors such that compiler is resolved
+        //  based on the source language and target
+        if (program.getFormat() == Program.SourceLanguage.SPV) {
+            compiler = new VisitorSpirvVulkan();
+        }
         program.getThreads().forEach(this::run);
         program.getFunctions().forEach(this::run);
         program.setArch(target);
@@ -117,7 +121,7 @@ public class Compilation implements ProgramProcessor {
 
     private VisitorBase getCompiler() {
         return switch (target) {
-            case C11 -> new VisitorC11();
+            case C11, OPENCL -> new VisitorC11();
             case LKMM -> new VisitorLKMM();
             case TSO -> new VisitorTso();
             case POWER -> new VisitorPower(useRC11Scheme, cToPowerScheme);

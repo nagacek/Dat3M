@@ -33,7 +33,7 @@ public class MiscellaneousTest extends AbstractCTest {
 
     @Override
     protected Provider<String> getProgramPathProvider() {
-        return Provider.fromSupplier(() -> getTestResourcePath("miscellaneous/" + name + ".ll"));
+        return () -> getTestResourcePath("miscellaneous/" + name + ".ll");
     }
 
     @Override
@@ -50,7 +50,7 @@ public class MiscellaneousTest extends AbstractCTest {
     protected Provider<Configuration> getConfigurationProvider() {
         return Provider.fromSupplier(() -> {
             ConfigurationBuilder builder = Configuration.builder();
-            if (!name.equals("pthread")) {
+            if (!name.equals("pthread") && !name.equals("ctlz") && !name.equals("cttz")) {
                 builder.setOption(OptionNames.USE_INTEGERS, "true");
             }
             if (name.equals("recursion")) {
@@ -67,6 +67,9 @@ public class MiscellaneousTest extends AbstractCTest {
                 {"propagatableSideEffects", ARM8, FAIL, 1},
                 {"SB-RMW", TSO, PASS, 1},
                 {"SB-RMW", IMM, PASS, 1},
+                {"SB-asm-mfences", TSO, PASS, 1},
+                {"SB-asm-lwsync+sync", POWER, FAIL, 1},
+                {"SB-asm-syncs", POWER, PASS, 1},
                 {"MP_atomic_bool", IMM, PASS, 1},
                 {"MP_atomic_bool_weak", IMM, FAIL, 1},
                 {"nondet_loop", IMM, FAIL, 1},
@@ -82,7 +85,17 @@ public class MiscellaneousTest extends AbstractCTest {
                 {"thread_id", IMM, PASS, 1},
                 {"funcPtrInStaticMemory", IMM, PASS, 1},
                 {"verifierAssert", ARM8, FAIL, 1},
-                {"uninitRead", IMM, FAIL, 1}
+                {"uninitRead", IMM, FAIL, 1},
+                {"multipleBackJumps", IMM, UNKNOWN, 1},
+                {"memcpy_s", IMM, PASS, 1},
+                {"staticLoops", IMM, PASS, 1},
+                {"offsetof", IMM, PASS, 1},
+                {"ctlz", IMM, PASS, 1},
+                {"cttz", IMM, PASS, 1},
+                {"jumpIntoLoop", IMM, PASS, 11},
+                {"nondet_alloc", IMM, FAIL, 1},
+                {"nondet_alloc_2", IMM, PASS, 1},
+                {"nondet_aligned_alloc", IMM, PASS, 1},
         });
     }
 

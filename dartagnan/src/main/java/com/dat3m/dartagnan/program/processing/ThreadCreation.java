@@ -62,7 +62,7 @@ public class ThreadCreation implements ProgramProcessor {
             description = "Calling pthread_create is guaranteed to succeed.",
             secure = true,
             toUppercase = true)
-    private boolean forceStart = false;
+    private boolean forceStart = true;
 
     private final Compilation compiler;
 
@@ -77,7 +77,7 @@ public class ThreadCreation implements ProgramProcessor {
 
     @Override
     public void run(Program program) {
-        if (program.getFormat().equals(Program.SourceLanguage.LITMUS)) {
+        if (!program.getFormat().equals(Program.SourceLanguage.LLVM)) {
             return;
         }
 
@@ -128,8 +128,8 @@ public class ThreadCreation implements ProgramProcessor {
                         comAddress.setInitialValue(0, expressions.makeZero(archType));
 
                         final List<Event> replacement = eventSequence(
-                                createEvent,
                                 newReleaseStore(comAddress, expressions.makeTrue()),
+                                createEvent,
                                 newStore(pidResultAddress, tidExpr),
                                 // TODO: Allow to return failure value (!= 0)
                                 newLocal(resultRegister, expressions.makeZero((IntegerType) resultRegister.getType()))
@@ -345,7 +345,8 @@ public class ThreadCreation implements ProgramProcessor {
             @Override
             public Expression visitMemoryObject(MemoryObject memObj) {
                 if (memObj.isThreadLocal() && !global2ThreadLocal.containsKey(memObj)) {
-                    final MemoryObject threadLocalCopy = memory.allocate(memObj.size());
+                    Preconditions.checkState(memObj.hasKnownSize());
+                    final MemoryObject threadLocalCopy = memory.allocate(memObj.getKnownSize());
                     assert memObj.hasName();
                     final String varName = String.format("%s@T%s", memObj.getName(), thread.getId());
                     threadLocalCopy.setName(varName);

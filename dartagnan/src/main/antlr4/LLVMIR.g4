@@ -740,7 +740,17 @@ funcAttr:
 	| 'sspstrong'
 	| 'strictfp'
 	| 'willreturn'
-	| 'writeonly';
+	| 'writeonly'
+	| 'memory(' memoryEffect+ ')';
+memoryEffect
+	: accessKind
+	| 'argmem:' accessKind
+	| 'inaccessiblemem:' accessKind;
+accessKind
+	: 'none'
+	| 'readwrite'
+	| 'read'
+	| 'write';
 distinct: 'distinct';
 inBounds: 'inbounds';
 returnAttr:
@@ -1263,7 +1273,7 @@ linkageNameField: 'linkageName:' StringLit;
 lowerBoundField: 'lowerBound:' mdFieldOrInt;
 macrosField: 'macros:' mdField;
 nameTableKindField:
-	'nameTableKind:' nameTableKind = ('GNU' | 'None' | 'Default');
+	'nameTableKind:' nameTableKind = ('Apple' | 'GNU' | 'None' | 'Default');
 nodesField: 'nodes:' mdField;
 offsetField:
 	// TODO: rename OffsetField= attribute to Offset= when inspirer/textmapper#13 is resolved

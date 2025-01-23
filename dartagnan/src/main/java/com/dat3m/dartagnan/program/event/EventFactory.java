@@ -5,19 +5,21 @@ import com.dat3m.dartagnan.expression.ExpressionFactory;
 import com.dat3m.dartagnan.expression.Type;
 import com.dat3m.dartagnan.expression.booleans.BoolLiteral;
 import com.dat3m.dartagnan.expression.integers.IntBinaryOp;
+import com.dat3m.dartagnan.expression.integers.IntCmpOp;
 import com.dat3m.dartagnan.expression.type.FunctionType;
 import com.dat3m.dartagnan.expression.type.IntegerType;
 import com.dat3m.dartagnan.expression.type.TypeFactory;
 import com.dat3m.dartagnan.program.Function;
 import com.dat3m.dartagnan.program.Register;
 import com.dat3m.dartagnan.program.event.arch.StoreExclusive;
-import com.dat3m.dartagnan.program.event.arch.lisa.LISARMW;
 import com.dat3m.dartagnan.program.event.arch.ptx.PTXAtomCAS;
 import com.dat3m.dartagnan.program.event.arch.ptx.PTXAtomExch;
 import com.dat3m.dartagnan.program.event.arch.ptx.PTXAtomOp;
 import com.dat3m.dartagnan.program.event.arch.ptx.PTXRedOp;
 import com.dat3m.dartagnan.program.event.arch.tso.TSOXchg;
+import com.dat3m.dartagnan.program.event.arch.vulkan.VulkanCmpXchg;
 import com.dat3m.dartagnan.program.event.arch.vulkan.VulkanRMW;
+import com.dat3m.dartagnan.program.event.arch.vulkan.VulkanRMWExtremum;
 import com.dat3m.dartagnan.program.event.arch.vulkan.VulkanRMWOp;
 import com.dat3m.dartagnan.program.event.core.*;
 import com.dat3m.dartagnan.program.event.core.annotations.FunCallMarker;
@@ -36,17 +38,19 @@ import com.dat3m.dartagnan.program.event.lang.llvm.*;
 import com.dat3m.dartagnan.program.event.lang.pthread.InitLock;
 import com.dat3m.dartagnan.program.event.lang.pthread.Lock;
 import com.dat3m.dartagnan.program.event.lang.pthread.Unlock;
+import com.dat3m.dartagnan.program.event.lang.spirv.*;
 import com.dat3m.dartagnan.program.event.lang.svcomp.*;
 import com.dat3m.dartagnan.program.memory.MemoryObject;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static com.dat3m.dartagnan.wmm.RelationNameRepository.*;
+import static com.dat3m.dartagnan.program.event.FenceNameRepository.*;
 
 public class EventFactory {
 
     private static final ExpressionFactory expressions = ExpressionFactory.getInstance();
+    private static final TypeFactory types = TypeFactory.getInstance();
 
     // Static class
     private EventFactory() {
@@ -90,7 +94,15 @@ public class EventFactory {
 
     public static Alloc newAlloc(Register register, Type allocType, Expression arraySize,
                                  boolean isHeapAlloc, boolean doesZeroOutMemory) {
-        return new Alloc(register, allocType, arraySize, isHeapAlloc, doesZeroOutMemory);
+        final Expression defaultAlignment = expressions.makeValue(8, types.getArchType());
+        return newAlignedAlloc(register, allocType, arraySize, defaultAlignment, isHeapAlloc, doesZeroOutMemory);
+    }
+
+    public static Alloc newAlignedAlloc(Register register, Type allocType, Expression arraySize, Expression alignment,
+                                 boolean isHeapAlloc, boolean doesZeroOutMemory) {
+        arraySize = expressions.makeCast(arraySize, types.getArchType(), false);
+        alignment = expressions.makeCast(alignment, types.getArchType(), false);
+        return new Alloc(register, allocType, arraySize, alignment, isHeapAlloc, doesZeroOutMemory);
     }
 
     public static Load newLoad(Register register, Expression address) {
@@ -123,8 +135,8 @@ public class EventFactory {
         return fence;
     }
 
-    public static FenceWithId newFenceWithId(String name, Expression fenceId) {
-        return new FenceWithId(name, fenceId);
+    public static ControlBarrier newControlBarrier(String name, Expression fenceId) {
+        return new ControlBarrier(name, fenceId);
     }
 
     public static Init newInit(MemoryObject base, int offset) {
@@ -133,6 +145,13 @@ public class EventFactory {
         final Expression address = offset == 0 ? base :
                 expressions.makeAdd(base, expressions.makeValue(offset, (IntegerType) base.getType()));
         return new Init(base, offset, address);
+    }
+
+    public static Init newC11Init(MemoryObject base, int offset) {
+        Init init = newInit(base, offset);
+        init.addTags(base.getFeatureTags());
+        init.addTags(Tag.C11.NONATOMIC);
+        return init;
     }
 
     public static ValueFunctionCall newValueFunctionCall(Register resultRegister, Function function, List<Expression> arguments) {
@@ -316,7 +335,7 @@ public class EventFactory {
 
         public static InitLock newInitLock(String name, Expression address, Expression ignoreAttributes) {
             //TODO store attributes inside mutex object
-            return new InitLock(name, address, expressions.makeZero(TypeFactory.getInstance().getArchType()));
+            return new InitLock(name, address, expressions.makeZero(types.getArchType()));
         }
 
         public static Lock newLock(String name, Expression address) {
@@ -445,6 +464,14 @@ public class EventFactory {
         public static LoopBound newLoopBound(Expression bound) {
             return new LoopBound(bound);
         }
+
+        public static NonDetChoice newNonDetChoice(Register register) {
+            return new NonDetChoice(register, false);
+        }
+
+        public static NonDetChoice newSignedNonDetChoice(Register register, boolean isSigned) {
+            return new NonDetChoice(register, isSigned);
+        }
     }
 
     // =============================================================================================
@@ -470,6 +497,14 @@ public class EventFactory {
             public static GenericVisibleEvent newISHBarrier() {
                 return newFence("DMB.ISH");
             }
+
+            public static GenericVisibleEvent newISHLDBarrier() {
+                return newFence("DMB.ISHLD");
+            }
+
+            public static GenericVisibleEvent newISHSTBarrier() {
+                return newFence("DMB.ISHST");
+            }
         }
 
         public static class DSB {
@@ -493,7 +528,7 @@ public class EventFactory {
             }
 
             public static GenericVisibleEvent newISHSTBarrier() {
-                return newFence("DMB.ISHST");
+                return newFence("DSB.ISHST");
             }
 
         }
@@ -649,19 +684,6 @@ public class EventFactory {
     }
 
     // =============================================================================================
-    // =========================================== LISA ============================================
-    // =============================================================================================
-    public static class LISA {
-        private LISA() {
-        }
-
-        public static LISARMW newRMW(Expression address, Register register, Expression value, String mo) {
-            return new LISARMW(register, address, value, mo);
-        }
-    }
-
-
-    // =============================================================================================
     // =========================================== Power ===========================================
     // =============================================================================================
     public static class Power {
@@ -720,15 +742,6 @@ public class EventFactory {
             red.addTags(scope);
             return red;
         }
-
-        public static GenericVisibleEvent newAvDevice() {
-            return new GenericVisibleEvent("avdevice", Tag.Vulkan.AVDEVICE);
-        }
-    
-        public static GenericVisibleEvent newVisDevice() {
-            return new GenericVisibleEvent("visdevice", Tag.Vulkan.VISDEVICE);
-        }
-    
     }
 
     // =============================================================================================
@@ -746,6 +759,61 @@ public class EventFactory {
                                            IntBinaryOp op, String mo, String scope) {
             return new VulkanRMWOp(register, address, op, value, mo, scope);
         }
+
+        public static VulkanRMWExtremum newRMWExtremum(Expression address, Register register, IntCmpOp op,
+                                                       Expression value, String mo, String scope) {
+            return new VulkanRMWExtremum(register, address, op, value, mo, scope);
+        }
+
+        public static VulkanCmpXchg newVulkanCmpXchg(Expression address, Register register, Expression expected,
+                                                     Expression value, String mo, String scope) {
+            return new VulkanCmpXchg(register, address, expected, value, mo, scope);
+        }
+
+        public static GenericVisibleEvent newAvDevice() {
+            return new GenericVisibleEvent("avdevice", Tag.Vulkan.AVDEVICE);
+        }
+
+        public static GenericVisibleEvent newVisDevice() {
+            return new GenericVisibleEvent("visdevice", Tag.Vulkan.VISDEVICE);
+        }
     }
 
+    // =============================================================================================
+    // =========================================== Spir-V ==========================================
+    // =============================================================================================
+
+    public static class Spirv {
+        private Spirv() {}
+
+        public static SpirvLoad newSpirvLoad(Register register, Expression address, String scope,
+                                             Set<String> tags) {
+            return new SpirvLoad(register, address, scope, tags);
+        }
+
+        public static SpirvStore newSpirvStore(Expression address, Expression value, String scope,
+                                               Set<String> tags) {
+            return new SpirvStore(address, value, scope, tags);
+        }
+
+        public static SpirvXchg newSpirvXchg(Register register, Expression address, Expression value,
+                                             String scope, Set<String> tags) {
+            return new SpirvXchg(register, address, value, scope, tags);
+        }
+
+        public static SpirvRmw newSpirvRmw(Register register, Expression address, IntBinaryOp op, Expression value,
+                                            String scope, Set<String> tags) {
+            return new SpirvRmw(register, address, op, value, scope, tags);
+        }
+
+        public static SpirvCmpXchg newSpirvCmpXchg(Register register, Expression address, Expression cmp, Expression value,
+                                                   String scope, Set<String> eqTags, Set<String> neqTags) {
+            return new SpirvCmpXchg(register, address, cmp, value, scope, eqTags, neqTags);
+        }
+
+        public static SpirvRmwExtremum newSpirvRmwExtremum(Register register, Expression address, IntCmpOp op, Expression value,
+                                                           String scope, Set<String> tags) {
+            return new SpirvRmwExtremum(register, address, op, value, scope, tags);
+        }
+    }
 }
