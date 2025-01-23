@@ -3,7 +3,7 @@ PTX
 
 // Base relations:
 // sr: same-scope
-// sync_barrier: synchronize by barriers with same logical barrier resource (barID)
+// syncbar: synchronize by barriers with same logical barrier resource (barID)
 // sync_fence: synchronize by morally strong fence.sc
 
 // Scope Tags:
@@ -15,6 +15,8 @@ PTX
 (*******************)
 (*   Auxiliaries   *)
 (*******************)
+
+let sync_barrier = syncbar & scta
 
 // Explicitly add transitivity for coherence since the co in PTX is not total
 // and recompute fr based on the new co

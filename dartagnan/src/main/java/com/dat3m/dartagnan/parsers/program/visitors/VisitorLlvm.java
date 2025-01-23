@@ -3,7 +3,6 @@ package com.dat3m.dartagnan.parsers.program.visitors;
 import com.dat3m.dartagnan.exception.ParsingException;
 import com.dat3m.dartagnan.expression.*;
 import com.dat3m.dartagnan.expression.integers.IntBinaryOp;
-import com.dat3m.dartagnan.expression.misc.ConstructExpr;
 import com.dat3m.dartagnan.expression.type.*;
 import com.dat3m.dartagnan.parsers.LLVMIRBaseVisitor;
 import com.dat3m.dartagnan.parsers.LLVMIRParser.*;
@@ -241,13 +240,17 @@ public class VisitorLlvm extends LLVMIRBaseVisitor<Expression> {
         final String name = globalIdent(ctx.GlobalIdent());
         check(!constantMap.containsKey(name), "Redeclared constant in %s.", ctx);
         final int size = types.getMemorySizeInBytes(parseType(ctx.type()));
-        final MemoryObject globalObject = program.getMemory().allocate(size);
-        globalObject.setName(name);
-        if (ctx.threadLocal() != null) {
-            globalObject.setIsThreadLocal(true);
+        if (size > 0) {
+            final MemoryObject globalObject = program.getMemory().allocate(size);
+            globalObject.setName(name);
+            if (ctx.threadLocal() != null) {
+                globalObject.setIsThreadLocal(true);
+            }
+            // TODO: mark the global as constant, if possible.
+            constantMap.put(name, globalObject);
+            return;
         }
-        // TODO: mark the global as constant, if possible.
-        constantMap.put(name, globalObject);
+        throw new ParsingException(String.format("Cannot compute memory size for '%s'", name));
     }
 
     @Override
@@ -263,33 +266,8 @@ public class VisitorLlvm extends LLVMIRBaseVisitor<Expression> {
 
         final Expression value;
         value = hasInitializer ? checkExpression(type, ctx.constant()) : program.newConstant(type);
-        setInitialMemoryFromConstant(globalObject, 0, value);
+        globalObject.setInitialValue(0, value);
         return null;
-    }
-
-    private void setInitialMemoryFromConstant(MemoryObject memObj, int offset, Expression constant) {
-        if (constant.getType() instanceof ArrayType arrayType) {
-            assert constant instanceof ConstructExpr;
-            final ConstructExpr constArray = (ConstructExpr) constant;
-            final List<Expression> arrayElements = constArray.getOperands();
-            final int stepSize = types.getMemorySizeInBytes(arrayType.getElementType());
-            for (int i = 0; i < arrayElements.size(); i++) {
-                setInitialMemoryFromConstant(memObj, offset + i * stepSize, arrayElements.get(i));
-            }
-        } else if (constant.getType() instanceof AggregateType) {
-            assert constant instanceof ConstructExpr;
-            final ConstructExpr constStruct = (ConstructExpr) constant;
-            final List<Expression> structElements = constStruct.getOperands();
-            int currentOffset = offset;
-            for (Expression structElement : structElements) {
-                setInitialMemoryFromConstant(memObj, currentOffset, structElement);
-                currentOffset += types.getMemorySizeInBytes(structElement.getType());
-            }
-        } else if (constant.getType() instanceof IntegerType) {
-            memObj.setInitialValue(offset, constant);
-        } else {
-            throw new UnsupportedOperationException("Unrecognized constant value: " + constant);
-        }
     }
 
     private Block getBlock(String label) {
@@ -320,9 +298,13 @@ public class VisitorLlvm extends LLVMIRBaseVisitor<Expression> {
                     scope = (SpecialMdTupleNode) metadataSymbolTable.get(scope.<MdReference>getField("scope").orElseThrow().mdName());
                 }
                 assert scope.nodeType() == SpecialMdTupleNode.Type.DIFile;
+                // https://llvm.org/docs/LangRef.html#difile suggests that "file" and "directory" 
+                // are mandatory fields and thus the ElseThrow
                 final String filename = scope.<MdGenericValue<String>>getField("filename").orElseThrow().value();
                 final String directory = scope.<MdGenericValue<String>>getField("directory").orElseThrow().value();
-                final int lineNumber = diLocationNode.<MdGenericValue<BigInteger>>getField("line").orElseThrow().value().intValue();
+                // Field "line" is optional. When missing we assume value 0
+                final int lineNumber = diLocationNode.<MdGenericValue<BigInteger>>getField("line")
+                        .orElse(new MdGenericValue<BigInteger>(BigInteger.ZERO)).value().intValue();
                 metadata.add(new SourceLocation((directory + "/" + filename).intern(), lineNumber));
             }
         }
@@ -390,6 +372,9 @@ public class VisitorLlvm extends LLVMIRBaseVisitor<Expression> {
             //FIXME ignore side effects of inline assembly
             if (resultRegister != null) {
                 block.events.add(newLocal(resultRegister, program.newConstant(returnType)));
+                logger.warn(String.format("Interpreting inline assembly as an unconstrained value:  %s.", ctx.inlineAsm().getText()));
+            } else {
+                ctx.inlineAsm().accept(this);
             }
             return resultRegister;
         }
@@ -492,6 +477,48 @@ public class VisitorLlvm extends LLVMIRBaseVisitor<Expression> {
     public Expression visitFenceInst(FenceInstContext ctx) {
         final String mo = parseMemoryOrder(ctx.atomicOrdering());
         block.events.add(Llvm.newFence(mo));
+        return null;
+    }
+
+    @Override 
+    public Expression visitInlineAsm(InlineAsmContext ctx) {
+        final String asm = parseQuotedString(ctx.StringLit(0));
+        final Event fence = switch(asm) {
+            // Compiler barrier, do nothing
+            // TODO update when we add support for interrupts
+            case "" -> null;
+            // X86
+            case "mfence" -> X86.newMemoryFence();
+            // Aarch64
+            case "dmb sy" -> AArch64.DMB.newSYBarrier();
+            case "dmb ish" -> AArch64.DMB.newISHBarrier();
+            case "dmb ishld" -> AArch64.DMB.newISHLDBarrier();
+            case "dmb ishst" -> AArch64.DMB.newISHSTBarrier();
+            case "dsb sy" -> AArch64.DSB.newSYBarrier();
+            case "dsb ish" -> AArch64.DSB.newISHBarrier();
+            case "dsb ishld" -> AArch64.DSB.newISHLDBarrier();
+            case "dsb ishst" -> AArch64.DSB.newISHSTBarrier();
+            // PPC
+            case "isync" -> Power.newISyncBarrier();
+            case "sync" -> Power.newSyncBarrier();
+            case "lwsync" -> Power.newLwSyncBarrier();
+            // RISCV
+            case "fence r,r" -> RISCV.newRRFence();
+            case "fence r,w" -> RISCV.newRWFence();
+            case "fence r,rw" -> RISCV.newRRWFence();
+            case "fence w,r" -> RISCV.newWRFence();
+            case "fence w,w" -> RISCV.newWWFence();
+            case "fence w,rw" -> RISCV.newWRWFence();
+            case "fence rw,r" -> RISCV.newRWRFence();
+            case "fence rw,w" -> RISCV.newRWWFence();
+            case "fence rw,rw" -> RISCV.newRWRWFence();
+            case "fence tso" -> RISCV.newTsoFence();
+            case "fence i" -> RISCV.newSynchronizeFence();
+            default -> throw new ParsingException(String.format("Encountered unsupported inline assembly:  %s.", asm));
+        };
+        if(fence != null) {
+            block.events.add(fence);
+        }
         return null;
     }
 
@@ -711,7 +738,8 @@ public class VisitorLlvm extends LLVMIRBaseVisitor<Expression> {
                 getOrNewCurrentRegister(types.getAggregateType(List.of(comparator.getType(), getIntegerType(1))));
         if (register != null) {
             final Expression cast = expressions.makeIntegerCast(asExpected, getIntegerType(1), false);
-            final Expression result = expressions.makeConstruct(List.of(value, cast));
+            final Type type = types.getAggregateType(List.of(value.getType(), cast.getType()));
+            final Expression result = expressions.makeConstruct(type, List.of(value, cast));
             block.events.add(newLocal(register, result));
         }
         return register;
@@ -859,11 +887,9 @@ public class VisitorLlvm extends LLVMIRBaseVisitor<Expression> {
 
     @Override
     public Expression visitStructConst(StructConstContext ctx) {
-        List<Expression> structMembers = new ArrayList<>();
-        for (TypeConstContext typeCtx : ctx.typeConst()) {
-            structMembers.add(visitTypeConst(typeCtx));
-        }
-        return expressions.makeConstruct(structMembers);
+        List<Expression> structMembers = ctx.typeConst().stream().map(this::visitTypeConst).toList();
+        List<Type> structTypes = structMembers.stream().map(Expression::getType).toList();
+        return expressions.makeConstruct(types.getAggregateType(structTypes), structMembers);
     }
 
     @Override
@@ -1291,12 +1317,22 @@ public class VisitorLlvm extends LLVMIRBaseVisitor<Expression> {
         return pointerType;
     }
 
-    private boolean parseBoolean(TerminalNode node) {
-        return Boolean.parseBoolean(node.getText());
-    }
-
     private BigInteger parseBigInteger(TerminalNode node) {
-        return new BigInteger(node.getText());
+        final String nodeString = node.getText();
+        final int radix;
+        final String valueString;
+        // Hexa numbers are used for floating point in llvm.
+        // Prefix "u" is used to force interpreting them as hexa ints
+        // https://stackoverflow.com/questions/16310509/is-it-possible-to-specify-a-hexadecimal-number-in-llvm-ir-code
+        if (nodeString.startsWith("u0x")) {
+           radix = 16;
+           // Get rid of u0x prefix
+           valueString = nodeString.substring(3);
+        } else {
+           radix = 10;
+           valueString = nodeString;
+        }
+        return new BigInteger(valueString, radix);
     }
 
     private String parseQuotedString(TerminalNode node) {

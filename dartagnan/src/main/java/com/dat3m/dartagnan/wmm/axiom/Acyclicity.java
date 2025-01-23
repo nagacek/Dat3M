@@ -8,8 +8,10 @@ import com.dat3m.dartagnan.utils.dependable.DependencyGraph;
 import com.dat3m.dartagnan.verification.Context;
 import com.dat3m.dartagnan.wmm.Relation;
 import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
-import com.dat3m.dartagnan.wmm.utils.EventGraph;
+import com.dat3m.dartagnan.wmm.utils.graph.EventGraph;
+import com.dat3m.dartagnan.wmm.utils.graph.mutable.MapEventGraph;
 import com.dat3m.dartagnan.wmm.utils.Tuple;
+import com.dat3m.dartagnan.wmm.utils.graph.mutable.MutableEventGraph;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.sosy_lab.java_smt.api.BooleanFormula;
@@ -18,9 +20,6 @@ import org.sosy_lab.java_smt.api.FormulaManager;
 import org.sosy_lab.java_smt.api.IntegerFormulaManager;
 
 import java.util.*;
-
-import static com.dat3m.dartagnan.wmm.utils.EventGraph.difference;
-import static com.google.common.base.Preconditions.checkArgument;
 
 public class Acyclicity extends Axiom {
 
@@ -41,12 +40,12 @@ public class Acyclicity extends Axiom {
     // if the clauses {@code exec(x) implies before(x,y)} and {@code exec(z) implies before(y,z)} exist.
     // NOTE: Assumes that the must-set of rel+ is acyclic.
     private static EventGraph transitivelyDerivableMustEdges(ExecutionAnalysis exec, RelationAnalysis.Knowledge k) {
-        EventGraph result = new EventGraph();
+        MutableEventGraph result = new MapEventGraph();
         Map<Event, Set<Event>> map = new HashMap<>();
         Map<Event, Set<Event>> mapInverse = new HashMap<>();
         EventGraph current = k.getMustSet();
         while (!current.isEmpty()) {
-            EventGraph next = new EventGraph();
+            MutableEventGraph next = new MapEventGraph();
             current.apply((x, y) -> {
                 map.computeIfAbsent(x, e -> new HashSet<>()).add(y);
                 mapInverse.computeIfAbsent(y, e -> new HashSet<>()).add(x);
@@ -82,121 +81,11 @@ public class Acyclicity extends Axiom {
     }
 
     @Override
-    public Map<Relation, RelationAnalysis.ExtendedDelta> computeInitialKnowledgeClosure(
-            Map<Relation, RelationAnalysis.Knowledge> knowledgeMap,
-            Context analysisContext) {
-        long t0 = System.currentTimeMillis();
-        ExecutionAnalysis exec = analysisContext.get(ExecutionAnalysis.class);
-        RelationAnalysis.Knowledge knowledge = knowledgeMap.get(rel);
-        EventGraph may = knowledge.getMaySet();
-        EventGraph must = knowledge.getMustSet();
-        EventGraph newDisabled = new EventGraph();
-        may.apply((e1, e2) -> {
-            if (Tuple.isLoop(e1, e2) || must.contains(e2, e1)) {
-                newDisabled.add(e1, e2);
-            }
-        });
-        Map<Event, List<Event>> mustOut = new HashMap<>();
-        must.apply((e1, e2) -> {
-            if (!Tuple.isLoop(e1, e2)) {
-                mustOut.computeIfAbsent(e1, x -> new ArrayList<>()).add(e2);
-            }
-        });
-        EventGraph current = knowledge.getMustSet();
-        while (true) {
-            EventGraph next = new EventGraph();
-            current.apply((x, y) -> {
-                if (Tuple.isLoop(x, y)) {
-                    boolean implied = exec.isImplied(x, y);
-                    for (Event z : mustOut.getOrDefault(y, List.of())) {
-                        if (!implied && !exec.isImplied(z, y) || exec.areMutuallyExclusive(x, z)) {
-                            continue;
-                        }
-                        if (newDisabled.add(z, x)) {
-                            next.add(x, z);
-                        }
-                    }
-                }
-            });
-            if (next.isEmpty()) {
-                break;
-            }
-            current = next;
-        }
-        newDisabled.retainAll(knowledge.getMaySet());
-        logger.debug("disabled {} edges in {}ms", newDisabled.size(), System.currentTimeMillis() - t0);
-        return Map.of(rel, new RelationAnalysis.ExtendedDelta(newDisabled, EventGraph.empty()));
-    }
-
-    @Override
-    public Map<Relation, RelationAnalysis.ExtendedDelta> computeIncrementalKnowledgeClosure(
-            Relation changed,
-            EventGraph disabled,
-            EventGraph enabled,
-            Map<Relation, RelationAnalysis.Knowledge> knowledgeMap,
-            Context analysisContext) {
-        checkArgument(changed == rel,
-                "misdirected knowledge propagation from relation %s to %s", changed, this);
-        long t0 = System.currentTimeMillis();
-        ExecutionAnalysis exec = analysisContext.get(ExecutionAnalysis.class);
-        RelationAnalysis.Knowledge knowledge = knowledgeMap.get(rel);
-        EventGraph may = knowledge.getMaySet();
-        EventGraph newDisabled = new EventGraph();
-        enabled.apply((e1, e2) -> {
-            if (may.contains(e2, e1)) {
-                newDisabled.add(e2, e1);
-            }
-        });
-        Map<Event, List<Event>> mustIn = new HashMap<>();
-        Map<Event, List<Event>> mustOut = new HashMap<>();
-        knowledge.getMustSet().apply((e1, e2) -> {
-            if (!Tuple.isLoop(e1, e2)) {
-                mustIn.computeIfAbsent(e2, x -> new ArrayList<>()).add(e1);
-                mustOut.computeIfAbsent(e1, x -> new ArrayList<>()).add(e2);
-            }
-        });
-
-        EventGraph current = enabled;
-        while (true) {
-            EventGraph next = new EventGraph();
-            current.apply((x, y) -> {
-                if (!Tuple.isLoop(x, y)) {
-                    boolean implies = exec.isImplied(x, y);
-                    boolean implied = exec.isImplied(y, x);
-                    for (Event w : mustIn.getOrDefault(x, List.of())) {
-                        if (!implied && !exec.isImplied(w, x) || exec.areMutuallyExclusive(w, y)) {
-                            continue;
-                        }
-                        if (newDisabled.add(y, w)) {
-                            next.add(w, y);
-                        }
-                    }
-                    for (Event z : mustOut.getOrDefault(y, List.of())) {
-                        if (!implies && !exec.isImplied(z, y) || exec.areMutuallyExclusive(x, z)) {
-                            continue;
-                        }
-                        if (newDisabled.add(z, x)) {
-                            next.add(x, z);
-                        }
-                    }
-                }
-            });
-            if (next.isEmpty()) {
-                break;
-            }
-            current = next;
-        }
-        newDisabled.retainAll(knowledge.getMaySet());
-        logger.debug("Disabled {} edges in {}ms", newDisabled.size(), System.currentTimeMillis() - t0);
-        return Map.of(rel, new RelationAnalysis.ExtendedDelta(newDisabled, EventGraph.empty()));
-    }
-
-    @Override
     protected EventGraph getEncodeGraph(Context analysisContext) {
         ExecutionAnalysis exec = analysisContext.get(ExecutionAnalysis.class);
         RelationAnalysis ra = analysisContext.get(RelationAnalysis.class);
         RelationAnalysis.Knowledge k = ra.getKnowledge(rel);
-        return difference(getEncodeGraph(exec, ra), k.getMustSet());
+        return MutableEventGraph.difference(getEncodeGraph(exec, ra), k.getMustSet());
     }
 
     public int getEncodeGraphSize(Context analysisContext) {
@@ -211,7 +100,7 @@ public class Acyclicity extends Axiom {
 
         // ====== Compute SCCs ======
         DependencyGraph<Event> depGraph = DependencyGraph.from(succMap.keySet(), succMap);
-        final EventGraph result = new EventGraph();
+        final MutableEventGraph result = new MapEventGraph();
         for (Set<DependencyGraph<Event>.Node> scc : depGraph.getSCCs()) {
             for (DependencyGraph<Event>.Node node1 : scc) {
                 for (DependencyGraph<Event>.Node node2 : scc) {
@@ -233,7 +122,7 @@ public class Acyclicity extends Axiom {
         return result;
     }
 
-    private void reduceWithMinSets(EventGraph encodeSet, ExecutionAnalysis exec, RelationAnalysis ra) {
+    private void reduceWithMinSets(MutableEventGraph encodeSet, ExecutionAnalysis exec, RelationAnalysis ra) {
         /*
             ASSUMPTION: MinSet is acyclic!
             IDEA:
@@ -289,7 +178,7 @@ public class Acyclicity extends Axiom {
         // Note: We reduce the transitive closure which may have more edges
         // that can be used to perform reduction
         // Approximative must-transitive reduction of minSet:
-        EventGraph reduct = new EventGraph();
+        MutableEventGraph reduct = new MapEventGraph();
         DependencyGraph<Event> depGraph = DependencyGraph.from(transMinSet.keySet(), e -> transMinSet.getOrDefault(e, Set.of()));
         for (DependencyGraph<Event>.Node start : depGraph.getNodes()) {
             Event e1 = start.getContent();

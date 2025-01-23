@@ -46,7 +46,7 @@ public enum Property implements OptionInterface {
     }
 
     public Type getType(VerificationTask context) {
-        if (this == PROGRAM_SPEC && !context.getProgram().getSpecification().isSafetySpec()) {
+        if (this == PROGRAM_SPEC && context.getProgram().hasReachabilitySpecification()) {
             return Type.REACHABILITY;
         } else {
             return Type.SAFETY;
@@ -67,7 +67,7 @@ public enum Property implements OptionInterface {
     // ------------------------- Static -------------------------
 
     public static EnumSet<Property> getDefault() {
-        return EnumSet.of(PROGRAM_SPEC);
+        return EnumSet.of(PROGRAM_SPEC, LIVENESS, CAT_SPEC);
     }
 
     // Used to decide the order shown by the selector in the UI
