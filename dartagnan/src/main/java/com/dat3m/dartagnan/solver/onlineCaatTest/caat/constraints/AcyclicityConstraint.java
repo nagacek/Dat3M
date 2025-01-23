@@ -79,12 +79,13 @@ public class AcyclicityConstraint extends AbstractConstraint {
 
                 List<Edge> cycle = PathAlgorithm.findShortestPath(subgraph, e, e);
                 cycle = new ArrayList<>(cycle);
-                cycle.forEach(edge -> nodes.remove(edge.getFirst()));
+                //cycle.forEach(edge -> nodes.remove(edge.getFirst()));
                 //TODO: Most cycles have chords, so a specialized algorithm that avoids
                 // chords altogether would be great
                 reduceChordsAndNormalize(cycle);
                 if (!cycles.contains(cycle)) {
                     cycles.add(cycle);
+                    return cycles;
                 }
             }
         }

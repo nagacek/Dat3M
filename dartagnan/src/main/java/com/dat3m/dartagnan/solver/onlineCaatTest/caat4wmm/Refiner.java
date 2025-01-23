@@ -64,6 +64,7 @@ public class Refiner {
             }
             if (assignment != null) {
                 conflicts.add(new Conflict(assignment));
+                return conflicts;
             }
         }
         return conflicts;

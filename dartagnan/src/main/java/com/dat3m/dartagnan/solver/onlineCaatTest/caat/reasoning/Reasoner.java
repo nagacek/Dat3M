@@ -50,6 +50,7 @@ public class Reasoner {
                         .map(edge -> reasonMap.computeIfAbsent(edge, key -> computeReason(constrainedGraph, key)))
                         .reduce(Conjunction.TRUE(), Conjunction::and);
                 reasonList.add(reason);
+                return new DNF<>(reason);
             }
         } else {
             for (Collection<? extends Derivable> violation : violations) {

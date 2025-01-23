@@ -111,6 +111,8 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
     @Override
     public void onPop(int numLevels) {
 
+        waitForBacktrack = false;
+
         long curTime = System.currentTimeMillis();
         int oldDomainSize = domain.size();
         int oldTime = backtrackPoints.size();
@@ -153,6 +155,9 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
 
     @Override
     public void onKnownValue(BooleanFormula expr, boolean value) {
+        if (waitForBacktrack) {
+            return;
+        }
         long curTime = System.currentTimeMillis();
         knownValues.push(expr);
         partialModel.put(expr, value);
@@ -217,17 +222,26 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
     private List<PendingEdgeInfo> usedEdges = new ArrayList<>();
 
     private void backtrackEdgesTo(int time) {
-        List<PendingEdgeInfo> notUsedAnymore = usedEdges.stream().filter(info -> info.addTime() > time)
-                .collect(Collectors.toList());
-        usedEdges.removeAll(notUsedAnymore);
-        pendingEdges.addAll(notUsedAnymore);
+        ArrayList<PendingEdgeInfo> newUsedEdges = new ArrayList<>(usedEdges.size());
+        ArrayList<PendingEdgeInfo> notUsedEdges = new ArrayList<>(usedEdges.size());
+        for (PendingEdgeInfo info : usedEdges) {
+            if (info.addTime() > time) {
+                notUsedEdges.add(info);
+            } else {
+                newUsedEdges.add(info);
+            }
+        }
+        //List<PendingEdgeInfo> notUsedAnymore = usedEdges.stream().filter(info -> info.addTime() > time)
+        //       .collect(Collectors.toList());
+        usedEdges = notUsedEdges;
+        pendingEdges.addAll(notUsedEdges);
         pendingEdges = pendingEdges.stream().filter(info -> info.deleteTime() <= time).collect(Collectors.toList());
     }
 
     private final Queue<Refiner.Conflict> openPropagations = new ArrayDeque<>();
 
     private void progressEdges() {
-        List<PendingEdgeInfo> done = new ArrayList<>();
+        ArrayList<PendingEdgeInfo> open = new ArrayList<>(pendingEdges.size());
         for (PendingEdgeInfo edge : pendingEdges) {
             int sourceId = domain.getId(edge.source());
             int targetId = domain.getId(edge.target());
@@ -238,13 +252,14 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
                     Edge e = new Edge(sourceId, targetId).withTime(backtrackPoints.size());
                     executionGraph.getCAATModel().getHierarchy().addAndPropagate(graph, Collections.singleton(e));
 
-                    done.add(edge);
                     PendingEdgeInfo usedEdge = new PendingEdgeInfo(edge.relation(), edge.source(), edge.target(), edge.deleteTime(), backtrackPoints.size());
                     usedEdges.add(usedEdge);
                 }
+            } else {
+                open.add(edge);
             }
         }
-        pendingEdges.removeAll(done);
+        pendingEdges = open;
     }
     private void progressPropagation() {
         if (!openPropagations.isEmpty()) {
@@ -252,6 +267,7 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
         }
     }
 
+    private boolean waitForBacktrack = false;
     private Result onlineCheck() {
         Result result = check();
         //Result offlineResult = checkOffline();
@@ -274,8 +290,9 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
                 if (isConflict) {
                     getBackend().propagateConflict(conflict.getVariables().toArray(new BooleanFormula[0]));
                     isFirst = false;
+                    waitForBacktrack = true;
                 } else {
-                    openPropagations.add(conflict);
+                    //openPropagations.add(conflict);
                 }
             }
             assert !isFirst;
