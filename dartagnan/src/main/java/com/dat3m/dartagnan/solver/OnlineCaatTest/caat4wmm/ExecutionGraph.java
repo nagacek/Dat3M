@@ -13,9 +13,7 @@ import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.relationGraphs.
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.relationGraphs.base.SimpleGraph;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.relationGraphs.derived.*;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat4wmm.basePredicates.StaticWMMSet;
-import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.derived.*;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.sets.SetPredicate;
-import com.dat3m.dartagnan.solver.caat4wmm.basePredicates.*;
 import com.dat3m.dartagnan.utils.dependable.DependencyGraph;
 import com.dat3m.dartagnan.verification.model.ExecutionModel;
 import com.dat3m.dartagnan.wmm.Relation;
