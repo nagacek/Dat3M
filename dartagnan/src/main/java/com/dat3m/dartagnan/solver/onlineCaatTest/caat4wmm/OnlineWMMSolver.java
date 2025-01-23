@@ -217,17 +217,24 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
     private List<PendingEdgeInfo> usedEdges = new ArrayList<>();
 
     private void backtrackEdgesTo(int time) {
-        List<PendingEdgeInfo> notUsedAnymore = usedEdges.stream().filter(info -> info.addTime() > time)
-                .collect(Collectors.toList());
-        usedEdges.removeAll(notUsedAnymore);
-        pendingEdges.addAll(notUsedAnymore);
+        ArrayList<PendingEdgeInfo> noRemove = new ArrayList<>(usedEdges.size());
+        ArrayList<PendingEdgeInfo> toRemove = new ArrayList<>(usedEdges.size());
+        for (PendingEdgeInfo info : usedEdges) {
+            if (info.addTime() > time) {
+                toRemove.add(info);
+            } else {
+                noRemove.add(info);
+            }
+        }
+        usedEdges = noRemove;
+        pendingEdges.addAll(toRemove);
         pendingEdges = pendingEdges.stream().filter(info -> info.deleteTime() <= time).collect(Collectors.toList());
     }
 
     private final Queue<Refiner.Conflict> openPropagations = new ArrayDeque<>();
 
     private void progressEdges() {
-        List<PendingEdgeInfo> done = new ArrayList<>();
+        List<PendingEdgeInfo> keep = new ArrayList<>(pendingEdges.size());
         for (PendingEdgeInfo edge : pendingEdges) {
             int sourceId = domain.getId(edge.source());
             int targetId = domain.getId(edge.target());
@@ -238,13 +245,14 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
                     Edge e = new Edge(sourceId, targetId).withTime(backtrackPoints.size());
                     executionGraph.getCAATModel().getHierarchy().addAndPropagate(graph, Collections.singleton(e));
 
-                    done.add(edge);
                     PendingEdgeInfo usedEdge = new PendingEdgeInfo(edge.relation(), edge.source(), edge.target(), edge.deleteTime(), backtrackPoints.size());
                     usedEdges.add(usedEdge);
                 }
+            } else {
+                keep.add(edge);
             }
         }
-        pendingEdges.removeAll(done);
+        pendingEdges = keep;
     }
     private void progressPropagation() {
         if (!openPropagations.isEmpty()) {
