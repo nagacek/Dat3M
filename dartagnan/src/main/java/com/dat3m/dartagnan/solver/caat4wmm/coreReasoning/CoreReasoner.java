@@ -4,6 +4,7 @@ import com.dat3m.dartagnan.program.Thread;
 import com.dat3m.dartagnan.program.analysis.ExecutionAnalysis;
 import com.dat3m.dartagnan.program.analysis.ThreadSymmetry;
 import com.dat3m.dartagnan.program.event.Event;
+import com.dat3m.dartagnan.solver.caat.domain.GenericDomain;
 import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.CoreReasoner.SymmetricLearning;
 import com.dat3m.dartagnan.solver.caat.domain.Domain;
 import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.Edge;
@@ -103,7 +104,7 @@ public class CoreReasoner {
     }
 
     public Set<Conjunction<CoreLiteral>> toCoreReasons(Conjunction<CAATLiteral> baseReason) {
-        final EventDomain domain = executionGraph.getDomain();
+        final Domain<?> domain = executionGraph.getDomain();
 
         // We compute the orbit of <baseReason> under the symmetry group of the program's threads.
         // We use a standard worklist algorithm to do so.
@@ -150,6 +151,36 @@ public class CoreReasoner {
     }
 
     // An "unreduced" core reason is a faithful (invertible) translation of a base relation to a core reason.
+    private List<CoreLiteral> toUnreducedCoreReason(Conjunction<CAATLiteral> baseReason, Domain<?> domain) {
+        if (domain instanceof EventDomain evDomain) {
+            return toUnreducedCoreReason(baseReason, evDomain);
+        }
+        if (domain instanceof GenericDomain evDomain) {
+            return toUnreducedCoreReason(baseReason, evDomain);
+        }
+        return Collections.emptyList();
+    }
+
+    private List<CoreLiteral> toUnreducedCoreReason(Conjunction<CAATLiteral> baseReason, GenericDomain<Event> domain) {
+        final List<CoreLiteral> coreReason = new ArrayList<>(baseReason.getSize());
+        for (CAATLiteral lit : baseReason.getLiterals()) {
+            if (lit instanceof ElementLiteral eleLit) {
+                // FIXME: This step is not really faithful because we forget the unary predicate
+                //  from which we derived the exec literals.
+                //  This should be fine for now because all unary sets are static so they behave similarly.
+                //  If we ever support dynamic unary predicates, this code needs to get updated.
+                final Event e = domain.getObjectById(eleLit.getData().getId());
+                coreReason.add(new ExecLiteral(e, lit.isPositive()));
+            } else if (lit instanceof EdgeLiteral edgeLit) {
+                final Event e1 = domain.getObjectById(edgeLit.getData().getFirst());
+                final Event e2 = domain.getObjectById(edgeLit.getData().getSecond());
+                final Relation rel = executionGraph.getRelationGraphMap().inverse().get(edgeLit.getPredicate());
+                coreReason.add(new RelLiteral(rel, e1, e2, edgeLit.isPositive()));
+            }
+        }
+        return coreReason;
+    }
+
     private List<CoreLiteral> toUnreducedCoreReason(Conjunction<CAATLiteral> baseReason, EventDomain domain) {
         final List<CoreLiteral> coreReason = new ArrayList<>(baseReason.getSize());
         for (CAATLiteral lit : baseReason.getLiterals()) {
@@ -242,21 +273,6 @@ public class CoreReasoner {
         }
     }
 
-    private void addFenceReason(Relation rel, Edge edge, List<CoreLiteral> coreReasons) {
-        FenceGraph fenceGraph = (FenceGraph) executionGraph.getRelationGraph(rel);
-        EventDomain domain = executionGraph.getDomain();
-        EventData e1 = domain.getObjectById(edge.getFirst());
-        EventData e2 = domain.getObjectById(edge.getSecond());
-        EventData f = fenceGraph.getNextFence(e1);
-
-        coreReasons.add(new ExecLiteral(f.getEvent()));
-        if (!exec.isImplied(f.getEvent(), e1.getEvent())) {
-            coreReasons.add(new ExecLiteral(e1.getEvent()));
-        }
-        if (!exec.isImplied(f.getEvent(), e2.getEvent())) {
-            coreReasons.add(new ExecLiteral(e2.getEvent()));
-        }
-    }
 
     // =============================================================================================
     // ======================================== Symmetry ===========================================

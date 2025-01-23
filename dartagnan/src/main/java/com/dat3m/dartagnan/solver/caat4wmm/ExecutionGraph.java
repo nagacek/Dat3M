@@ -1,5 +1,6 @@
 package com.dat3m.dartagnan.solver.caat4wmm;
 
+import com.dat3m.dartagnan.program.event.Event;
 import com.dat3m.dartagnan.program.filter.Filter;
 import com.dat3m.dartagnan.solver.caat.CAATModel;
 import com.dat3m.dartagnan.solver.caat.constraints.AcyclicityConstraint;
@@ -9,6 +10,7 @@ import com.dat3m.dartagnan.solver.caat.constraints.IrreflexivityConstraint;
 import com.dat3m.dartagnan.solver.caat.domain.Domain;
 import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.RelationGraph;
 import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.base.EmptyGraph;
+import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.base.SimpleGraph;
 import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.derived.*;
 import com.dat3m.dartagnan.solver.caat.predicates.sets.SetPredicate;
 import com.dat3m.dartagnan.solver.caat4wmm.basePredicates.*;
@@ -47,7 +49,7 @@ public class ExecutionGraph {
     private final Set<Relation> cutRelations;
 
     private CAATModel caatModel;
-    private EventDomain domain;
+    private Domain<?> domain;
 
     // =================================================
 
@@ -68,8 +70,8 @@ public class ExecutionGraph {
         constructMappings();
     }
 
-    public void initializeToDomain(Domain<?> domain) {
-        this.domain = domaain;
+    public void initializeToDomain(Domain<Event> domain) {
+        this.domain = domain;
         caatModel.initializeToDomain(domain);
     }
 
@@ -137,7 +139,7 @@ public class ExecutionGraph {
 
     public CAATModel getCAATModel() { return caatModel; }
 
-    public EventDomain getDomain() { return domain; }
+    public Domain<?> getDomain() { return domain; }
 
     public BiMap<Relation, RelationGraph> getRelationGraphMap() {
         return Maps.unmodifiableBiMap(relationGraphMap);
@@ -253,26 +255,10 @@ public class ExecutionGraph {
             RelationGraph g2 = getOrCreateGraphFromRelation(dependencies.get(1));
             graph = relClass == Composition.class ? new CompositionGraph(g1, g2) :
                     new DifferenceGraph(g1, g2);
-        } else if (relClass == CartesianProduct.class) {
-            CartesianProduct cartRel = (CartesianProduct)rel.getDefinition();
-            SetPredicate lhs = getOrCreateSetFromFilter(cartRel.getFirstFilter());
-            SetPredicate rhs = getOrCreateSetFromFilter(cartRel.getSecondFilter());
-            graph = new CartesianGraph(lhs, rhs);
-        } else if (relClass == ReadModifyWrites.class) {
-            graph = new RMWGraph();
-        } else if (relClass == External.class) {
-            graph = new ExternalGraph();
-        } else if (relClass == Internal.class) {
-            graph = new InternalGraph();
-        } else if (relClass == SetIdentity.class) {
-            SetPredicate set = getOrCreateSetFromFilter(((SetIdentity) rel.getDefinition()).getFilter());
-            graph = new SetIdentityGraph(set);
         } else if (relClass == Empty.class) {
             graph = new EmptyGraph();
         } else {
-            final String error = String.format("Cannot handle relation %s with definition of type %s.",
-                    rel, relClass.getSimpleName());
-            throw new UnsupportedOperationException(error);
+            graph = new SimpleGraph();
         }
 
         graph.setName(rel.getNameOrTerm());

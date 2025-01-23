@@ -45,6 +45,16 @@ public class Refiner {
         }
     }
 
+    public BooleanFormula refine(DNF<CoreLiteral> coreReasons, EncodingContext context) {
+        BooleanFormulaManager bmgr = context.getBooleanFormulaManager();
+        BooleanFormula result = bmgr.makeFalse();
+        List<Conflict> conflicts = computeConflicts(coreReasons, context);
+        for (Conflict conflict : conflicts) {
+            result = bmgr.or(result, bmgr.not(conflict.toFormula(bmgr)));
+        }
+        return result;
+    }
+
     public List<Conflict> computeConflicts(DNF<CoreLiteral> coreReasons, EncodingContext context) {
         if (coreReasons.isTriviallyTrue() || coreReasons.isFalse()) {
             int i = 5;

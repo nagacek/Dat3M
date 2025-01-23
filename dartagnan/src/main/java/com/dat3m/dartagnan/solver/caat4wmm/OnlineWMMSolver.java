@@ -18,6 +18,7 @@ import com.dat3m.dartagnan.utils.logic.Conjunction;
 import com.dat3m.dartagnan.utils.logic.DNF;
 import com.dat3m.dartagnan.verification.Context;
 import com.dat3m.dartagnan.wmm.Relation;
+import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import org.sosy_lab.java_smt.api.BooleanFormula;
 import org.sosy_lab.java_smt.api.BooleanFormulaManager;
 import org.sosy_lab.java_smt.api.PropagatorBackend;
@@ -46,7 +47,7 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
     public OnlineWMMSolver(RefinementModel refinementModel, Context analysisContext, EncodingContext encCtx) {
         this.refinementModel = refinementModel;
         this.encodingContext = encCtx;
-        this.executionGraph = new ExecutionGraph(refinementModel);
+        this.executionGraph = new ExecutionGraph(refinementModel, analysisContext.get(RelationAnalysis.class));
         this.reasoner = new CoreReasoner(analysisContext, executionGraph);
         this.decoder = new Decoder(encCtx, refinementModel);
         this.refiner = new Refiner(refinementModel);

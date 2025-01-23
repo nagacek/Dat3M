@@ -570,19 +570,19 @@ public class RefinementSolver extends ModelChecker {
         if (biases.contains(Baseline.UNIPROC)) {
             // ---- acyclic(po-loc | com) ----
             wmm.addConstraint(new Acyclicity(wmm.addDefinition(new Union(wmm.newRelation(),
-                wmm.addDefinition(new Intersection(wmm.newRelation(), po, loc)),
-                rf,
-                co,
-                fr
+                    wmm.addDefinition(new Intersection(wmm.newRelation(), po, loc)),
+                    rf,
+                    co,
+                    fr
             ))));
         }
         if (biases.contains(Baseline.NO_OOTA)) {
             // ---- acyclic (dep | rf) ----
             wmm.addConstraint(new Acyclicity(wmm.addDefinition(new Union(wmm.newRelation(),
-                wmm.getOrCreatePredefinedRelation(CTRL),
-                wmm.getOrCreatePredefinedRelation(DATA),
-                wmm.getOrCreatePredefinedRelation(ADDR),
-                rf)
+                    wmm.getOrCreatePredefinedRelation(CTRL),
+                    wmm.getOrCreatePredefinedRelation(DATA),
+                    wmm.getOrCreatePredefinedRelation(ADDR),
+                    rf)
             )));
         }
         if (biases.contains(Baseline.ATOMIC_RMW)) {
@@ -818,14 +818,14 @@ public class RefinementSolver extends ModelChecker {
                 // TODO: Can we have events with source information but without oid?
                 .filter(e -> e.hasMetadata(SourceLocation.class) && e.hasMetadata(OriginalId.class))
                 .collect(Collectors.toSet());
-        
+
         // Track (covered) events and branches via oId
         final Set<OriginalId> branches = new HashSet<>();
         final Set<OriginalId> coveredBranches = new HashSet<>();
 
         // Events not executed in any violating execution
         final Set<String> messageSet = new TreeSet<>(); // TreeSet to keep strings in order
-        
+
         final SyntacticContextAnalysis synContext = newInstance(program);
 
         for (Event e : programEvents) {
@@ -840,7 +840,7 @@ public class RefinementSolver extends ModelChecker {
                 final String threads = clazz.stream().map(t -> "T" + t.getId())
                         .collect(Collectors.joining(" / "));
                 final String callStack = makeContextString(
-                            synContext.getContextInfo(e).getContextOfType(CallContext.class), " -> ");
+                        synContext.getContextInfo(e).getContextOfType(CallContext.class), " -> ");
                 messageSet.add(String.format("%s: %s%s", threads,
                         callStack.isEmpty() ? callStack : callStack + " -> ",
                         getSourceLocationString(symmRep)));
