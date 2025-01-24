@@ -253,10 +253,10 @@ public class OnlineRefinementSolver extends ModelChecker {
         // TODO: fix stats
         System.out.println(userPropagator.getTotalStats());
         System.out.println("\n\nConflicts:\n" + userPropagator.getConflictStats().toString(100));
-        System.out.println("Duplicate conflicts: " + userPropagator.duplicateConflictCounter);
+        //System.out.println("Duplicate conflicts: " + userPropagator.duplicateConflictCounter);
         System.out.println("\n\nReasons:\n" + userPropagator.getReasonStats().toString(100));
         System.out.println("\n\nPropagation Stats:\n" + userPropagator.getPropagationStats().toString(100));
-        System.out.println("\n\n     Decisions (base/non): "+ userPropagator.baseDecisions + "/" + userPropagator.nonBaseDecisions);
+        //System.out.println("\n\n     Decisions (base/non): "+ userPropagator.baseDecisions + "/" + userPropagator.nonBaseDecisions);
         if (logger.isDebugEnabled()) {
             StringBuilder smtStatistics = new StringBuilder("\n ===== SMT Statistics (after final iteration) ===== \n");
             for (String key : prover.getStatistics().keySet()) {

@@ -4,6 +4,7 @@ import com.dat3m.dartagnan.encoding.EncodingContext;
 import com.dat3m.dartagnan.program.event.Event;
 import com.dat3m.dartagnan.program.event.Tag;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.Decoder;
+import com.dat3m.dartagnan.solver.OnlineCaatTest.Stats;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.EdgeInfo;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.PendingEdgeInfo;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.CAATSolver;

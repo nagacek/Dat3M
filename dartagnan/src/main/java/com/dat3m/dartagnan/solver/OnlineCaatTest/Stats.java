@@ -1,4 +1,4 @@
-package com.dat3m.dartagnan.solver.onlineCaatTest;
+package com.dat3m.dartagnan.solver.OnlineCaatTest;
 
 import java.util.HashMap;
 import java.util.Map;
