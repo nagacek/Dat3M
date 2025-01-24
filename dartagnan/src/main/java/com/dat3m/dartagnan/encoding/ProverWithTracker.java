@@ -68,11 +68,6 @@ public class ProverWithTracker implements ProverEnvironment {
     }
 
     @Override
-    public boolean registerUserPropagator(UserPropagator propagator) {
-        return prover.registerUserPropagator(propagator);
-    }
-
-    @Override
     public void close() {
         if(dump()) {
             removeDuplicatedDeclarations(fileName);

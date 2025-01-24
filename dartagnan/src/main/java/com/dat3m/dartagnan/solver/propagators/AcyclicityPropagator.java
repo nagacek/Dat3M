@@ -106,14 +106,14 @@ public class AcyclicityPropagator extends AbstractUserPropagator {
 
     private Map<Set<BooleanFormula>, Integer> observedReasons = new HashMap<>();
     private void trackReason(List<BooleanFormula> reason) {
-        // observedReasons.compute(new HashSet<>(reason), (k, v) -> v == null ? 1 : v + 1);
+         //observedReasons.compute(new HashSet<>(reason), (k, v) -> v == null ? 1 : v + 1);
     }
 
     @Override
     public void onFinalCheck() {
-        int uniqueReasons = observedReasons.size();
-        int totalReasons = observedReasons.values().stream().mapToInt(v -> v).sum();
-        int maxDuplicate = observedReasons.values().stream().mapToInt(v -> v).max().getAsInt();
+        //int uniqueReasons = observedReasons.size();
+        //int totalReasons = observedReasons.values().stream().mapToInt(v -> v).sum();
+        //int maxDuplicate = observedReasons.values().stream().mapToInt(v -> v).max().getAsInt();
         // System.out.println("total: " + totalReasons + " ### unique: " + uniqueReasons + " ### maxDup: " + maxDuplicate);
     }
 
