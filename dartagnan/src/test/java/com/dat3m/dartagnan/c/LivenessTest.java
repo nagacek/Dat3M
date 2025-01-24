@@ -31,7 +31,7 @@ public class LivenessTest extends AbstractCTest {
 
     @Override
     protected Provider<EnumSet<Property>> getPropertyProvider() {
-        return Provider.fromSupplier(() -> EnumSet.of(Property.LIVENESS));
+        return () -> EnumSet.of(Property.LIVENESS);
     }
 
     @Parameterized.Parameters(name = "{index}: {0}, target={1}")
@@ -133,6 +133,10 @@ public class LivenessTest extends AbstractCTest {
                 {"lkmm/qspinlock-liveness", ARM8, PASS},
                 {"lkmm/qspinlock-liveness", POWER, PASS},
                 {"lkmm/qspinlock-liveness", RISCV, PASS},
+                {"locks/deadlock", TSO, FAIL},
+                {"locks/deadlock", ARM8, FAIL},
+                {"locks/deadlock", POWER, FAIL},
+                {"locks/deadlock", RISCV, FAIL},
         });
     }
 

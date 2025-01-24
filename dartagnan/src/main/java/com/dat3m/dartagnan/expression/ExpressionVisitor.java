@@ -1,17 +1,18 @@
 package com.dat3m.dartagnan.expression;
 
+import com.dat3m.dartagnan.expression.aggregates.AggregateCmpExpr;
+import com.dat3m.dartagnan.expression.aggregates.ConstructExpr;
+import com.dat3m.dartagnan.expression.aggregates.ExtractExpr;
 import com.dat3m.dartagnan.expression.booleans.BoolBinaryExpr;
 import com.dat3m.dartagnan.expression.booleans.BoolLiteral;
 import com.dat3m.dartagnan.expression.booleans.BoolUnaryExpr;
 import com.dat3m.dartagnan.expression.floats.*;
 import com.dat3m.dartagnan.expression.integers.*;
-import com.dat3m.dartagnan.expression.misc.ConstructExpr;
-import com.dat3m.dartagnan.expression.misc.ExtractExpr;
 import com.dat3m.dartagnan.expression.misc.GEPExpr;
 import com.dat3m.dartagnan.expression.misc.ITEExpr;
 import com.dat3m.dartagnan.program.Function;
 import com.dat3m.dartagnan.program.Register;
-import com.dat3m.dartagnan.program.memory.Location;
+import com.dat3m.dartagnan.program.memory.FinalMemoryValue;
 import com.dat3m.dartagnan.program.memory.MemoryObject;
 import com.dat3m.dartagnan.program.misc.NonDetValue;
 
@@ -46,6 +47,7 @@ public interface ExpressionVisitor<TRet> {
     default TRet visitFloatLiteral(FloatLiteral lit) { return visitLeafExpression(lit); }
 
     // =================================== Aggregates ===================================
+    default TRet visitAggregateCmpExpression(AggregateCmpExpr expr) { return  visitBinaryExpression(expr); }
     default TRet visitExtractExpression(ExtractExpr extract) { return visitUnaryExpression(extract); }
     default TRet visitConstructExpression(ConstructExpr construct) { return visitExpression(construct); }
 
@@ -59,7 +61,7 @@ public interface ExpressionVisitor<TRet> {
     default TRet visitRegister(Register reg) { return visitLeafExpression(reg); }
     default TRet visitFunction(Function function) { return visitLeafExpression(function); }
     default TRet visitMemoryObject(MemoryObject memObj) { return visitLeafExpression(memObj); }
-    default TRet visitLocation(Location loc) { return visitLeafExpression(loc); }
+    default TRet visitFinalMemoryValue(FinalMemoryValue val) { return visitLeafExpression(val); }
     default TRet visitNonDetValue(NonDetValue nonDet) { return visitLeafExpression(nonDet); }
 
 

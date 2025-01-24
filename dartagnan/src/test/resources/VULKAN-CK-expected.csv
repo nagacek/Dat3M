@@ -143,7 +143,7 @@ litmus/VULKAN/Kronos-Group/test5.litmus,1
 litmus/VULKAN/Kronos-Group/test6.litmus,1
 litmus/VULKAN/Kronos-Group/test9.litmus,1
 litmus/VULKAN/Kronos-Group/waw.litmus,1
-litmus/VULKAN/Manual/asmo-weak.litmus,1
+litmus/VULKAN/Manual/asmo-plain.litmus,1
 litmus/VULKAN/Manual/CoWW-RR.litmus,1
 litmus/VULKAN/Manual/SB-2-wg.litmus,1
 litmus/VULKAN/Manual/SB-2-dv.litmus,1
@@ -158,9 +158,14 @@ litmus/VULKAN/Manual/ticketlock-acq2rlx-2.litmus,1
 litmus/VULKAN/Manual/ticketlock-diff-wg.litmus,1
 litmus/VULKAN/Manual/ticketlock-rel2rlx.litmus,1
 litmus/VULKAN/Manual/ticketlock-same-wg.litmus,1
-litmus/VULKAN/Manual/XF-Barrier-relacq.litmus,1
-litmus/VULKAN/Manual/XF-Barrier-rlx.litmus,1
-litmus/VULKAN/Manual/XF-Barrier-weak.litmus,1
+litmus/VULKAN/Manual/xf-barrier.litmus,1
+litmus/VULKAN/Manual/xf-barrier-cbar-rlx-1.litmus,1
+litmus/VULKAN/Manual/xf-barrier-cbar-rlx-2.litmus,1
+litmus/VULKAN/Manual/xf-barrier-cbar-rlx-3.litmus,1
+litmus/VULKAN/Manual/xf-barrier-load-rlx-1.litmus,1
+litmus/VULKAN/Manual/xf-barrier-load-rlx-2.litmus,1
+litmus/VULKAN/Manual/xf-barrier-store-rlx-1.litmus,1
+litmus/VULKAN/Manual/xf-barrier-store-rlx-2.litmus,1
 litmus/VULKAN/CADP/2_threads_2_instructions/4_simple.litmus,1
 litmus/VULKAN/CADP/2_threads_2_instructions/5_simple.litmus,1
 litmus/VULKAN/CADP/2_threads_3_instructions/4_simple.litmus,1
@@ -237,3 +242,8 @@ litmus/VULKAN/Manual/PC-bar-acq-rel-priv.litmus,1
 litmus/VULKAN/Manual/PC-bar-atom.litmus,1
 litmus/VULKAN/Manual/PC-bar-nonpriv.litmus,1
 litmus/VULKAN/Manual/OOTA.litmus,1
+litmus/VULKAN/Manual/IRIW.litmus,1
+litmus/VULKAN/Manual/counter-atomic-store-rmw.litmus,1
+litmus/VULKAN/Manual/counter-plain-store-rmw.litmus,1
+litmus/VULKAN/Manual/counter-plain-store-atomic-load.litmus,1
+litmus/VULKAN/Manual/counter-plain-store-plain-load.litmus,1

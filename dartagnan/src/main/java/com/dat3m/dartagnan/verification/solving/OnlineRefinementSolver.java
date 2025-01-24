@@ -5,11 +5,13 @@ import com.dat3m.dartagnan.configuration.Property;
 import com.dat3m.dartagnan.encoding.*;
 import com.dat3m.dartagnan.program.Program;
 import com.dat3m.dartagnan.program.event.Event;
-import com.dat3m.dartagnan.solver.onlineCaatTest.caat.CAATSolver;
-import com.dat3m.dartagnan.solver.onlineCaatTest.caat4wmm.RefinementModel;
-import com.dat3m.dartagnan.solver.caat4wmm.WMMSolver;
-import com.dat3m.dartagnan.solver.onlineCaatTest.caat4wmm.coreReasoning.CoreLiteral;
-import com.dat3m.dartagnan.solver.onlineCaatTest.caat4wmm.OnlineWMMSolver;
+import com.dat3m.dartagnan.program.event.Tag;
+import com.dat3m.dartagnan.program.filter.Filter;
+import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.CAATSolver;
+import com.dat3m.dartagnan.solver.OnlineCaatTest.caat4wmm.RefinementModel;
+import com.dat3m.dartagnan.solver.OnlineCaatTest.caat4wmm.WMMSolver;
+import com.dat3m.dartagnan.solver.OnlineCaatTest.caat4wmm.coreReasoning.CoreLiteral;
+import com.dat3m.dartagnan.solver.OnlineCaatTest.caat4wmm.OnlineWMMSolver;
 import com.dat3m.dartagnan.utils.logic.DNF;
 import com.dat3m.dartagnan.verification.Context;
 import com.dat3m.dartagnan.verification.VerificationTask;
@@ -43,8 +45,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static com.dat3m.dartagnan.configuration.OptionNames.BASELINE;
-import static com.dat3m.dartagnan.solver.onlineCaatTest.caat.CAATSolver.Status.CONSISTENT;
-import static com.dat3m.dartagnan.solver.onlineCaatTest.caat.CAATSolver.Status.INCONSISTENT;
+import static com.dat3m.dartagnan.solver.OnlineCaatTest.caat.CAATSolver.Status.CONSISTENT;
+import static com.dat3m.dartagnan.solver.OnlineCaatTest.caat.CAATSolver.Status.INCONSISTENT;
 import static com.dat3m.dartagnan.utils.Result.*;
 import static com.dat3m.dartagnan.wmm.RelationNameRepository.*;
 
@@ -296,37 +298,58 @@ public class OnlineRefinementSolver extends ModelChecker {
         return RefinementModel.fromCut(Cut.computeInducedCut(original, constraintsToCut));
     }
 
-    private static void addBiases(Wmm memoryModel, EnumSet<Baseline> biases) {
-        // FIXME: This can (in theory) add redundant intermediate relations and/or constraints that
-        //  already exist in the model.
-        final Relation rf = memoryModel.getRelation(RF);
+    private static void addBiases(Wmm wmm, EnumSet<Baseline> biases) {
+
+        // Base relations
+        final Relation rf = wmm.getRelation(RF);
+        final Relation co = wmm.getOrCreatePredefinedRelation(CO);
+        final Relation loc = wmm.getOrCreatePredefinedRelation(LOC);
+        final Relation po = wmm.getOrCreatePredefinedRelation(PO);
+        final Relation ext = wmm.getOrCreatePredefinedRelation(EXT);
+        final Relation rmw = wmm.getOrCreatePredefinedRelation(RMW);
+
+        // rf^-1;co
+        final Relation rfinv = wmm.addDefinition(new Inverse(wmm.newRelation(), rf));
+        final Relation frStandard = wmm.addDefinition(new Composition(wmm.newRelation(), rfinv, co));
+
+        // ([R] \ [range(rf)]);loc;[W]
+        final Relation reads = wmm.addDefinition(new SetIdentity(wmm.newRelation(), wmm.getFilter(Tag.READ)));
+        final Relation rfRange = wmm.addDefinition(new RangeIdentity(wmm.newRelation(), rf));
+        final Relation writes = wmm.addDefinition(new SetIdentity(wmm.newRelation(), Filter.byTag(Tag.WRITE)));
+        final Relation ur = wmm.addDefinition(new Difference(wmm.newRelation(), reads, rfRange));
+        final Relation urloc = wmm.addDefinition(new Composition(wmm.newRelation(), ur, loc));
+        final Relation urlocwrites = wmm.addDefinition(new Composition(wmm.newRelation(), urloc, writes));
+
+        // let fr = rf^-1;co | ([R] \ [range(rf)]);loc;[W]
+        final Relation fr = wmm.addDefinition(new Union(wmm.newRelation(), frStandard, urlocwrites));
+
         if (biases.contains(Baseline.UNIPROC)) {
             // ---- acyclic(po-loc | com) ----
-            memoryModel.addConstraint(new Acyclicity(memoryModel.addDefinition(new Union(memoryModel.newRelation(),
-                    memoryModel.getOrCreatePredefinedRelation(POLOC),
+            wmm.addConstraint(new Acyclicity(wmm.addDefinition(new Union(wmm.newRelation(),
+                    wmm.addDefinition(new Intersection(wmm.newRelation(), po, loc)),
                     rf,
-                    memoryModel.getOrCreatePredefinedRelation(CO),
-                    memoryModel.getOrCreatePredefinedRelation(FR)))));
+                    co,
+                    fr
+            ))));
         }
         if (biases.contains(Baseline.NO_OOTA)) {
             // ---- acyclic (dep | rf) ----
-            memoryModel.addConstraint(new Acyclicity(memoryModel.addDefinition(new Union(memoryModel.newRelation(),
-                    memoryModel.getOrCreatePredefinedRelation(CTRL),
-                    memoryModel.getOrCreatePredefinedRelation(DATA),
-                    memoryModel.getOrCreatePredefinedRelation(ADDR),
-                    rf))));
+            wmm.addConstraint(new Acyclicity(wmm.addDefinition(new Union(wmm.newRelation(),
+                    wmm.getOrCreatePredefinedRelation(CTRL),
+                    wmm.getOrCreatePredefinedRelation(DATA),
+                    wmm.getOrCreatePredefinedRelation(ADDR),
+                    rf)
+            )));
         }
         if (biases.contains(Baseline.ATOMIC_RMW)) {
             // ---- empty (rmw & fre;coe) ----
-            Relation rmw = memoryModel.getOrCreatePredefinedRelation(RMW);
-            Relation coe = memoryModel.getOrCreatePredefinedRelation(COE);
-            Relation fre = memoryModel.getOrCreatePredefinedRelation(FRE);
-            Relation frecoe = memoryModel.addDefinition(new Composition(memoryModel.newRelation(), fre, coe));
-            Relation rmwANDfrecoe = memoryModel.addDefinition(new Intersection(memoryModel.newRelation(), rmw, frecoe));
-            memoryModel.addConstraint(new Emptiness(rmwANDfrecoe));
+            Relation coe = wmm.addDefinition(new Intersection(wmm.newRelation(), co, ext));
+            Relation fre = wmm.addDefinition(new Intersection(wmm.newRelation(), fr, ext));
+            Relation frecoe = wmm.addDefinition(new Composition(wmm.newRelation(), fre, coe));
+            Relation rmwANDfrecoe = wmm.addDefinition(new Intersection(wmm.newRelation(), rmw, frecoe));
+            wmm.addConstraint(new Emptiness(rmwANDfrecoe));
         }
     }
-
     private static void removeFlaggedAxiomsAndReduce(Wmm memoryModel) {
         // We remove flagged axioms.
         // NOTE: Theoretically, we could cut them but in practice this causes the whole model to get eagerly encoded,

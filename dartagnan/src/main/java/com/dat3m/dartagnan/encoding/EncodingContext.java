@@ -1,8 +1,12 @@
 package com.dat3m.dartagnan.encoding;
 
+import com.dat3m.dartagnan.configuration.ProgressModel;
+import com.dat3m.dartagnan.encoding.formulas.TupleFormula;
+import com.dat3m.dartagnan.encoding.formulas.TupleFormulaManager;
 import com.dat3m.dartagnan.expression.Expression;
 import com.dat3m.dartagnan.expression.Type;
 import com.dat3m.dartagnan.expression.integers.IntCmpOp;
+import com.dat3m.dartagnan.expression.type.AggregateType;
 import com.dat3m.dartagnan.expression.type.BooleanType;
 import com.dat3m.dartagnan.expression.type.IntegerType;
 import com.dat3m.dartagnan.expression.type.TypeFactory;
@@ -23,7 +27,7 @@ import com.dat3m.dartagnan.verification.VerificationTask;
 import com.dat3m.dartagnan.wmm.Relation;
 import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import com.dat3m.dartagnan.wmm.axiom.Acyclicity;
-import com.dat3m.dartagnan.wmm.utils.EventGraph;
+import com.dat3m.dartagnan.wmm.utils.graph.EventGraph;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.sosy_lab.common.configuration.InvalidConfigurationException;
@@ -33,7 +37,9 @@ import org.sosy_lab.java_smt.api.*;
 import org.sosy_lab.java_smt.api.NumeralFormula.IntegerFormula;
 
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static com.dat3m.dartagnan.configuration.OptionNames.*;
@@ -54,6 +60,7 @@ public final class EncodingContext {
     private final RelationAnalysis relationAnalysis;
     private final FormulaManager formulaManager;
     private final BooleanFormulaManager booleanFormulaManager;
+    private final TupleFormulaManager tupleFormulaManager;
 
     @Option(
             name=IDL_TO_SAT,
@@ -76,6 +83,8 @@ public final class EncodingContext {
     private final Map<Event, Formula> addresses = new HashMap<>();
     private final Map<Event, Formula> values = new HashMap<>();
     private final Map<Event, Formula> results = new HashMap<>();
+    private final Map<MemoryObject, Formula> objAddress = new HashMap<>();
+    private final Map<MemoryObject, Formula> objSize = new HashMap<>();
 
     private EncodingContext(VerificationTask t, Context a, FormulaManager m) {
         verificationTask = checkNotNull(t);
@@ -86,6 +95,7 @@ public final class EncodingContext {
         relationAnalysis = a.requires(RelationAnalysis.class);
         formulaManager = m;
         booleanFormulaManager = m.getBooleanFormulaManager();
+        tupleFormulaManager = new TupleFormulaManager(this);
     }
 
     public static EncodingContext of(VerificationTask task, Context analysisContext, FormulaManager formulaManager) throws InvalidConfigurationException {
@@ -124,8 +134,16 @@ public final class EncodingContext {
         return booleanFormulaManager;
     }
 
+    public TupleFormulaManager getTupleFormulaManager() {
+        return tupleFormulaManager;
+    }
+
     public Formula encodeFinalExpression(Expression expression) {
         return new ExpressionEncoder(this, null).encode(expression);
+    }
+
+    public BooleanFormula encodeFinalExpressionAsBoolean(Expression expression) {
+        return new ExpressionEncoder(this, null).encodeAsBoolean(expression);
     }
 
     public BooleanFormula encodeExpressionAsBooleanAt(Expression expression, Event event) {
@@ -210,17 +228,13 @@ public final class EncodingContext {
         return booleanFormulaManager.makeVariable("idd " + first.getGlobalId() + " " + second.getGlobalId());
     }
 
-    public Formula lastValue(MemoryObject base, int offset) {
-        checkArgument(0 <= offset && offset < base.size(), "array index out of bounds");
+    public Formula lastValue(MemoryObject base, int offset, int size) {
+        checkArgument(base.isInRange(offset), "Array index out of bounds");
         final String name = String.format("last_val_at_%s_%d", base, offset);
         if (useIntegers) {
             return formulaManager.getIntegerFormulaManager().makeVariable(name);
         }
-        //TODO match this with the actual type stored at the memory address
-        // (we do not know and guess the arch type right now)
-        TypeFactory types = TypeFactory.getInstance();
-        int archSize = types.getMemorySizeInBytes(types.getArchType()) * 8;
-        return formulaManager.getBitvectorFormulaManager().makeVariable(archSize, name);
+        return formulaManager.getBitvectorFormulaManager().makeVariable(size, name);
     }
 
     public BooleanFormula equal(Formula left, Formula right) {
@@ -246,6 +260,9 @@ public final class EncodingContext {
         }
         if (left instanceof BooleanFormula l && right instanceof BooleanFormula r) {
             return booleanFormulaManager.equivalence(l, r);
+        }
+        if (left instanceof TupleFormula l && right instanceof TupleFormula r) {
+            return tupleFormulaManager.equal(l, r);
         }
         throw new UnsupportedOperationException(String.format("Unknown types for equal(%s,%s)", left, right));
     }
@@ -305,6 +322,10 @@ public final class EncodingContext {
     public Formula address(MemoryEvent event) {
         return addresses.get(event);
     }
+
+    public Formula address(MemoryObject memoryObject) { return objAddress.get(memoryObject); }
+
+    public Formula size(MemoryObject memoryObject) { return objSize.get(memoryObject); }
 
     public Formula value(MemoryEvent event) {
         return values.get(event);
@@ -370,7 +391,12 @@ public final class EncodingContext {
     }
 
     private void initialize() {
-        if (shouldMergeCFVars) {
+        // ------- Control flow variables -------
+        // Only for the standard fair progress model we can merge CF variables.
+        // TODO: It would also be possible for OBE/HSA in some cases if we refine the cf-equivalence classes
+        //  to classes per thread.
+        final boolean mergeCFVars = shouldMergeCFVars && verificationTask.getProgressModel() == ProgressModel.FAIR;
+        if (mergeCFVars) {
             for (BranchEquivalence.Class cls : analysisContext.get(BranchEquivalence.class).getAllEquivalenceClasses()) {
                 BooleanFormula v = booleanFormulaManager.makeVariable("cf " + cls.getRepresentative().getGlobalId());
                 for (Event e : cls) {
@@ -382,6 +408,14 @@ public final class EncodingContext {
                 controlFlowVariables.put(e, booleanFormulaManager.makeVariable("cf " + e.getGlobalId()));
             }
         }
+
+        // ------- Memory object variables -------
+        for (MemoryObject memoryObject : verificationTask.getProgram().getMemory().getObjects()) {
+            objAddress.put(memoryObject, makeVariable(String.format("addrof(%s)", memoryObject), memoryObject.getType()));
+            objSize.put(memoryObject, makeVariable(String.format("sizeof(%s)", memoryObject), memoryObject.getType()));
+        }
+
+        // ------- Event variables  -------
         for (Event e : verificationTask.getProgram().getThreadEvents()) {
             if (!e.cfImpliesExec()) {
                 executionVariables.put(e, booleanFormulaManager.makeVariable("exec " + e.getGlobalId()));
@@ -419,6 +453,14 @@ public final class EncodingContext {
             } else {
                 return formulaManager.getBitvectorFormulaManager().makeVariable(integerType.getBitWidth(), name);
             }
+        }
+        if (type instanceof AggregateType) {
+            final Map<Integer, Type> primitives = TypeFactory.getInstance().decomposeIntoPrimitives(type);
+            final List<Formula> elements = new ArrayList<>();
+            for (Type eleType : primitives.values()) {
+                elements.add(makeVariable(name + "@" + elements.size(), eleType));
+            }
+            return tupleFormulaManager.makeTuple(elements);
         }
         throw new UnsupportedOperationException(String.format("Cannot encode variable of type %s.", type));
     }
