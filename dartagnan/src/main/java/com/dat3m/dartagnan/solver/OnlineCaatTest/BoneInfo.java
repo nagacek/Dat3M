@@ -1,6 +1,6 @@
-package com.dat3m.dartagnan.solver.onlineCaatTest;
+package com.dat3m.dartagnan.solver.OnlineCaatTest;
 
-import com.dat3m.dartagnan.solver.onlineCaatTest.caat.predicates.relationGraphs.Edge;
+import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.relationGraphs.Edge;
 
 public record BoneInfo(Edge edge, boolean condition, boolean activeEvents) {
 }

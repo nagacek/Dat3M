@@ -1,14 +1,10 @@
 package com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates;
 
-import com.dat3m.dartagnan.solver.OnlineCaatTestcaat.reasoning.CAATLiteral;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.domain.Domain;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.misc.PredicateListener;
-import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.relationGraphs.Edge;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.relationGraphs.RelationGraph;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.relationGraphs.derived.RecursiveGraph;
 import com.dat3m.dartagnan.utils.dependable.DependencyGraph;
-import com.dat3m.dartagnan.wmm.Relation;
-import com.dat3m.dartagnan.wmm.utils.EventGraph;
 
 import java.util.*;
 import java.util.stream.Collectors;

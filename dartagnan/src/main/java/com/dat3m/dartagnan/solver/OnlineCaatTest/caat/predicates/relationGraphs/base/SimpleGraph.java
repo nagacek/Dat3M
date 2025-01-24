@@ -11,6 +11,7 @@ import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.CAATPredicate;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.relationGraphs.RelationGraph;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 

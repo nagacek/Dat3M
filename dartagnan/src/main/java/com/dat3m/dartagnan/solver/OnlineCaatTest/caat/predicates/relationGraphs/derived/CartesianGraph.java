@@ -1,9 +1,11 @@
 package com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.relationGraphs.derived;
 
+import com.dat3m.dartagnan.solver.OnlineCaatTest.BoneInfo;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.misc.EdgeDirection;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.AbstractPredicate;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.CAATPredicate;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.Derivable;
+import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.PredicateHierarchy;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.misc.PredicateVisitor;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.relationGraphs.Edge;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.relationGraphs.RelationGraph;

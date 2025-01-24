@@ -38,7 +38,6 @@ import java.util.stream.Collectors;
 import static com.dat3m.dartagnan.configuration.OptionNames.*;
 import static com.dat3m.dartagnan.program.event.Tag.*;
 import static com.dat3m.dartagnan.wmm.RelationNameRepository.RF;
-import static com.dat3m.dartagnan.wmm.utils.EventGraph.*;
 import static com.google.common.base.Verify.verify;
 import static java.lang.Boolean.TRUE;
 
@@ -46,7 +45,7 @@ import static java.lang.Boolean.TRUE;
 public class WmmEncoder implements Encoder {
 
     private static final Logger logger = LogManager.getLogger(WmmEncoder.class);
-    final Map<Relation, EventGraph> encodeSets = new HashMap<>();
+    Map<Relation, EventGraph> encodeSets = new HashMap<>();
     final Map<Relation, EventGraph> inactiveBoundarySets = new HashMap<>();
     private final EncodingContext context;
 
@@ -250,7 +249,7 @@ public class WmmEncoder implements Encoder {
             EventGraph graph = encodeSets.get(rel);
             Map<Relation, EventGraph> boundarySets = new HashMap<>();
             for (Relation c : rel.getDependencies()) {
-                EventGraph intersection = intersection(graph, ra.getKnowledge(c).getMustSet());
+                MapEventGraph intersection = MapEventGraph.intersection(graph, ra.getKnowledge(c).getMustSet());
                 if (!intersection.isEmpty()) {
                     boundarySets.merge(c, intersection, EventGraph::union);
                 }
@@ -277,8 +276,8 @@ public class WmmEncoder implements Encoder {
         public Map<Relation, EventGraph> visitComposition(Composition def) {
             final Relation r1 = def.getLeftOperand();
             final Relation r2 = def.getRightOperand();
-            final EventGraph boundary1 = new EventGraph();
-            final EventGraph boundary2 = new EventGraph();
+            final MapEventGraph boundary1 = new MapEventGraph();
+            final MapEventGraph boundary2 = new MapEventGraph();
             EventGraph activeSet = encodeSets.get(def.getDefinedRelation());
             Map<Event, Set<Event>> firstActive = encodeSets.get(r1).getOutMap();
             EventGraph firstActiveGraph = encodeSets.get(r1);

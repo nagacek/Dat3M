@@ -1,4 +1,4 @@
-package com.dat3m.dartagnan.solver.onlineCaatTest.caat.domain;
+package com.dat3m.dartagnan.solver.OnlineCaatTest.caat.domain;
 
 import com.dat3m.dartagnan.program.event.Event;
 

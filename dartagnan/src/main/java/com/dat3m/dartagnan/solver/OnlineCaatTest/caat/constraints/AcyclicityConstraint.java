@@ -158,6 +158,7 @@ public class AcyclicityConstraint extends AbstractConstraint {
     public void onChanged(CAATPredicate predicate, Collection<? extends Derivable> added) {
         for (Edge e : (Collection<Edge>)added) {
             markedNodes.ensureCapacity(e.getFirst() + 1);
+            markedNodes.ensureCapacity(e.getSecond() + 1);
             // Todo: check if this works
             if (markedNodes.add(e.getFirst()) | markedNodes.add(e.getSecond())) {
                 noChanges = false;

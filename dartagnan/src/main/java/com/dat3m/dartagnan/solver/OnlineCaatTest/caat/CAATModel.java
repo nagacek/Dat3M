@@ -5,13 +5,8 @@ import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.domain.Domain;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.CAATPredicate;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.Derivable;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.PredicateHierarchy;
-import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.relationGraphs.Edge;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.relationGraphs.RelationGraph;
-import com.dat3m.dartagnan.wmm.Relation;
-import com.dat3m.dartagnan.wmm.utils.EventGraph;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Maps;
-
 import java.util.*;
 import java.util.stream.Collectors;
 
