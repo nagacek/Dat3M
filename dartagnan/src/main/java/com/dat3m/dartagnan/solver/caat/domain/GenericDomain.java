@@ -8,7 +8,7 @@ public class GenericDomain<T> implements Domain<T> {
     private final DenseIdBiMap<T> domainMap;
 
     public GenericDomain(Collection<T> domain) {
-        domainMap = DenseIdBiMap.createIdentityBased(domain.size());
+        domainMap = DenseIdBiMap.createHashBased(domain.size());
         for (T obj : domain) {
             domainMap.addObject(obj);
         }

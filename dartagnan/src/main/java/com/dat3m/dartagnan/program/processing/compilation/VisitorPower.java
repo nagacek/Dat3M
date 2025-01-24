@@ -8,6 +8,7 @@ import com.dat3m.dartagnan.program.Register;
 import com.dat3m.dartagnan.program.event.Event;
 import com.dat3m.dartagnan.program.event.Tag;
 import com.dat3m.dartagnan.program.event.Tag.C11;
+import com.dat3m.dartagnan.program.event.arch.StoreExclusive;
 import com.dat3m.dartagnan.program.event.core.*;
 import com.dat3m.dartagnan.program.event.lang.catomic.*;
 import com.dat3m.dartagnan.program.event.lang.linux.*;
@@ -41,6 +42,20 @@ public class VisitorPower extends VisitorBase {
     }
 
     // =============================================================================================
+    // ========================================= Common ============================================
+    // =============================================================================================
+
+    @Override
+    public List<Event> visitStoreExclusive(StoreExclusive e) {
+        RMWStoreExclusive store = newRMWStoreExclusiveWithMo(e.getAddress(), e.getMemValue(), true, e.getMo());
+
+        return eventSequence(
+                store,
+                newExecutionStatus(e.getResultRegister(), store)
+        );
+    }
+
+    // =============================================================================================
     // ========================================= PTHREAD ===========================================
     // =============================================================================================
 
@@ -58,6 +73,8 @@ public class VisitorPower extends VisitorBase {
         Label label = newLabel("FakeDep");
         // We implement locks as spinlocks which are guaranteed to succeed, i.e. we can
         // use assumes. The fake control dependency + isync guarantee acquire semantics.
+        // TODO: Lock events are only used for implementing condvar intrinsic.
+        // If we have an alternative implementation for that, we can get rid of these events.
         return eventSequence(
                 newRMWLoadExclusive(dummy, e.getAddress()),
                 newAssume(expressions.makeNot(expressions.makeBooleanCast(dummy))),

@@ -1,27 +1,36 @@
 package com.dat3m.dartagnan.encoding;
 
+import com.dat3m.dartagnan.encoding.formulas.TupleFormula;
 import com.dat3m.dartagnan.expression.Expression;
 import com.dat3m.dartagnan.expression.ExpressionVisitor;
 import com.dat3m.dartagnan.expression.Type;
+import com.dat3m.dartagnan.expression.aggregates.AggregateCmpExpr;
+import com.dat3m.dartagnan.expression.aggregates.ConstructExpr;
+import com.dat3m.dartagnan.expression.aggregates.ExtractExpr;
 import com.dat3m.dartagnan.expression.booleans.BoolBinaryExpr;
 import com.dat3m.dartagnan.expression.booleans.BoolLiteral;
 import com.dat3m.dartagnan.expression.booleans.BoolUnaryExpr;
 import com.dat3m.dartagnan.expression.integers.*;
 import com.dat3m.dartagnan.expression.misc.ITEExpr;
+import com.dat3m.dartagnan.expression.type.TypeFactory;
 import com.dat3m.dartagnan.program.Register;
 import com.dat3m.dartagnan.program.event.Event;
-import com.dat3m.dartagnan.program.memory.Location;
+import com.dat3m.dartagnan.program.memory.FinalMemoryValue;
 import com.dat3m.dartagnan.program.memory.MemoryObject;
 import com.dat3m.dartagnan.program.misc.NonDetValue;
 import org.sosy_lab.java_smt.api.*;
 import org.sosy_lab.java_smt.api.NumeralFormula.IntegerFormula;
 
 import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.List;
 
 import static com.google.common.base.Preconditions.checkState;
 import static java.util.Arrays.asList;
 
 class ExpressionEncoder implements ExpressionVisitor<Formula> {
+
+    private static final TypeFactory types = TypeFactory.getInstance();
 
     private final EncodingContext context;
     private final FormulaManager formulaManager;
@@ -99,7 +108,6 @@ class ExpressionEncoder implements ExpressionVisitor<Formula> {
 
     @Override
     public Formula visitIntLiteral(IntLiteral intLiteral) {
-        
         BigInteger value = intLiteral.getValue();
         Type type = intLiteral.getType();
         return context.makeLiteral(type, value);
@@ -187,8 +195,8 @@ class ExpressionEncoder implements ExpressionVisitor<Formula> {
                 case MUL -> bvmgr.multiply(bv1, bv2);
                 case DIV -> bvmgr.divide(bv1, bv2, true);
                 case UDIV -> bvmgr.divide(bv1, bv2, false);
-                case SREM -> bvmgr.modulo(bv1, bv2, true);
-                case UREM -> bvmgr.modulo(bv1, bv2, false);
+                case SREM -> bvmgr.remainder(bv1, bv2, true);
+                case UREM -> bvmgr.remainder(bv1, bv2, false);
                 case AND -> bvmgr.and(bv1, bv2);
                 case OR -> bvmgr.or(bv1, bv2);
                 case XOR -> bvmgr.xor(bv1, bv2);
@@ -240,13 +248,28 @@ class ExpressionEncoder implements ExpressionVisitor<Formula> {
             case CTLZ -> {
                 if (inner instanceof BitvectorFormula bv) {
                     BitvectorFormulaManager bvmgr = bitvectorFormulaManager();
-                    // enc = extract(bv, 63, 63) == 1 ? 0 : (extract(bv, 62, 62) == 1 ? 1 : extract ... extract(bv, 0, 0) ? 63 : 64)
+                    // enc = extract(bv, 63, 63) == 1 ? 0 : (extract(bv, 62, 62) == 1 ? 1 : extract ... extract(bv, 0, 0) == 1 ? 63 : 64)
                     int bvLength = bvmgr.getLength(bv);
                     BitvectorFormula bv1 = bvmgr.makeBitvector(1, 1);
                     BitvectorFormula enc = bvmgr.makeBitvector(bvLength, bvLength);
-                    for(int i = bvmgr.getLength(bv) - 1; i >= 0; i--) {
+                    for(int i = bvLength - 1; i >= 0; i--) {
                         BitvectorFormula bvi = bvmgr.makeBitvector(bvLength, i);
                         BitvectorFormula bvbit = bvmgr.extract(bv, bvLength - (i + 1), bvLength - (i + 1));
+                        enc = booleanFormulaManager.ifThenElse(bvmgr.equal(bvbit, bv1), bvi, enc);
+                    }
+                    return enc;
+                }
+            }
+            case CTTZ -> {
+                if (inner instanceof BitvectorFormula bv) {
+                    BitvectorFormulaManager bvmgr = bitvectorFormulaManager();
+                    // enc = extract(bv, 0, 0) == 1 ? 0 : (extract(bv, 1, 1) == 1 ? 1 : extract ... extract(bv, 63, 63) == 1? 63 : 64)
+                    int bvLength = bvmgr.getLength(bv);
+                    BitvectorFormula bv1 = bvmgr.makeBitvector(1, 1);
+                    BitvectorFormula enc = bvmgr.makeBitvector(bvLength, bvLength);
+                    for(int i = bvLength - 1; i >= 0; i--) {
+                        BitvectorFormula bvi = bvmgr.makeBitvector(bvLength, i);
+                        BitvectorFormula bvbit = bvmgr.extract(bv, i, i);
                         enc = booleanFormulaManager.ifThenElse(bvmgr.equal(bvbit, bv1), bvi, enc);
                     }
                     return enc;
@@ -266,6 +289,33 @@ class ExpressionEncoder implements ExpressionVisitor<Formula> {
     }
 
     @Override
+    public Formula visitConstructExpression(ConstructExpr construct) {
+        final List<Formula> elements = new ArrayList<>();
+        for (Expression inner : construct.getOperands()) {
+            elements.add(encode(inner));
+        }
+        return context.getTupleFormulaManager().makeTuple(elements);
+    }
+
+    @Override
+    public Formula visitAggregateCmpExpression(AggregateCmpExpr expr) {
+        final Formula left = encode(expr.getLeft());
+        final Formula right = encode(expr.getRight());
+        final BooleanFormula eq = context.equal(left, right);
+        return switch (expr.getKind())
+        {
+            case EQ -> eq;
+            case NEQ -> context.getBooleanFormulaManager().not(eq);
+        };
+    }
+
+    @Override
+    public Formula visitExtractExpression(ExtractExpr extract) {
+        final TupleFormula inner = (TupleFormula) encode(extract.getOperand());
+        return context.getTupleFormulaManager().extract(inner, extract.getFieldIndex());
+    }
+
+    @Override
     public Formula visitRegister(Register reg) {
         String name = event == null ?
                 reg.getName() + "_" + reg.getFunction().getId() + "_final" :
@@ -276,12 +326,13 @@ class ExpressionEncoder implements ExpressionVisitor<Formula> {
 
     @Override
     public Formula visitMemoryObject(MemoryObject memObj) {
-        return context.makeVariable(memObj.toString(), memObj.getType());
+        return context.address(memObj);
     }
 
     @Override
-    public Formula visitLocation(Location location) {
-        checkState(event == null, "Cannot evaluate %s at event %s.", location, event);
-        return context.lastValue(location.getMemoryObject(), location.getOffset());
+    public Formula visitFinalMemoryValue(FinalMemoryValue val) {
+        checkState(event == null, "Cannot evaluate final memory value of %s at event %s.", val, event);
+        int size = types.getMemorySizeInBits(val.getType());
+        return context.lastValue(val.getMemoryObject(), val.getOffset(), size);
     }
 }

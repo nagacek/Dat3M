@@ -124,9 +124,7 @@ public class AcyclicityConstraint extends AbstractConstraint {
     @Override
     @SuppressWarnings("unchecked")
     public void onChanged(CAATPredicate predicate, Collection<? extends Derivable> added) {
-        for (Edge e : (Collection<Edge>)added) {
-            markedNodes.add(e.getFirst());
-        }
+        ((Collection<Edge>)added).forEach(e -> markedNodes.add(e.getFirst()));
     }
 
     @Override

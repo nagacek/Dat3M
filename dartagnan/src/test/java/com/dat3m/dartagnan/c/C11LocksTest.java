@@ -1,6 +1,7 @@
 package com.dat3m.dartagnan.c;
 
 import com.dat3m.dartagnan.configuration.Arch;
+import com.dat3m.dartagnan.configuration.OptionNames;
 import com.dat3m.dartagnan.utils.Result;
 import com.dat3m.dartagnan.utils.rules.Provider;
 import com.dat3m.dartagnan.utils.rules.Providers;
@@ -10,6 +11,8 @@ import com.dat3m.dartagnan.wmm.Wmm;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import org.sosy_lab.common.configuration.Configuration;
+import org.sosy_lab.common.configuration.InvalidConfigurationException;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -27,8 +30,15 @@ public class C11LocksTest extends AbstractCTest {
     }
 
     @Override
+    protected Configuration getConfiguration() throws InvalidConfigurationException {
+        return Configuration.builder()
+                            .setOption(OptionNames.INIT_DYNAMIC_ALLOCATIONS, "true")
+                            .build();
+    }
+
+    @Override
     protected Provider<String> getProgramPathProvider() {
-        return Provider.fromSupplier(() -> getTestResourcePath("locks/" + name + ".ll"));
+        return () -> getTestResourcePath("locks/" + name + ".ll");
     }
 
     @Override
@@ -72,6 +82,7 @@ public class C11LocksTest extends AbstractCTest {
                 {"clh_mutex-acq2rx", C11, FAIL},
                 {"ticket_awnsb_mutex", C11, PASS},
                 {"ticket_awnsb_mutex-acq2rx", C11, FAIL},
+                {"pthread_mutex", C11, PASS},
         });
     }
 

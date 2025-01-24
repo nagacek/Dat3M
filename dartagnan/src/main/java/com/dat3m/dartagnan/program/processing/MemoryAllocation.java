@@ -1,5 +1,6 @@
 package com.dat3m.dartagnan.program.processing;
 
+import com.dat3m.dartagnan.configuration.Arch;
 import com.dat3m.dartagnan.configuration.OptionNames;
 import com.dat3m.dartagnan.expression.Expression;
 import com.dat3m.dartagnan.expression.ExpressionFactory;
@@ -11,6 +12,7 @@ import com.dat3m.dartagnan.program.Thread;
 import com.dat3m.dartagnan.program.event.EventFactory;
 import com.dat3m.dartagnan.program.event.core.Alloc;
 import com.dat3m.dartagnan.program.memory.MemoryObject;
+import com.google.common.base.Preconditions;
 import org.sosy_lab.common.configuration.Configuration;
 import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.common.configuration.Option;
@@ -65,7 +67,8 @@ public class MemoryAllocation implements ProgramProcessor {
             alloc.setAllocatedObject(allocatedObject);
 
             if (alloc.doesZeroOutMemory() || createInitsForDynamicAllocations) {
-                for (int i = 0; i < allocatedObject.size(); i++) {
+                Preconditions.checkState(allocatedObject.hasKnownSize(), "Cannot initialize dynamic allocation of unknown size.");
+                for (int i = 0; i < allocatedObject.getKnownSize(); i++) {
                     allocatedObject.setInitialValue(i, zero);
                 }
             }
@@ -85,7 +88,11 @@ public class MemoryAllocation implements ProgramProcessor {
                 final String threadName = "Init_" + nextThreadId;
                 final Thread thread = new Thread(threadName, initThreadType, paramNames, nextThreadId,
                         EventFactory.newThreadStart(null));
-                thread.append(EventFactory.newInit(memObj, field));
+                if (program.getArch() == Arch.C11 || program.getArch() == Arch.OPENCL) {
+                    thread.append(EventFactory.newC11Init(memObj, field));
+                } else {
+                    thread.append(EventFactory.newInit(memObj, field));
+                }
                 thread.append(EventFactory.newLabel("END_OF_T" + thread.getId()));
                 program.addThread(thread);
                 nextThreadId++;
