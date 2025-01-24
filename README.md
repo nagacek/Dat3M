@@ -12,7 +12,7 @@ Requirements
 * [Maven](https://maven.apache.org/) 3.8 or above
 * [Java](https://openjdk.java.net/projects/jdk/17/) 17 or above
 * [Clang](https://clang.llvm.org) (only to verify C programs)
-* [Graphviz](https://graphviz.org) (only if option `--witness.graphviz=true` is used)
+* [Graphviz](https://graphviz.org) (only if option `--witness=png` is used)
 
 Installation
 ======
@@ -42,7 +42,6 @@ export DAT3M_OUTPUT=$DAT3M_HOME/output
 At least the following compiler flag needs to be set, further can be added (only to verify C programs)
 ```
 export CFLAGS="-I$DAT3M_HOME/include"
-export OPTFLAGS="-mem2reg -sroa -early-cse -indvars -loop-unroll -fix-irreducible -loop-simplify -simplifycfg -gvn"
 ```
 
 If you are verifying C code, be sure `clang` is in your `PATH`.
@@ -51,18 +50,6 @@ To build the tool run
 ```
 mvn clean install -DskipTests
 ```
-
-Troubleshooting
-======
-**MacOS ARM**
-
-Dartagnan automatically loads native binaries for its supported SMT solvers.
-However, it always loads the x86 binaries even on MacOS ARM.
-This will trigger the following error when using Z3:
-```
-java.lang.UnsatisfiedLinkError: no libz3 in java.library.path: [/Users/***/Library/Java/Extensions, /Library/Java/Extensions, /Network/Library/Java/Extensions, /System/Library/Java/Extensions, /usr/lib/java, .]
-```
-A workaround here is to manually download the ARM binaries (https://github.com/Z3Prover/z3/releases/), unpack the .zip, and place the two `.dylib` files (`libz3.dylib` and `libz3java.dylib`) into one of the folders mentioned in the error message (e.g., `Library/Java/Extensions`).
 
 Usage
 ======
@@ -97,15 +84,26 @@ For programs written in `.c`, value `<arch>` specifies the programming language 
 - riscv
 - ptx
 - vulkan
+- opencl
 
 The target architecture is supposed to match (this is responsibility of the user) the intended weak memory model specified by the CAT file. 
 
 Further options can be specified using `--<option>=<value>`. Common options include:
 - `bound`: unrolling bound for the BMC (default is 1).
+- `property`: the properties to be checked. Possible values are `program_spec` (e.g, safety properties as program assertions), `liveness` (i.e., all spinloops terminate), `cat_spec` (e.g., [data races as specified in the cat file](https://github.com/hernanponcedeleon/Dat3M/blob/master/cat/rc11.cat#L34-L39)). Default is `program_spec,cat_spec,liveness`.
 - `solver`: specifies which SMT solver to use as a backend. Since we use [JavaSMT](https://github.com/sosy-lab/java-smt), several SMT solvers are supported depending on the OS and the used SMT logic (default is Z3).
-- `method`: specifies which solving method to use. Option `caat` (the default one) uses a customized solver for memory consistency. Options `incremental` and `assume` solve a monolithic formula using incremental/assume-based SMT solving. 
+- `method`: specifies which solving method to use. Option `lazy` (the default one) uses a customized solver for memory consistency. Option `eager` solves a monolithic formula using SMT solving. 
 
 Dartagnan supports input non-determinism using the [SVCOMP](https://sv-comp.sosy-lab.org/2020/index.php) command `__VERIFIER_nondet_X`.
+
+You can set up specific bounds for individual loops in the C code by annotating the loop with `__VERIFIER_loop_bound(...)`. For example,
+```
+__VERIFIER_loop_bound(2);
+while(1) {
+    ...
+}
+```
+will unroll this loop twice and use the bound passed to the `--bound` option for all other loops.
 
 Authors and Contact
 ======
@@ -128,7 +126,7 @@ Please feel free to [contact us](mailto:hernanl.leon@huawei.com) in case of ques
 
 Awards
 ======
-- Distinguished Paper @ OOPSLA 2023
+- Distinguished Paper @ OOPSLA 2022
 - Gold Medal @ SVCOMP 2023
 - Gold Medal (x2) @ SVCOMP 2024
 

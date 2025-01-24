@@ -19,6 +19,9 @@ public interface Event extends Encoder, Comparable<Event>, Backtrackable {
     int getGlobalId();
     void setGlobalId(int id);
 
+    int getLocalId();
+    void setLocalId(int id);
+
     // ============================== Metadata ==============================
 
     void copyAllMetadataFrom(Event other);

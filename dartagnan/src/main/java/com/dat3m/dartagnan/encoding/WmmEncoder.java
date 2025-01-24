@@ -1,28 +1,29 @@
 package com.dat3m.dartagnan.encoding;
 
-import com.dat3m.dartagnan.GlobalSettings;
 import com.dat3m.dartagnan.configuration.Arch;
 import com.dat3m.dartagnan.expression.Expression;
 import com.dat3m.dartagnan.program.Program;
-import com.dat3m.dartagnan.program.analysis.Dependency;
-import com.dat3m.dartagnan.program.event.Event;
-import com.dat3m.dartagnan.program.event.MemoryEvent;
-import com.dat3m.dartagnan.program.event.RegWriter;
-import com.dat3m.dartagnan.program.event.Tag;
-import com.dat3m.dartagnan.program.event.core.FenceWithId;
+import com.dat3m.dartagnan.program.analysis.ReachingDefinitionsAnalysis;
+import com.dat3m.dartagnan.program.event.*;
+import com.dat3m.dartagnan.program.event.core.ControlBarrier;
 import com.dat3m.dartagnan.program.event.core.Load;
 import com.dat3m.dartagnan.program.event.core.MemoryCoreEvent;
 import com.dat3m.dartagnan.program.event.core.RMWStoreExclusive;
-import com.dat3m.dartagnan.program.filter.Filter;
 import com.dat3m.dartagnan.utils.Utils;
 import com.dat3m.dartagnan.utils.dependable.DependencyGraph;
 import com.dat3m.dartagnan.wmm.Constraint;
 import com.dat3m.dartagnan.wmm.Definition;
 import com.dat3m.dartagnan.wmm.Relation;
 import com.dat3m.dartagnan.wmm.Wmm;
+import com.dat3m.dartagnan.wmm.analysis.LazyRelationAnalysis;
+import com.dat3m.dartagnan.wmm.analysis.NativeRelationAnalysis;
 import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import com.dat3m.dartagnan.wmm.axiom.Axiom;
 import com.dat3m.dartagnan.wmm.definition.*;
+import com.dat3m.dartagnan.wmm.utils.Flag;
+import com.dat3m.dartagnan.wmm.utils.graph.EventGraph;
+import com.dat3m.dartagnan.wmm.utils.graph.mutable.MapEventGraph;
+import com.dat3m.dartagnan.wmm.utils.graph.mutable.MutableEventGraph;
 import com.dat3m.dartagnan.wmm.utils.*;
 import com.google.common.collect.Iterables;
 import org.apache.logging.log4j.LogManager;
@@ -33,12 +34,11 @@ import org.sosy_lab.common.configuration.Options;
 import org.sosy_lab.java_smt.api.*;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
-import static com.dat3m.dartagnan.configuration.OptionNames.ENABLE_ACTIVE_SETS;
-import static com.dat3m.dartagnan.configuration.OptionNames.MEMORY_IS_ZEROED;
+import static com.dat3m.dartagnan.configuration.OptionNames.*;
 import static com.dat3m.dartagnan.program.event.Tag.*;
 import static com.dat3m.dartagnan.wmm.RelationNameRepository.RF;
-import static com.dat3m.dartagnan.wmm.utils.EventGraph.difference;
 import static com.google.common.base.Verify.verify;
 import static java.lang.Boolean.FALSE;
 import static java.lang.Boolean.TRUE;
@@ -47,7 +47,7 @@ import static java.lang.Boolean.TRUE;
 public class WmmEncoder implements Encoder {
 
     private static final Logger logger = LogManager.getLogger(WmmEncoder.class);
-    final Map<Relation, EventGraph> encodeSets = new HashMap<>();
+    final Map<Relation, EventGraph> encodeSets;
     private final EncodingContext context;
 
     // =====================================================================
@@ -58,40 +58,46 @@ public class WmmEncoder implements Encoder {
 
     @Option(name = MEMORY_IS_ZEROED,
             description = "Assumes the whole memory is zeroed before the program runs." +
-                    "In particular, if set to TRUE, reads from uninitialized memory will return zero." +
-                    "Otherwise, uninitialized memory has a nondeterministic value.",
+                    " In particular, if set to TRUE, reads from uninitialized memory will return zero." +
+                    " Otherwise, uninitialized memory has a nondeterministic value.",
             secure = true)
     private boolean memoryIsZeroed = true;
+
+    @Option(name = MULTI_READS,
+            description = "Allows each load to have multiple, but at least one, incoming read-from relationships." +
+                    " Otherwise, that number is restricted to 1.",
+            secure = true)
+    private boolean allowMultiReads = false;
 
     // =====================================================================
 
     private WmmEncoder(EncodingContext c) {
         context = c;
         c.getAnalysisContext().requires(RelationAnalysis.class);
+        encodeSets = initializeEncodeSets();
     }
 
     public static WmmEncoder withContext(EncodingContext context) throws InvalidConfigurationException {
+        long t0 = System.currentTimeMillis();
         WmmEncoder encoder = new WmmEncoder(context);
         context.getTask().getConfig().inject(encoder);
-        logger.info("{}: {}", ENABLE_ACTIVE_SETS, encoder.enableActiveSets);
-        logger.info("{}: {}", MEMORY_IS_ZEROED, encoder.memoryIsZeroed);
-        long t0 = System.currentTimeMillis();
-        if (encoder.enableActiveSets) {
-            encoder.initializeEncodeSets();
-        } else {
-            encoder.initializeAlternative();
+        if (logger.isInfoEnabled()) {
+            logger.info("{}: {}", ENABLE_ACTIVE_SETS, encoder.enableActiveSets);
+            logger.info("{}: {}", MEMORY_IS_ZEROED, encoder.memoryIsZeroed);
+            logger.info("Finished active sets in {}", Utils.toTimeString(System.currentTimeMillis() - t0));
         }
-        logger.info("Finished active sets in {}", Utils.toTimeString(System.currentTimeMillis() - t0));
         RelationAnalysis ra = context.getAnalysisContext().get(RelationAnalysis.class);
-        logger.info("Number of unknown edges: {}", context.getTask().getMemoryModel().getRelations().stream()
-                .filter(r -> !r.isInternal())
-                .map(ra::getKnowledge)
-                .mapToLong(k -> difference(k.getMaySet(), k.getMustSet()).size())
-                .sum());
-        logger.info("Number of encoded edges: {}", encoder.encodeSets.entrySet().stream()
-                .filter(e -> !e.getKey().isInternal())
-                .mapToLong(e -> e.getValue().size())
-                .sum());
+        if (logger.isInfoEnabled()) {
+            logger.info("Number of unknown edges: {}", context.getTask().getMemoryModel().getRelations().stream()
+                    .filter(r -> !r.isInternal())
+                    .map(ra::getKnowledge)
+                    .mapToLong(k -> EventGraph.difference(k.getMaySet(), k.getMustSet()).size())
+                    .sum());
+            logger.info("Number of encoded edges: {}", encoder.encodeSets.entrySet().stream()
+                    .filter(e -> !e.getKey().isInternal())
+                    .mapToLong(e -> e.getValue().size())
+                    .sum());
+        }
         return encoder;
     }
 
@@ -135,19 +141,84 @@ public class WmmEncoder implements Encoder {
                 enc.addAll(a.consistent(context));
             }
         }
-        ra.getMutuallyExclusiveEdges()
+        ra.getContradictions()
                 .apply((e1, e2) -> enc.add(bmgr.not(context.execution(e1, e2))));
         return bmgr.and(enc);
     }
 
     public EventGraph getEventGraph(Relation relation, Model model) {
         EncodingContext.EdgeEncoder edge = context.edge(relation);
-        EventGraph encodeSet = encodeSets.getOrDefault(relation, EventGraph.empty())
+        EventGraph encodeSet = encodeSets.getOrDefault(relation, new MapEventGraph())
                 .filter((e1, e2) -> TRUE.equals(model.evaluate(edge.encode(e1, e2))));
         EventGraph mustEncodeSet = context.getAnalysisContext().get(RelationAnalysis.class).getKnowledge(relation).getMustSet()
-                        .filter((e1, e2) -> TRUE.equals(model.evaluate(context.execution(e1, e2))));
-        encodeSet.addAll(mustEncodeSet);
-        return encodeSet;
+                .filter((e1, e2) -> TRUE.equals(model.evaluate(context.execution(e1, e2))));
+        return EventGraph.union(encodeSet, mustEncodeSet);
+    }
+
+    private Map<Relation, EventGraph> initializeEncodeSets() {
+        RelationAnalysis ra = context.getAnalysisContext().get(RelationAnalysis.class);
+        if (enableActiveSets) {
+            if (ra instanceof LazyRelationAnalysis lra) {
+                return initializeLazyEncodeSets(lra);
+            } else if (ra instanceof NativeRelationAnalysis nra) {
+                return initializeNativeEncodeSets(nra);
+            } else {
+                throw new UnsupportedOperationException("Encode set computation is not supported by "
+                        + ra.getClass().getSimpleName());
+            }
+        }
+        return context.getTask().getMemoryModel().getRelations().stream()
+                .collect(Collectors.toMap(r -> r, r -> ra.getKnowledge(r).getMaySet()));
+    }
+
+    private Map<Relation, EventGraph> initializeNativeEncodeSets(NativeRelationAnalysis nra) {
+        logger.trace("Start");
+        Set<Relation> relations = context.getTask().getMemoryModel().getRelations();
+        List<Axiom> axioms = context.getTask().getMemoryModel().getAxioms();
+        Map<Relation, MutableEventGraph> mutableSets = new HashMap<>();
+        EncodeSets visitor = new EncodeSets(context.getAnalysisContext());
+        Map<Relation, List<EventGraph>> queue = new HashMap<>();
+        relations.forEach(r -> mutableSets.put(r, new MapEventGraph()));
+        axioms.forEach(a -> a.getEncodeGraph(context.getTask(), context.getAnalysisContext())
+                .forEach((relation, encodeSet) -> {
+                    if (!(encodeSet instanceof MutableEventGraph mutable)) {
+                        throw new IllegalArgumentException("Unexpected immutable event graph in " + nra.getClass().getSimpleName());
+                    }
+                    queue.computeIfAbsent(relation, k -> new ArrayList<>()).add(mutable);
+                }));
+        nra.populateQueue(queue, relations);
+        while (!queue.isEmpty()) {
+            Relation r = queue.keySet().iterator().next();
+            logger.trace("Update encode set of '{}'", r);
+            MutableEventGraph s = mutableSets.get(r);
+            MutableEventGraph c = new MapEventGraph();
+            queue.remove(r).forEach(news -> news.filter(s::add).apply(c::add));
+            if (!c.isEmpty()) {
+                visitor.news = c;
+                r.getDefinition().accept(visitor)
+                        .forEach((key, value) -> queue.computeIfAbsent(key, k -> new ArrayList<>()).add(value));
+            }
+        }
+        logger.trace("End");
+        return relations.stream().collect(Collectors.toMap(r -> r, mutableSets::get));
+    }
+
+    private Map<Relation, EventGraph> initializeLazyEncodeSets(LazyRelationAnalysis lra) {
+        Set<Relation> relations = context.getTask().getMemoryModel().getRelations();
+        List<Axiom> axioms = context.getTask().getMemoryModel().getAxioms();
+        Map<Relation, MutableEventGraph> mutableSets = new HashMap<>();
+        LazyEncodeSets visitor = new LazyEncodeSets(lra, mutableSets);
+        axioms.forEach(a -> a.getEncodeGraph(context.getTask(), context.getAnalysisContext())
+                .forEach((r, eg) -> {
+                    MutableEventGraph copy = new MapEventGraph(eg.getOutMap());
+                    copy.retainAll(lra.getKnowledge(r).getMaySet());
+                    visitor.add(r, copy);
+                    // Force adding must edges to match the result of native analysis
+                    // TODO: Is it really necessary? Method getEventGraph appends them anyway
+                    mutableSets.get(r).addAll(eg);
+                }));
+        return relations.stream().collect(Collectors.toMap(r -> r, r -> mutableSets.containsKey(r)
+                ? mutableSets.get(r) : EventGraph.empty()));
     }
 
     public Map<Relation, EventGraph> getEventGraphs(Set<Relation> relations) {
@@ -696,29 +767,6 @@ public class WmmEncoder implements Encoder {
         }
 
         @Override
-        public Void visitFences(Fences fence) {
-            final Relation rel = fence.getDefinedRelation();
-            final Filter fenceSet = fence.getFilter();
-            EventGraph mustSet = ra.getKnowledge(rel).getMustSet();
-            List<Event> fences = program.getThreadEvents().stream().filter(fenceSet::apply).toList();
-            EncodingContext.EdgeEncoder encoder = context.edge(rel);
-            encodeSets.get(rel).apply((e1, e2) -> {
-                BooleanFormula orClause;
-                if (mustSet.contains(e1, e2)) {
-                    orClause = bmgr.makeTrue();
-                } else {
-                    orClause = fences.stream()
-                            .filter(f -> e1.getGlobalId() < f.getGlobalId() && f.getGlobalId() < e2.getGlobalId())
-                            .map(context::execution).reduce(bmgr.makeFalse(), bmgr::or);
-                }
-                enc.add(bmgr.equivalence(
-                        encoder.encode(e1, e2),
-                        bmgr.and(execution(e1, e2), orClause)));
-            });
-            return null;
-        }
-
-        @Override
         public Void visitInternalDataDependency(DirectDataDependency idd) {
             return visitDirectDependency(idd.getDefinedRelation());
         }
@@ -729,16 +777,18 @@ public class WmmEncoder implements Encoder {
         }
 
         private Void visitDirectDependency(Relation r) {
-            Dependency dep = context.getAnalysisContext().get(Dependency.class);
-            EncodingContext.EdgeEncoder edge = context.edge(r);
+            final ReachingDefinitionsAnalysis definitions = context.getAnalysisContext()
+                    .get(ReachingDefinitionsAnalysis.class);
+            final EncodingContext.EdgeEncoder edge = context.edge(r);
             encodeSets.get(r).apply((writer, reader) -> {
-                if (!(writer instanceof RegWriter rw)) {
+                if (!(writer instanceof RegWriter wr) || !(reader instanceof RegReader rr)) {
                     enc.add(bmgr.not(edge.encode(writer, reader)));
                 } else {
-                    Dependency.State s = dep.of(reader, rw.getResultRegister());
-                    if (s.must.contains(writer)) {
+                    final ReachingDefinitionsAnalysis.RegisterWriters state = definitions.getWriters(rr)
+                            .ofRegister(wr.getResultRegister());
+                    if (state.getMustWriters().contains(writer)) {
                         enc.add(bmgr.equivalence(edge.encode(writer, reader), context.execution(writer, reader)));
-                    } else if (!s.may.contains(writer)) {
+                    } else if (!state.getMayWriters().contains(writer)) {
                         enc.add(bmgr.not(edge.encode(writer, reader)));
                     }
                 }
@@ -874,7 +924,7 @@ public class WmmEncoder implements Encoder {
                 }
 
                 final List<BooleanFormula> rfEdges = edgeMap.getOrDefault(r, List.of());
-                if (GlobalSettings.ALLOW_MULTIREADS) {
+                if (allowMultiReads) {
                     enc.add(bmgr.implication(context.execution(r), bmgr.or(bmgr.or(rfEdges), uninit)));
                     continue;
                 }
@@ -966,30 +1016,30 @@ public class WmmEncoder implements Encoder {
             EncodingContext.EdgeEncoder encoder = context.edge(rel);
             EventGraph mustSet = ra.getKnowledge(rel).getMustSet();
             encodeSets.get(rel).apply((e1, e2) -> {
-                FenceWithId f1 = (FenceWithId) e1;
-                FenceWithId f2 = (FenceWithId) e2;
+                ControlBarrier b1 = (ControlBarrier) e1;
+                ControlBarrier b2 = (ControlBarrier) e2;
                 BooleanFormula sameId;
                 // If they are in must, they are guaranteed to have the same id
-                if (mustSet.contains(f1, f2)) {
+                if (mustSet.contains(b1, b2)) {
                     sameId = bmgr.makeTrue();
                 } else {
-                    Expression id1 = f1.getFenceID();
-                    Expression id2 = f2.getFenceID();
-                    sameId = context.equal(context.encodeExpressionAt(id1, f1),
-                            context.encodeExpressionAt(id2, f2));
+                    Expression id1 = b1.getId();
+                    Expression id2 = b2.getId();
+                    sameId = context.equal(context.encodeExpressionAt(id1, b1),
+                            context.encodeExpressionAt(id2, b2));
                 }
                 enc.add(bmgr.equivalence(
-                        encoder.encode(f1, f2),
-                        bmgr.and(execution(f1, f2), sameId)));
+                        encoder.encode(b1, b2),
+                        bmgr.and(execution(b1, b2), sameId)));
             });
             return null;
         }
 
         @Override
         public Void visitSyncFence(SyncFence syncFenceDef) {
-            final Relation syncFence = syncFenceDef.getDefinedRelation();;
+            final Relation syncFence = syncFenceDef.getDefinedRelation();
             final boolean idl = !context.useSATEncoding;
-            final String relName = syncFence.getName().get(); // syncFence is base, it always has a name
+            final String relName = syncFence.getName().orElseThrow(); // syncFence is base, it always has a name
             List<Event> allFenceSC = program.getThreadEventsWithAllTags(VISIBLE, FENCE, PTX.SC);
             allFenceSC.removeIf(e -> !e.getThread().hasScope());
             EncodingContext.EdgeEncoder edge = context.edge(syncFence);
@@ -1042,62 +1092,5 @@ public class WmmEncoder implements Encoder {
         private BooleanFormula execution(Event e1, Event e2) {
             return context.execution(e1, e2);
         }
-    }
-
-    private void initializeAlternative() {
-        RelationAnalysis ra = context.getAnalysisContext().get(RelationAnalysis.class);
-        for (Relation r : context.getTask().getMemoryModel().getRelations()) {
-            encodeSets.put(r, ra.getKnowledge(r).getMaySet());
-        }
-    }
-
-    private void initializeEncodeSets() {
-        logger.trace("Start");
-        for (Relation r : context.getTask().getMemoryModel().getRelations()) {
-            encodeSets.put(r, new EventGraph());
-        }
-        EncodeSets v = new EncodeSets(context.getAnalysisContext());
-        Map<Relation, List<EventGraph>> queue = new HashMap<>();
-        for (Axiom a : context.getTask().getMemoryModel().getAxioms()) {
-            for (Map.Entry<Relation, EventGraph> e : a.getEncodeGraph(context.getTask(), context.getAnalysisContext()).entrySet()) {
-                queue.computeIfAbsent(e.getKey(), k -> new ArrayList<>()).add(e.getValue());
-            }
-        }
-        RelationAnalysis ra = context.getAnalysisContext().get(RelationAnalysis.class);
-        RelationAnalysis.Propagator p = ra.new Propagator();
-        for (Relation r : context.getTask().getMemoryModel().getRelations()) {
-            EventGraph may = new EventGraph();
-            EventGraph must = new EventGraph();
-            if (r.getDependencies().isEmpty()) {
-                continue;
-            }
-            for (Relation c : r.getDependencies()) {
-                p.setSource(c);
-                p.setMay(ra.getKnowledge(p.getSource()).getMaySet());
-                p.setMust(ra.getKnowledge(p.getSource()).getMustSet());
-                RelationAnalysis.Delta s = r.getDefinition().accept(p);
-                may.addAll(s.may);
-                must.addAll(s.must);
-            }
-            may.removeAll(ra.getKnowledge(r).getMaySet());
-            EventGraph must2 = difference(ra.getKnowledge(r).getMustSet(), must);
-            queue.computeIfAbsent(r, k -> new ArrayList<>()).add(EventGraph.union(may, must2));
-        }
-        while (!queue.isEmpty()) {
-            Relation r = queue.keySet().iterator().next();
-            logger.trace("Update encode set of '{}'", r);
-            EventGraph s = encodeSets.get(r);
-            EventGraph c = new EventGraph();
-            for (EventGraph news : queue.remove(r)) {
-                news.filter(s::add).apply(c::add);
-            }
-            if (!c.isEmpty()) {
-                v.news = c;
-                for (Map.Entry<Relation, EventGraph> e : r.getDefinition().accept(v).entrySet()) {
-                    queue.computeIfAbsent(e.getKey(), k -> new ArrayList<>()).add(e.getValue());
-                }
-            }
-        }
-        logger.trace("End");
     }
 }

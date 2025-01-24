@@ -1,13 +1,18 @@
 package com.dat3m.dartagnan.expression;
 
+import com.dat3m.dartagnan.expression.aggregates.AggregateCmpExpr;
+import com.dat3m.dartagnan.expression.aggregates.AggregateCmpOp;
+import com.dat3m.dartagnan.expression.aggregates.ConstructExpr;
+import com.dat3m.dartagnan.expression.aggregates.ExtractExpr;
 import com.dat3m.dartagnan.expression.booleans.*;
 import com.dat3m.dartagnan.expression.floats.*;
 import com.dat3m.dartagnan.expression.integers.*;
-import com.dat3m.dartagnan.expression.misc.ConstructExpr;
-import com.dat3m.dartagnan.expression.misc.ExtractExpr;
 import com.dat3m.dartagnan.expression.misc.GEPExpr;
 import com.dat3m.dartagnan.expression.misc.ITEExpr;
 import com.dat3m.dartagnan.expression.type.*;
+import com.dat3m.dartagnan.program.memory.MemoryObject;
+import com.dat3m.dartagnan.program.memory.ScopedPointer;
+import com.dat3m.dartagnan.program.memory.ScopedPointerVariable;
 import com.google.common.base.Preconditions;
 
 import java.math.BigDecimal;
@@ -120,6 +125,10 @@ public final class ExpressionFactory {
 
     public Expression makeCTLZ(Expression operand) {
         return makeIntUnary(IntUnaryOp.CTLZ, operand);
+    }
+
+    public Expression makeCTTZ(Expression operand) {
+        return makeIntUnary(IntUnaryOp.CTTZ, operand);
     }
 
     public Expression makeAdd(Expression leftOperand, Expression rightOperand) {
@@ -250,8 +259,7 @@ public final class ExpressionFactory {
     // -----------------------------------------------------------------------------------------------------------------
     // Aggregates
 
-    public Expression makeConstruct(List<Expression> arguments) {
-        final AggregateType type = types.getAggregateType(arguments.stream().map(Expression::getType).toList());
+    public Expression makeConstruct(Type type, List<? extends Expression> arguments) {
         return new ConstructExpr(type, arguments);
     }
 
@@ -265,6 +273,10 @@ public final class ExpressionFactory {
         return new ExtractExpr(fieldIndex, object);
     }
 
+    public Expression makeAggregateCmp(Expression x, AggregateCmpOp op, Expression y) {
+        return new AggregateCmpExpr(booleanType, x, op, y);
+    }
+
     // -----------------------------------------------------------------------------------------------------------------
     // Pointers
 
@@ -273,6 +285,14 @@ public final class ExpressionFactory {
         Preconditions.checkArgument(base.getType().equals(types.getArchType()),
                 "Applying offsets to non-pointer expression.");
         return new GEPExpr(indexingType, base, offsets);
+    }
+
+    public ScopedPointer makeScopedPointer(String id, String scopeId, Type type, Expression address) {
+        return new ScopedPointer(id, scopeId, type, address);
+    }
+
+    public ScopedPointerVariable makeScopedPointerVariable(String id, String scopeId, Type type, MemoryObject address) {
+        return new ScopedPointerVariable(id, scopeId, type, address);
     }
 
     // -----------------------------------------------------------------------------------------------------------------
@@ -287,11 +307,11 @@ public final class ExpressionFactory {
             }
             return makeArray(arrayType.getElementType(), zeroes, true);
         } else if (type instanceof AggregateType structType) {
-            List<Expression> zeroes = new ArrayList<>(structType.getDirectFields().size());
-            for (Type fieldType : structType.getDirectFields()) {
-                zeroes.add(makeGeneralZero(fieldType));
+            List<Expression> zeroes = new ArrayList<>(structType.getTypeOffsets().size());
+            for (TypeOffset typeOffset : structType.getTypeOffsets()) {
+                zeroes.add(makeGeneralZero(typeOffset.type()));
             }
-            return makeConstruct(zeroes);
+            return makeConstruct(structType, zeroes);
         } else if (type instanceof IntegerType intType) {
             return makeZero(intType);
         } else if (type instanceof BooleanType) {
@@ -331,6 +351,8 @@ public final class ExpressionFactory {
         } else if (type instanceof FloatType) {
             // TODO: Decide on a default semantics for float equality?
             return makeFloatCmp(leftOperand, FloatCmpOp.OEQ, rightOperand);
+        } else if (type instanceof AggregateType) {
+            return makeAggregateCmp(leftOperand, AggregateCmpOp.EQ, rightOperand);
         }
         throw new UnsupportedOperationException("Equality not supported on type: " + type);
     }
@@ -344,6 +366,8 @@ public final class ExpressionFactory {
         } else if (type instanceof FloatType) {
             // TODO: Decide on a default semantics for float equality?
             return makeFloatCmp(leftOperand, FloatCmpOp.ONEQ, rightOperand);
+        } else if (type instanceof AggregateType) {
+            return makeAggregateCmp(leftOperand, AggregateCmpOp.NEQ, rightOperand);
         }
         throw new UnsupportedOperationException("Disequality not supported on type: " + type);
     }
@@ -366,6 +390,8 @@ public final class ExpressionFactory {
             return makeIntBinary(x, intOp, y);
         } else if (op instanceof FloatBinaryOp floatOp) {
             return makeFloatBinary(x, floatOp, y);
+        } else if (op instanceof IntCmpOp cmpOp) {
+            return makeCompare(x, cmpOp, y);
         }
         throw new UnsupportedOperationException(String.format("Expression kind %s is no binary operator.", op));
     }
@@ -375,6 +401,8 @@ public final class ExpressionFactory {
             return makeIntCmp(x, intCmpOp, y);
         } else if (cmpOp instanceof FloatCmpOp floatOp) {
             return makeFloatCmp(x, floatOp, y);
+        } else if (cmpOp instanceof AggregateCmpOp aggrCmpOp) {
+            return makeAggregateCmp(x, aggrCmpOp, y);
         }
         throw new UnsupportedOperationException(String.format("Expression kind %s is no comparison operator.", cmpOp));
     }

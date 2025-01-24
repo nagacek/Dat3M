@@ -1,11 +1,15 @@
 package com.dat3m.dartagnan.expression.processing;
 
 
+import com.dat3m.dartagnan.expression.BinaryExpression;
 import com.dat3m.dartagnan.expression.Expression;
+import com.dat3m.dartagnan.expression.ExpressionKind;
+import com.dat3m.dartagnan.expression.aggregates.AggregateCmpExpr;
+import com.dat3m.dartagnan.expression.aggregates.AggregateCmpOp;
+import com.dat3m.dartagnan.expression.aggregates.ConstructExpr;
+import com.dat3m.dartagnan.expression.aggregates.ExtractExpr;
 import com.dat3m.dartagnan.expression.booleans.*;
 import com.dat3m.dartagnan.expression.integers.*;
-import com.dat3m.dartagnan.expression.misc.ConstructExpr;
-import com.dat3m.dartagnan.expression.misc.ExtractExpr;
 import com.dat3m.dartagnan.expression.misc.ITEExpr;
 import com.dat3m.dartagnan.expression.utils.IntegerHelper;
 import com.google.common.base.VerifyException;
@@ -23,8 +27,39 @@ public class ExprSimplifier extends ExprTransformer {
         this.aggressive = aggressive;
     }
 
+    // Tries to perform a general rewriting of a binary expression.
+    // For now, it only rewrites "ITE(cond, x, y) op z" to "ITE(cond, x op z, y op z)".
+    // Returns NULL, if no rewriting is applicable.
+    private Expression tryGeneralRewrite(BinaryExpression expression) {
+        final Expression left = expression.getLeft().accept(this);
+        final Expression right = expression.getRight().accept(this);
+        if (!(left instanceof ITEExpr) && !(right instanceof ITEExpr)
+                // We don't rewrite "ITE op ITE" for now
+                || (left instanceof ITEExpr && right instanceof ITEExpr)) {
+            return null;
+        }
+
+        final boolean iteIsLeft = left instanceof ITEExpr;
+        final ITEExpr ite = iteIsLeft ? (ITEExpr) left : (ITEExpr) right;
+        final Expression other = (iteIsLeft ? right : left);
+        final ExpressionKind op = expression.getKind();
+
+        final Expression hoistedIte = expressions.makeITE(
+                ite.getCondition(),
+                iteIsLeft ? expressions.makeBinary(ite.getTrueCase(), op, other) : expressions.makeBinary(other, op, ite.getTrueCase()),
+                iteIsLeft ? expressions.makeBinary(ite.getFalseCase(), op, other) : expressions.makeBinary(other, op, ite.getFalseCase())
+        ).accept(this);
+
+        return hoistedIte;
+    }
+
     @Override
     public Expression visitBoolBinaryExpression(BoolBinaryExpr expr) {
+        final Expression rewrite = tryGeneralRewrite(expr);
+        if (rewrite != null) {
+            return rewrite;
+        }
+
         final Expression l = expr.getLeft().accept(this);
         final Expression r = expr.getRight().accept(this);
         final BoolBinaryOp op = expr.getKind();
@@ -59,7 +94,7 @@ public class ExprSimplifier extends ExprTransformer {
 
             if (lit.getValue() == neutralValue) {
                 return left;
-            } else if (aggressive || left.getRegs().isEmpty()) {
+            } else if (isPotentiallyEliminable(left)) {
                 return expressions.makeValue(absorbingValue);
             }
         }
@@ -90,6 +125,11 @@ public class ExprSimplifier extends ExprTransformer {
 
     @Override
     public Expression visitIntCmpExpression(IntCmpExpr cmp) {
+        final Expression rewrite = tryGeneralRewrite(cmp);
+        if (rewrite != null) {
+            return rewrite;
+        }
+
         final Expression l = cmp.getLeft().accept(this);
         final Expression r = cmp.getRight().accept(this);
 
@@ -163,6 +203,7 @@ public class ExprSimplifier extends ExprTransformer {
             final BigInteger newValue = switch (expr.getKind()) {
                 case MINUS -> IntegerHelper.neg(lit.getValue(), bitWidth);
                 case CTLZ -> IntegerHelper.ctlz(lit.getValue(), bitWidth);
+                case CTTZ -> IntegerHelper.cttz(lit.getValue(), bitWidth);
             };
             return expressions.makeValue(newValue, expr.getType());
         }
@@ -177,6 +218,11 @@ public class ExprSimplifier extends ExprTransformer {
 
     @Override
     public Expression visitIntBinaryExpression(IntBinaryExpr expr) {
+        final Expression rewrite = tryGeneralRewrite(expr);
+        if (rewrite != null) {
+            return rewrite;
+        }
+
         final Expression l = expr.getLeft().accept(this);
         final Expression r = expr.getRight().accept(this);
         final IntBinaryOp op = expr.getKind();
@@ -200,7 +246,7 @@ public class ExprSimplifier extends ExprTransformer {
                 return left;
             }
 
-            if (lit.isZero() && op == IntBinaryOp.MUL && (aggressive || left.getRegs().isEmpty())) {
+            if (lit.isZero() && op == IntBinaryOp.MUL && isPotentiallyEliminable(left)) {
                 return expressions.makeZero(expr.getType());
             }
         }
@@ -224,12 +270,32 @@ public class ExprSimplifier extends ExprTransformer {
 
         // ------- Operations with constants -------
         if (cond instanceof BoolLiteral lit) {
-            if (lit.getValue() && (aggressive || falseCase.getRegs().isEmpty())) {
+            if (lit.getValue() && isPotentiallyEliminable(falseCase)) {
                 return trueCase;
             }
-            if (!lit.getValue() && (aggressive || trueCase.getRegs().isEmpty())) {
+            if (!lit.getValue() && isPotentiallyEliminable(trueCase)) {
                 return falseCase;
             }
+        }
+
+        if (trueCase instanceof BoolLiteral tLit && falseCase instanceof BoolLiteral fLit) {
+            if (tLit.getValue() == fLit.getValue()) {
+                if (isPotentiallyEliminable(cond)) {
+                    return tLit;
+                } else if (tLit.getValue()) {
+                    return expressions.makeBoolBinary(cond, BoolBinaryOp.OR, expressions.makeTrue());
+                } else {
+                    return expressions.makeBoolBinary(cond, BoolBinaryOp.AND, expressions.makeFalse());
+                }
+
+            }
+
+            if (tLit.getValue()) {
+                return expr.getCondition();
+            } else {
+                return expressions.makeNot(expr.getCondition()).accept(this);
+            }
+
         }
 
         // ------- Identical cases -------
@@ -246,7 +312,35 @@ public class ExprSimplifier extends ExprTransformer {
         if (inner instanceof ConstructExpr construct) {
             return construct.getOperands().get(expr.getFieldIndex());
         }
-
         return expressions.makeExtract(expr.getFieldIndex(), inner);
+    }
+
+    @Override
+    public Expression visitAggregateCmpExpression(AggregateCmpExpr expr) {
+        final Expression left = expr.getLeft().accept(this);
+        final Expression right = expr.getRight().accept(this);
+        assert expr.getKind() == AggregateCmpOp.EQ || expr.getKind() == AggregateCmpOp.NEQ;
+        final boolean isEq = expr.getKind() == AggregateCmpOp.EQ;
+        if (left instanceof ConstructExpr l && right instanceof ConstructExpr r) {
+            if (l.getOperands().size() == r.getOperands().size()) {
+                if (l.getOperands().isEmpty()) {
+                    return expressions.makeValue(isEq);
+                } else if (l.getOperands().size() == 1) {
+                    final Expression lOp = l.getOperands().get(0);
+                    final Expression rOp = r.getOperands().get(0);
+                    return (isEq ? expressions.makeEQ(lOp, rOp) : expressions.makeNEQ(lOp, rOp)).accept(this);
+                }
+            }
+        }
+
+        return expressions.makeAggregateCmp(left, expr.getKind(), right);
+    }
+
+    // =================================== Helper methods ===================================
+
+    // An expression is potentially eliminable if it either carries no dependencies
+    // or we are in aggressive mode.
+    private boolean isPotentiallyEliminable(Expression expr) {
+        return aggressive || expr.getRegs().isEmpty();
     }
 }
