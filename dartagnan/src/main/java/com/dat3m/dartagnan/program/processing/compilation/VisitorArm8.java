@@ -64,6 +64,8 @@ class VisitorArm8 extends VisitorBase {
         // We implement locks as spinlocks which are guaranteed to succeed, i.e. we can use
         // assumes. With this we miss a ctrl dependency, but this does not matter
         // because the load is an acquire one.
+        // TODO: Lock events are only used for implementing condvar intrinsic.
+        // If we have an alternative implementation for that, we can get rid of these events.
         return eventSequence(
                 newRMWLoadExclusiveWithMo(dummy, e.getAddress(), ARMv8.MO_ACQ),
                 newAssume(expressions.makeEQ(dummy, zero)),
@@ -212,7 +214,7 @@ class VisitorArm8 extends VisitorBase {
         ExecutionStatus optionalExecStatus = null;
         Local optionalUpdateCasCmpResult = null;
         if (e.isWeak()) {
-            Register statusReg = e.getFunction().newRegister("status(" + e.getGlobalId() + ")", types.getBooleanType());
+            Register statusReg = e.getFunction().newRegister("status(" + e.getLocalId() + ")", types.getBooleanType());
             optionalExecStatus = newExecutionStatus(statusReg, storeValue);
             optionalUpdateCasCmpResult = newLocal(booleanResultRegister, expressions.makeNot(statusReg));
         }

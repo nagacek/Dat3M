@@ -3,10 +3,9 @@ package com.dat3m.dartagnan.wmm;
 import com.dat3m.dartagnan.encoding.EncodingContext;
 import com.dat3m.dartagnan.verification.Context;
 import com.dat3m.dartagnan.verification.VerificationTask;
-import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import com.dat3m.dartagnan.wmm.axiom.*;
 import com.dat3m.dartagnan.wmm.definition.*;
-import com.dat3m.dartagnan.wmm.utils.EventGraph;
+import com.dat3m.dartagnan.wmm.utils.graph.EventGraph;
 import org.sosy_lab.java_smt.api.BooleanFormula;
 
 import java.util.Collection;
@@ -18,21 +17,6 @@ public interface Constraint {
     Collection<? extends Relation> getConstrainedRelations();
 
     <T> T accept(Constraint.Visitor<? extends T> visitor);
-
-    default Map<Relation, RelationAnalysis.ExtendedDelta> computeInitialKnowledgeClosure(
-            Map<Relation, RelationAnalysis.Knowledge> knowledgeMap,
-            Context analysisContext) {
-        return Map.of();
-    }
-
-    default Map<Relation, RelationAnalysis.ExtendedDelta> computeIncrementalKnowledgeClosure(
-            Relation origin,
-            EventGraph disabled,
-            EventGraph enabled,
-            Map<Relation, RelationAnalysis.Knowledge> knowledgeMap,
-            Context analysisContext) {
-        return Map.of();
-    }
 
     default Map<Relation, EventGraph> getEncodeGraph(VerificationTask task, Context analysisContext) {
         return Map.of();
@@ -86,7 +70,6 @@ public interface Constraint {
         // These three are semi-derived (they are derived from sets/filters and not from relations).
         default T visitSetIdentity(SetIdentity def) { return visitDefinition(def); }
         default T visitProduct(CartesianProduct def) { return visitDefinition(def); }
-        default T visitFences(Fences fence) { return visitDefinition(fence); }
 
         // Base
         default T visitUndefined(Definition.Undefined def) { return visitDefinition(def); }

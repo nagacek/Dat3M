@@ -6,7 +6,6 @@ import com.dat3m.dartagnan.expression.ExpressionFactory;
 import com.dat3m.dartagnan.expression.Type;
 import com.dat3m.dartagnan.expression.integers.IntBinaryOp;
 import com.dat3m.dartagnan.expression.integers.IntLiteral;
-import com.dat3m.dartagnan.expression.type.FunctionType;
 import com.dat3m.dartagnan.expression.type.IntegerType;
 import com.dat3m.dartagnan.expression.type.TypeFactory;
 import com.dat3m.dartagnan.program.Function;
@@ -15,12 +14,14 @@ import com.dat3m.dartagnan.program.Register;
 import com.dat3m.dartagnan.program.event.Event;
 import com.dat3m.dartagnan.program.event.EventFactory;
 import com.dat3m.dartagnan.program.event.Tag;
+import com.dat3m.dartagnan.program.event.core.CondJump;
 import com.dat3m.dartagnan.program.event.core.ExecutionStatus;
 import com.dat3m.dartagnan.program.event.core.Label;
+import com.dat3m.dartagnan.program.event.core.Local;
 import com.dat3m.dartagnan.program.event.functions.FunctionCall;
 import com.dat3m.dartagnan.program.event.functions.ValueFunctionCall;
 import com.dat3m.dartagnan.program.event.lang.svcomp.BeginAtomic;
-import com.dat3m.dartagnan.program.misc.NonDetValue;
+import com.dat3m.dartagnan.program.memory.MemoryObject;
 import com.google.common.collect.ImmutableList;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -182,13 +183,14 @@ public class Intrinsics {
                 "__VERIFIER_nondet_int", "__VERIFIER_nondet_uint", "__VERIFIER_nondet_unsigned_int",
                 "__VERIFIER_nondet_short", "__VERIFIER_nondet_ushort", "__VERIFIER_nondet_unsigned_short",
                 "__VERIFIER_nondet_long", "__VERIFIER_nondet_ulong",
+                "__VERIFIER_nondet_longlong", "__VERIFIER_nondet_ulonglong",
                 "__VERIFIER_nondet_char", "__VERIFIER_nondet_uchar"),
-                false, false, true, false, Intrinsics::inlineNonDet),
+                false, false, true, true, Intrinsics::inlineNonDet),
         // --------------------------- LLVM ---------------------------
         LLVM(List.of("llvm.smax", "llvm.umax", "llvm.smin", "llvm.umin",
                 "llvm.ssub.sat", "llvm.usub.sat", "llvm.sadd.sat", "llvm.uadd.sat", // TODO: saturated shifts
                 "llvm.sadd.with.overflow", "llvm.ssub.with.overflow", "llvm.smul.with.overflow",
-                "llvm.ctlz", "llvm.ctpop"),
+                "llvm.ctlz", "llvm.cttz", "llvm.ctpop"),
                 false, false, true, true, Intrinsics::handleLLVMIntrinsic),
         LLVM_ASSUME("llvm.assume", false, false, true, true, Intrinsics::inlineLLVMAssume),
         LLVM_META(List.of("llvm.stacksave", "llvm.stackrestore", "llvm.lifetime"), false, false, true, true, Intrinsics::inlineAsZero),
@@ -196,6 +198,7 @@ public class Intrinsics {
         LLVM_EXPECT("llvm.expect", false, false, true, true, Intrinsics::inlineLLVMExpect),
         LLVM_MEMCPY("llvm.memcpy", true, true, true, false, Intrinsics::inlineMemCpy),
         LLVM_MEMSET("llvm.memset", true, false, true, false, Intrinsics::inlineMemSet),
+        LLVM_THREADLOCAL("llvm.threadlocal.address.p0", false, false, true, true, Intrinsics::inlineLLVMThreadLocal),
         // --------------------------- LKMM ---------------------------
         LKMM_LOAD("__LKMM_LOAD", false, true, true, true, Intrinsics::handleLKMMIntrinsic),
         LKMM_STORE("__LKMM_STORE", true, false, true, true, Intrinsics::handleLKMMIntrinsic),
@@ -209,15 +212,18 @@ public class Intrinsics {
         LKMM_FENCE("__LKMM_FENCE", false, false, false, true, Intrinsics::handleLKMMIntrinsic),
         // --------------------------- Misc ---------------------------
         STD_MEMCPY("memcpy", true, true, true, false, Intrinsics::inlineMemCpy),
+        STD_MEMCPYS("memcpy_s", true, true, true, false, Intrinsics::inlineMemCpyS),
         STD_MEMSET(List.of("memset", "__memset_chk"), true, false, true, false, Intrinsics::inlineMemSet),
         STD_MEMCMP("memcmp", false, true, true, false, Intrinsics::inlineMemCmp),
         STD_MALLOC("malloc", false, false, true, true, Intrinsics::inlineMalloc),
         STD_CALLOC("calloc", false, false, true, true, Intrinsics::inlineCalloc),
+        STD_ALIGNED_ALLOC("aligned_alloc", false, false, true, true, Intrinsics::inlineAlignedAlloc),
         STD_FREE("free", true, false, true, true, Intrinsics::inlineAsZero),//TODO support free
         STD_ASSERT(List.of("__assert_fail", "__assert_rtn"), false, false, false, true, Intrinsics::inlineUserAssert),
         STD_EXIT("exit", false, false, false, true, Intrinsics::inlineExit),
         STD_ABORT("abort", false, false, false, true, Intrinsics::inlineExit),
-        STD_IO(List.of("puts", "putchar", "printf"), false, false, true, true, Intrinsics::inlineAsZero),
+        STD_IO(List.of("puts", "putchar", "printf", "fflush"), false, false, true, true, Intrinsics::inlineAsZero),
+        STD_IO_NONDET(List.of("__isoc99_sscanf", "fprintf"), false, false, true, true, Intrinsics::inlineCallAsNonDet),
         STD_SLEEP("sleep", false, false, true, true, Intrinsics::inlineAsZero),
         // --------------------------- UBSAN ---------------------------
         UBSAN_OVERFLOW(List.of("__ubsan_handle_add_overflow", "__ubsan_handle_sub_overflow", 
@@ -285,8 +291,6 @@ public class Intrinsics {
     }
 
     private void markIntrinsics(Program program) {
-        declareNondetBool(program);
-
         final var missingSymbols = new TreeSet<String>();
         for (Function func : program.getFunctions()) {
             if (!func.hasBody()) {
@@ -300,15 +304,6 @@ public class Intrinsics {
         if (!missingSymbols.isEmpty()) {
             throw new UnsupportedOperationException(
                     missingSymbols.stream().collect(Collectors.joining(", ", "Unknown intrinsics ", "")));
-        }
-    }
-
-    private void declareNondetBool(Program program) {
-        // used by VisitorLKMM
-        if (program.getFunctionByName("__VERIFIER_nondet_bool").isEmpty()) {
-            final FunctionType type = types.getFunctionType(types.getBooleanType(), List.of());
-            //TODO this id will not be unique
-            program.addFunction(new Function("__VERIFIER_nondet_bool", type, List.of(), 0, null));
         }
     }
 
@@ -493,6 +488,7 @@ public class Intrinsics {
         final Register errorRegister = getResultRegisterAndCheckArguments(2, call);
         //final Expression condAddress = call.getArguments().get(0);
         final Expression lockAddress = call.getArguments().get(1);
+        // TODO: implement this without lock/unlock events and get rid of them
         return List.of(
                 // Allow other threads to access the condition variable.
                 EventFactory.Pthread.newUnlock(lockAddress.toString(), lockAddress),
@@ -510,7 +506,6 @@ public class Intrinsics {
         //final Expression condAddress = call.getArguments().get(0);
         final Expression lockAddress = call.getArguments().get(1);
         //final Expression timespec = call.getArguments().get(2);
-        final var errorValue = call.getFunction().getProgram().newConstant(errorType);
         return List.of(
                 // Allow other threads to access the condition variable.
                 EventFactory.Pthread.newUnlock(lockAddress.toString(), lockAddress),
@@ -518,7 +513,7 @@ public class Intrinsics {
                 // Re-lock.
                 EventFactory.Pthread.newLock(lockAddress.toString(), lockAddress),
                 //TODO proper error code: ETIMEDOUT
-                EventFactory.newLocal(errorRegister, errorValue),
+                EventFactory.Svcomp.newNonDetChoice(errorRegister),
                 EventFactory.newAssume(expressions.makeGTE(errorRegister, expressions.makeZero(errorType), true))
         );
     }
@@ -600,12 +595,14 @@ public class Intrinsics {
 
     private List<Event> inlinePthreadMutexInit(FunctionCall call) {
         //see https://linux.die.net/man/3/pthread_mutex_init
+        //TODO use attributes
         final Register errorRegister = getResultRegisterAndCheckArguments(2, call);
         final Expression lockAddress = call.getArguments().get(0);
-        final Expression attributes = call.getArguments().get(1);
-        final String lockName = lockAddress.toString();
+        // FIXME: We currently use bv32 in InitLock, Lock and Unlock.
+        final IntegerType type = types.getIntegerType(32);
+        final Expression unlocked = expressions.makeZero(type);
         return List.of(
-                EventFactory.Pthread.newInitLock(lockName, lockAddress, attributes),
+                EventFactory.Llvm.newStore(lockAddress, unlocked, Tag.C11.MO_RELEASE),
                 assignSuccess(errorRegister)
         );
     }
@@ -622,11 +619,25 @@ public class Intrinsics {
     private List<Event> inlinePthreadMutexLock(FunctionCall call) {
         //see https://linux.die.net/man/3/pthread_mutex_lock
         final Register errorRegister = getResultRegisterAndCheckArguments(1, call);
+        checkArgument(errorRegister.getType() instanceof IntegerType, "Wrong return type for \"%s\"", call);
+        // FIXME: We currently use bv32 in InitLock, Lock and Unlock.
+        final IntegerType type = types.getIntegerType(32);
+        final Register oldValueRegister = call.getFunction().newRegister(type);
+        final Register successRegister = call.getFunction().newRegister(types.getBooleanType());
         final Expression lockAddress = call.getArguments().get(0);
-        final String lockName = lockAddress.toString();
+        final Expression locked = expressions.makeOne(type);
+        final Expression unlocked = expressions.makeZero(type);
+        final Expression fail = expressions.makeNot(successRegister);
+        final Label spinLoopHead = EventFactory.newLabel("__spinloop_head");
+        final Label spinLoopEnd = EventFactory.newLabel("__spinloop_end");
+        // We implement this as a caslocks
         return List.of(
-                EventFactory.Pthread.newLock(lockName, lockAddress),
-                assignSuccess(errorRegister)
+                spinLoopHead,
+                EventFactory.Llvm.newCompareExchange(oldValueRegister, successRegister, lockAddress, unlocked, locked, Tag.C11.MO_ACQUIRE, true),
+                EventFactory.newJump(successRegister, spinLoopEnd),
+                EventFactory.newGoto(spinLoopHead),
+                spinLoopEnd,
+                EventFactory.newLocal(errorRegister, expressions.makeCast(fail, errorRegister.getType()))
         );
     }
 
@@ -634,12 +645,13 @@ public class Intrinsics {
         //see https://linux.die.net/man/3/pthread_mutex_trylock
         final Register errorRegister = getResultRegisterAndCheckArguments(1, call);
         checkArgument(errorRegister.getType() instanceof IntegerType, "Wrong return type for \"%s\"", call);
-        // We currently use archType in InitLock, Lock and Unlock.
-        final Register oldValueRegister = call.getFunction().newRegister(types.getArchType());
+        // FIXME: We currently use bv32 in InitLock, Lock and Unlock.
+        final IntegerType type = types.getIntegerType(32);
+        final Register oldValueRegister = call.getFunction().newRegister(type);
         final Register successRegister = call.getFunction().newRegister(types.getBooleanType());
         final Expression lockAddress = call.getArguments().get(0);
-        final Expression locked = expressions.makeOne(types.getArchType());
-        final Expression unlocked = expressions.makeZero(types.getArchType());
+        final Expression locked = expressions.makeOne(type);
+        final Expression unlocked = expressions.makeZero(type);
         final Expression fail = expressions.makeNot(successRegister);
         return List.of(
                 EventFactory.Llvm.newCompareExchange(oldValueRegister, successRegister, lockAddress, unlocked, locked, Tag.C11.MO_ACQUIRE),
@@ -650,10 +662,16 @@ public class Intrinsics {
     private List<Event> inlinePthreadMutexUnlock(FunctionCall call) {
         //see https://linux.die.net/man/3/pthread_mutex_unlock
         final Register errorRegister = getResultRegisterAndCheckArguments(1, call);
+        // FIXME: We currently use bv32 in InitLock, Lock and Unlock.
+        final IntegerType type = types.getIntegerType(32);
+        final Register oldValueRegister = call.getFunction().newRegister(type);
         final Expression lockAddress = call.getArguments().get(0);
-        final String lockName = lockAddress.toString();
-        return List.of(
-                EventFactory.Pthread.newUnlock(lockName, lockAddress),
+        final Expression locked = expressions.makeOne(type);
+        final Expression unlocked = expressions.makeZero(type);
+        return EventFactory.eventSequence(
+                EventFactory.Llvm.newLoad(oldValueRegister, lockAddress, Tag.C11.MO_RELAXED),
+                notToInline.contains(AssertionType.USER) ? null : EventFactory.newAssert(expressions.makeEQ(oldValueRegister, locked), "Unlocking an already unlocked mutex"),
+                EventFactory.Llvm.newStore(lockAddress, unlocked, Tag.C11.MO_RELEASE),
                 assignSuccess(errorRegister)
         );
     }
@@ -728,14 +746,13 @@ public class Intrinsics {
         final Register errorRegister = getResultRegisterAndCheckArguments(1, call);
         final Expression lockAddress = call.getArguments().get(0);
         final Register successRegister = call.getFunction().newRegister(types.getBooleanType());
-        final Expression error = call.getFunction().getProgram().newConstant(errorRegister.getType());
         final Expression success = expressions.makeGeneralZero(errorRegister.getType());
         return List.of(
                 // Write-lock only if unlocked.
                 newRwlockTryWrlock(call, successRegister, lockAddress),
                 // Indicate success by returning zero.
-                EventFactory.newAssume(expressions.makeEQ(successRegister, expressions.makeEQ(error, success))),
-                EventFactory.newLocal(errorRegister, error)
+                EventFactory.Svcomp.newNonDetChoice(errorRegister),
+                EventFactory.newAssume(expressions.makeEQ(successRegister, expressions.makeEQ(errorRegister, success)))
         );
     }
 
@@ -755,13 +772,14 @@ public class Intrinsics {
         final Register errorRegister = getResultRegisterAndCheckArguments(1, call);
         final Register oldValueRegister = call.getFunction().newRegister(getRwlockDatatype());
         final Register successRegister = call.getFunction().newRegister(types.getBooleanType());
+        final Register expectedRegister = call.getFunction().newRegister(getRwlockDatatype());
         final Expression lockAddress = call.getArguments().get(0);
-        final Expression expected = call.getFunction().getProgram().newConstant(getRwlockDatatype());
         return List.of(
                 // Expect any other value than write-locked.
-                EventFactory.newAssume(expressions.makeNEQ(expected, getRwlockWriteLockedValue())),
+                EventFactory.Svcomp.newNonDetChoice(expectedRegister),
+                EventFactory.newAssume(expressions.makeNEQ(expectedRegister, getRwlockWriteLockedValue())),
                 // Increment shared counter only if not locked by writer.
-                newRwlockTryRdlock(call, oldValueRegister, successRegister, lockAddress, expected),
+                newRwlockTryRdlock(call, oldValueRegister, successRegister, lockAddress, expectedRegister),
                 // Fail only if write-locked.
                 EventFactory.newAssume(expressions.makeOr(successRegister, expressions.makeEQ(oldValueRegister, getRwlockWriteLockedValue()))),
                 // Deadlock if a violation occurred in another thread.
@@ -775,20 +793,20 @@ public class Intrinsics {
         final Register errorRegister = getResultRegisterAndCheckArguments(1, call);
         final Register oldValueRegister = call.getFunction().newRegister(getRwlockDatatype());
         final Register successRegister = call.getFunction().newRegister(types.getBooleanType());
+        final Register expectedRegister = call.getFunction().newRegister(getRwlockDatatype());
         final Expression lockAddress = call.getArguments().get(0);
-        final Expression expected = call.getFunction().getProgram().newConstant(getRwlockDatatype());
-        final Expression error = call.getFunction().getProgram().newConstant(errorRegister.getType());
         final Expression success = expressions.makeGeneralZero(errorRegister.getType());
         return List.of(
                 // Expect any other value than write-locked.
-                EventFactory.newAssume(expressions.makeNEQ(expected, getRwlockWriteLockedValue())),
+                EventFactory.Svcomp.newNonDetChoice(expectedRegister),
+                EventFactory.newAssume(expressions.makeNEQ(expectedRegister, getRwlockWriteLockedValue())),
                 // Increment shared counter only if not locked by writer.
-                newRwlockTryRdlock(call, oldValueRegister, successRegister, lockAddress, expected),
+                newRwlockTryRdlock(call, oldValueRegister, successRegister, lockAddress, expectedRegister),
                 // Fail only if write-locked.
                 EventFactory.newAssume(expressions.makeOr(successRegister, expressions.makeEQ(oldValueRegister, getRwlockWriteLockedValue()))),
                 // Indicate success with zero.
-                EventFactory.newAssume(expressions.makeEQ(successRegister, expressions.makeEQ(error, success))),
-                EventFactory.newLocal(errorRegister, error)
+                EventFactory.Svcomp.newNonDetChoice(errorRegister),
+                EventFactory.newAssume(expressions.makeEQ(successRegister, expressions.makeEQ(errorRegister, success)))
         );
     }
 
@@ -811,8 +829,8 @@ public class Intrinsics {
         //see https://linux.die.net/man/3/pthread_rwlock_unlock
         final Register errorRegister = getResultRegisterAndCheckArguments(1, call);
         final Register oldValueRegister = call.getFunction().newRegister(getRwlockDatatype());
+        final Register decrementRegister = call.getFunction().newRegister(getRwlockDatatype());
         final Expression lockAddress = call.getArguments().get(0);
-        final Expression decrement = call.getCalledFunction().getProgram().newConstant(getRwlockDatatype());
         final Expression one = expressions.makeOne(getRwlockDatatype());
         final Expression two = expressions.makeValue(BigInteger.TWO, getRwlockDatatype());
         final Expression lastReader = expressions.makeEQ(oldValueRegister, two);
@@ -820,8 +838,9 @@ public class Intrinsics {
         //TODO does not recognize whether the calling thread is allowed to unlock
         return List.of(
                 // decreases the lock value by 1, if not the last reader, or else 2.
-                EventFactory.Llvm.newRMW(oldValueRegister, lockAddress, decrement, IntBinaryOp.SUB, Tag.C11.MO_RELEASE),
-                EventFactory.newAssume(expressions.makeEQ(decrement, properDecrement)),
+                EventFactory.Svcomp.newNonDetChoice(decrementRegister),
+                EventFactory.Llvm.newRMW(oldValueRegister, lockAddress, decrementRegister, IntBinaryOp.SUB, Tag.C11.MO_RELEASE),
+                EventFactory.newAssume(expressions.makeEQ(decrementRegister, properDecrement)),
                 assignSuccess(errorRegister)
         );
     }
@@ -880,6 +899,16 @@ public class Intrinsics {
         );
     }
 
+    private List<Event> inlineAlignedAlloc(FunctionCall call) {
+        final Register resultRegister = getResultRegisterAndCheckArguments(2, call);
+        final Type allocType = types.getByteType();
+        final Expression alignment = call.getArguments().get(0);
+        final Expression totalSize = call.getArguments().get(1);
+        return List.of(
+                EventFactory.newAlignedAlloc(resultRegister, allocType, totalSize, alignment, true, false)
+        );
+    }
+
     private List<Event> inlineAssert(FunctionCall call, AssertionType skip, String errorMsg) {
         if(notToInline.contains(skip)) {
             return List.of();
@@ -887,7 +916,7 @@ public class Intrinsics {
         final Expression condition = expressions.makeFalse();
         final Event assertion = EventFactory.newAssert(condition, errorMsg);
         final Event abort = EventFactory.newAbortIf(expressions.makeTrue());
-        abort.addTags(Tag.EARLYTERMINATION);
+        abort.addTags(Tag.EXCEPTIONAL_TERMINATION);
         return List.of(assertion, abort);
     }
 
@@ -927,6 +956,8 @@ public class Intrinsics {
 
         if (name.startsWith("llvm.ctlz")) {
             return inlineLLVMCtlz(valueCall);
+        } else if (name.startsWith("llvm.cttz")) {
+            return inlineLLVMCttz(valueCall);
         } else if (name.startsWith("llvm.ctpop")) {
             return inlineLLVMCtpop(valueCall);
         } else if (name.contains("add.sat")) {
@@ -974,6 +1005,23 @@ public class Intrinsics {
         checkArgument(input.getType().equals(type),
                 "Return type %s of \"llvm.ctlz\" must match argument type %s.", type, input.getType());
         final Expression resultExpression = expressions.makeCTLZ(input);
+        final Event assignment = EventFactory.newLocal(resultReg, resultExpression);
+        return List.of(assignment);
+    }
+
+    private List<Event> inlineLLVMCttz(ValueFunctionCall call) {
+        //see https://llvm.org/docs/LangRef.html#llvm-cttz-intrinsic
+        checkArgument(call.getArguments().size() == 2,
+                "Expected 2 parameters for \"llvm.cttz\", got %s.", call.getArguments().size());
+        final Expression input = call.getArguments().get(0);
+        // TODO: Handle the second parameter as well
+        final Register resultReg = call.getResultRegister();
+        final Type type = resultReg.getType();
+        checkArgument(resultReg.getType() instanceof IntegerType,
+                "Non-integer %s type for \"llvm.cttz\".", type);
+        checkArgument(input.getType().equals(type),
+                "Return type %s of \"llvm.cttz\" must match argument type %s.", type, input.getType());
+        final Expression resultExpression = expressions.makeCTTZ(input);
         final Event assignment = EventFactory.newLocal(resultReg, resultExpression);
         return List.of(assignment);
     }
@@ -1137,14 +1185,13 @@ public class Intrinsics {
         final Expression yExt = expressions.makeCast(y, types.getIntegerType(width + 1), true);
         final Expression resultExt = expressions.makeCast(result, types.getIntegerType(width + 1), true);
         final Expression bvCheck = expressions.makeEQ(expressions.makeIntBinary(xExt, op, yExt), resultExt);
-
         final Expression flag = expressions.makeCast(
                 expressions.makeNot(expressions.makeAnd(bvCheck, rangeCheck)),
                 types.getIntegerType(1)
         );
-
+        final Type type = types.getAggregateType(List.of(result.getType(), flag.getType()));
         return List.of(
-                EventFactory.newLocal(resultReg, expressions.makeConstruct(List.of(result, flag)))
+                EventFactory.newLocal(resultReg, expressions.makeConstruct(type, List.of(result, flag)))
         );
     }
 
@@ -1254,40 +1301,50 @@ public class Intrinsics {
         }
     }
 
+    private List<Event> inlineCallAsNonDet(FunctionCall call) {
+        return List.of(
+                EventFactory.Svcomp.newSignedNonDetChoice(getResultRegister(call), true)
+        );
+    }
+
     private List<Event> inlineNonDet(FunctionCall call) {
         assert call.isDirectCall() && call instanceof ValueFunctionCall;
-        final Program program = call.getFunction().getProgram();
-        Register register = ((ValueFunctionCall) call).getResultRegister();
-        String name = call.getCalledFunction().getName();
+        final Register result = getResultRegister(call);
+        final String name = call.getCalledFunction().getName();
         final String separator = "nondet_";
-        int index = name.indexOf(separator);
+        final int index = name.indexOf(separator);
         assert index > -1;
-        String suffix = name.substring(index + separator.length());
+        final String suffix = name.substring(index + separator.length());
 
-        // Nondeterministic booleans
+        final Type nonDetType;
+        final boolean signed;
         if (suffix.equals("bool")) {
-            final Expression value = program.newConstant(types.getBooleanType());
-            final Expression cast = expressions.makeCast(value, register.getType());
-            return List.of(EventFactory.newLocal(register, cast));
+            // Nondeterministic booleans
+            signed = false;
+            nonDetType = types.getBooleanType();
+        } else {
+            // Nondeterministic integers
+            final int bits = switch (suffix) {
+                case "longlong", "ulonglong" -> 64;
+                case "long", "ulong" -> 64;
+                case "int", "uint", "unsigned_int" -> 32;
+                case "short", "ushort", "unsigned_short" -> 16;
+                case "char", "uchar" -> 8;
+                default -> throw new UnsupportedOperationException(String.format("%s is not supported", call));
+            };
+
+            signed = switch (suffix) {
+                case "int", "short", "long", "longlong", "char" -> true;
+                default -> false;
+            };
+            nonDetType = types.getIntegerType(bits);
         }
 
-        // Nondeterministic integers
-        boolean signed = switch (suffix) {
-            case "int", "short", "long", "char" -> true;
-            default -> false;
-        };
-
-        final int bits = switch (suffix) {
-            case "long", "ulong" -> 64;
-            case "int", "uint", "unsigned_int" -> 32;
-            case "short", "ushort", "unsigned_short" -> 16;
-            case "char", "uchar" -> 8;
-            default -> throw new UnsupportedOperationException(String.format("%s is not supported", call));
-        };
-
-        final NonDetValue value = (NonDetValue) call.getFunction().getProgram().newConstant(types.getIntegerType(bits));
-        value.setIsSigned(signed);
-        return List.of(EventFactory.newLocal(register, expressions.makeCast(value, register.getType(), signed)));
+        final Register nonDetReg = call.getFunction().getOrNewRegister("__r_nondet_" + suffix, nonDetType);
+        return List.of(
+                EventFactory.Svcomp.newSignedNonDetChoice(nonDetReg, signed),
+                EventFactory.newLocal(result, expressions.makeCast(nonDetReg, result.getType(), signed))
+        );
     }
 
     //FIXME: The following support for memcpy, memcmp, and memset is unsound
@@ -1324,6 +1381,116 @@ public class Intrinsics {
             // std.memcpy returns the destination address, llvm.memcpy has no return value
             replacement.add(EventFactory.newLocal(valueCall.getResultRegister(), dest));
         }
+
+        return replacement;
+    }
+
+    // https://en.cppreference.com/w/c/string/byte/memcpy
+    private List<Event> inlineMemCpyS(FunctionCall call) {
+        // Cast guaranteed to success by the return type of memcpy_s
+        final Register resultRegister = ((ValueFunctionCall)call).getResultRegister();
+        final Function caller = call.getFunction();
+        final Expression dest = call.getArguments().get(0);
+        final Expression destszExpr = call.getArguments().get(1);
+        final Expression src = call.getArguments().get(2);
+        final Expression countExpr = call.getArguments().get(3);
+
+        // TODO remove these two checks once we support dynamically-sized memcpy
+        if (!(countExpr instanceof IntLiteral countValue)) {
+            final String error = "Cannot handle memcpy_s with dynamic count argument: " + call;
+            throw new UnsupportedOperationException(error);
+        }
+        final int count = countValue.getValueAsInt();
+        if (!(destszExpr instanceof IntLiteral destszValue)) {
+            final String error = "Cannot handle memcpy_s with dynamic destsz argument: " + call;
+            throw new UnsupportedOperationException(error);
+        }
+        final int destsz = destszValue.getValueAsInt();
+
+        // Runtime checks
+        final Expression nullExpr = expressions.makeZero(types.getArchType());
+        final Expression destIsNull = expressions.makeEQ(dest, nullExpr);
+        final Expression srcIsNull = expressions.makeEQ(src, nullExpr);
+
+        // We assume RSIZE_MAX = 2^64-1
+        final Expression rsize_max = expressions.makeValue(BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE), types.getArchType());
+        // These parameters have type rsize_t/size_t which we model as types.getArchType(), thus the cast
+        final Expression castDestszExpr = expressions.makeCast(destszExpr, types.getArchType());
+        final Expression castCountExpr = expressions.makeCast(countExpr, types.getArchType());
+
+        final Expression invalidDestsz = expressions.makeGT(castDestszExpr, rsize_max, false);
+        final Expression countGtMax = expressions.makeGT(castCountExpr, rsize_max, false);
+        final Expression countGtdestszExpr = expressions.makeGT(castCountExpr, castDestszExpr, false);
+        final Expression invalidCount = expressions.makeOr(countGtMax, countGtdestszExpr);
+        final Expression overlap = expressions.makeAnd(
+                expressions.makeGT(expressions.makeAdd(src, castCountExpr), dest, false),
+                expressions.makeGT(expressions.makeAdd(dest, castCountExpr), src, false));
+
+        final List<Event> replacement = new ArrayList<>();
+        
+        Label check1 = EventFactory.newLabel("__memcpy_s_check_1");
+        Label check2 = EventFactory.newLabel("__memcpy_s_check_2");
+        Label success = EventFactory.newLabel("__memcpy_s_success");
+        Label end = EventFactory.newLabel("__memcpy_s_end");
+
+        Expression errorCodeFail = expressions.makeOne((IntegerType)resultRegister.getType());
+        Expression errorCodeSuccess = expressions.makeZero((IntegerType)resultRegister.getType());
+
+        // Condition 1: dest == NULL or destsz > RSIZE_MAX ----> return error > 0
+        final Expression cond1 = expressions.makeOr(destIsNull, invalidDestsz);
+        CondJump skipE1 = EventFactory.newJump(expressions.makeNot(cond1), check2);
+        CondJump skipRest1 = EventFactory.newGoto(end);
+        Local retError1 = EventFactory.newLocal(resultRegister, errorCodeFail);
+        replacement.addAll(List.of(
+            check1,
+            skipE1,
+            retError1,
+            skipRest1
+        ));
+
+        // Condition 2: dest != NULL && destsz <= RSIZE_MAX && (src == NULL || count > destsz || overlap(src, dest)) 
+        // ----> return error > 0 and zero out [dest, dest+destsz)
+        // The first two are guaranteed by not matching cond1
+        final Expression cond2 = expressions.makeOr(expressions.makeOr(srcIsNull, invalidCount), overlap);
+        CondJump skipE2 = EventFactory.newJump(expressions.makeNot(cond2), success);
+        CondJump skipRest2 = EventFactory.newGoto(end);
+        Local retError2 = EventFactory.newLocal(resultRegister, errorCodeFail);
+        replacement.addAll(List.of(
+            check2,
+            skipE2
+        ));
+        for (int i = 0; i < destsz; i++) {
+            final Expression offset = expressions.makeValue(i, types.getArchType());
+            final Expression destAddr = expressions.makeAdd(dest, offset);
+            final Expression zero = expressions.makeZero(types.getArchType());
+            replacement.add(
+                EventFactory.newStore(destAddr, zero)
+            );
+        }
+        replacement.addAll(List.of(
+            retError2,
+            skipRest2
+        ));
+
+        // Else ----> return error = 0 and do the actual copy
+        Local retSuccess = EventFactory.newLocal(resultRegister, errorCodeSuccess);
+        replacement.add(success);        
+        for (int i = 0; i < count; i++) {
+            final Expression offset = expressions.makeValue(i, types.getArchType());
+            final Expression srcAddr = expressions.makeAdd(src, offset);
+            final Expression destAddr = expressions.makeAdd(dest, offset);
+            // FIXME: We have no other choice but to load ptr-sized chunks for now
+            final Register reg = caller.getOrNewRegister("__memcpy_" + i, types.getArchType());
+
+            replacement.addAll(List.of(
+                    EventFactory.newLoad(reg, srcAddr),
+                    EventFactory.newStore(destAddr, reg)
+            ));
+        }
+        replacement.addAll(List.of(
+            retSuccess,
+            end
+        ));
 
         return replacement;
     }
@@ -1407,6 +1574,15 @@ public class Intrinsics {
         }
 
         return replacement;
+    }
+
+    private List<Event> inlineLLVMThreadLocal(FunctionCall call) {
+        final Register resultReg = getResultRegisterAndCheckArguments(1, call);
+        final Expression exp = call.getArguments().get(0);
+        checkArgument(exp instanceof MemoryObject object && object.isThreadLocal(), "Calling thread-local intrinsic on a non-thread-local object \"%s\"", call);
+        return List.of(
+            EventFactory.newLocal(resultReg, exp)
+        );
     }
 
     private Event assignSuccess(Register errorRegister) {

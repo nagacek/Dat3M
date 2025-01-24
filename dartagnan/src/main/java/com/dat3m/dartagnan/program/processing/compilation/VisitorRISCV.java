@@ -68,6 +68,8 @@ class VisitorRISCV extends VisitorBase {
         // We implement locks as spinlocks which are guaranteed to succeed, i.e. we can use
         // assumes. With this we miss a ctrl dependency, but this does not matter
         // because of the fence.
+        // TODO: Lock events are only used for implementing condvar intrinsic.
+        // If we have an alternative implementation for that, we can get rid of these events.
         return eventSequence(
                 newRMWLoadExclusive(dummy, e.getAddress()),
                 newAssume(expressions.makeEQ(dummy, zero)),
@@ -234,7 +236,7 @@ class VisitorRISCV extends VisitorBase {
         CondJump gotoCasEnd = newGoto(casEnd);
         Load loadValue = newRMWLoadExclusiveWithMo(regValue, address, Tag.RISCV.extractLoadMoFromCMo(mo));
         Store storeValue = RISCV.newRMWStoreConditional(address, value, Tag.RISCV.extractStoreMoFromCMo(mo), e.isStrong());
-        Register statusReg = e.getFunction().newRegister("status(" + e.getGlobalId() + ")", types.getBooleanType());
+        Register statusReg = e.getFunction().newRegister("status(" + e.getLocalId() + ")", types.getBooleanType());
         // We normally make the following two events optional.
         // Here we make them mandatory to guarantee correct dependencies.
         ExecutionStatus execStatus = newExecutionStatusWithDependencyTracking(statusReg, storeValue);
