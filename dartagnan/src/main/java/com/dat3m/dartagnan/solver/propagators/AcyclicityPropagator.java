@@ -27,8 +27,8 @@ public class AcyclicityPropagator extends AbstractUserPropagator {
 
     private Domain<Event> domain;
     private SimpleGraph relationGraph = new SimpleGraph();
-    private BiMap<BooleanFormula, Edge> lit2Edge = HashBiMap.create();
-    private BiMap<Edge, BooleanFormula> edge2Lit = lit2Edge.inverse();
+    private HashMap<BooleanFormula, List<Edge>> lit2Edges = new HashMap<>();
+    private HashMap<Edge, BooleanFormula> edge2Lit = new HashMap<>();
 
     private int curLevel = 0;
 
@@ -61,11 +61,24 @@ public class AcyclicityPropagator extends AbstractUserPropagator {
         k.getMaySet().apply((x, y) -> {
             final int idx = domain.getId(x);
             final int idy = domain.getId(y);
-            if (must.contains(x, y)) {
+            /*if (must.contains(x, y)) {
                 relationGraph.add(new Edge(idx, idy, 0, 0));
             } else if (encodeGraph.contains(x, y)) {
                 final BooleanFormula edgeLit = context.edge(rel, x, y);
                 lit2Edge.put(edgeLit, new Edge(idx, idy, 0, 0 ));
+                backend.registerExpression(edgeLit);
+            }*/
+            if (encodeGraph.contains(x, y) ) {
+                final BooleanFormula edgeLit = context.edge(rel, x, y);
+                Edge e = new Edge(idx, idy, 0, 0 );
+                lit2Edges.put(edgeLit, List.of(e));
+                edge2Lit.put(e, edgeLit);
+                backend.registerExpression(edgeLit);
+            } else if (must.contains(x, y)) {
+                final BooleanFormula edgeLit = context.edge(rel, x, y);
+                Edge e = new Edge(idx, idy, 0, 0 );
+                lit2Edges.computeIfAbsent(edgeLit, key -> new ArrayList<>()).add(e);
+                edge2Lit.put(e, edgeLit);
                 backend.registerExpression(edgeLit);
             }
         });
@@ -74,8 +87,10 @@ public class AcyclicityPropagator extends AbstractUserPropagator {
     @Override
     public void onKnownValue(BooleanFormula expr, boolean value) {
         if (value) {
-            final Edge edge = lit2Edge.get(expr);
-            propagate(edge.withTime(curLevel));
+            final List<Edge> edges = lit2Edges.get(expr);
+            for (Edge edge : edges){
+                propagate(edge.withTime(curLevel));
+            }
         }
     }
 
