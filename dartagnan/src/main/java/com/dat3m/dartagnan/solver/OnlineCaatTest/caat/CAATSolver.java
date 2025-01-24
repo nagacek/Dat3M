@@ -5,7 +5,6 @@ import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.constraints.Constraint;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.misc.PathAlgorithm;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.reasoning.CAATLiteral;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.reasoning.Reasoner;
-import com.dat3m.dartagnan.utils.collections.Pair;
 import com.dat3m.dartagnan.utils.logic.Conjunction;
 import com.dat3m.dartagnan.utils.logic.DNF;
 

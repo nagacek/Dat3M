@@ -221,11 +221,11 @@ public class WmmEncoder implements Encoder {
                 ? mutableSets.get(r) : EventGraph.empty()));
     }
 
-    public Map<Relation, EventGraph> getEventGraphs(Set<Relation> relations) {
-        Map<Relation, EventGraph> eventGraphs = new HashMap<>();
+    public Map<Relation, MapEventGraph> getEventGraphs(Set<Relation> relations) {
+        Map<Relation, MapEventGraph> eventGraphs = new HashMap<>();
         for (Relation r : relations) {
-            EventGraph encodeSet = encodeSets.getOrDefault(r, EventGraph.empty());
-            EventGraph mustEncodeSet = context.getAnalysisContext().get(RelationAnalysis.class).getKnowledge(r).getMustSet();
+            MapEventGraph encodeSet = encodeSets.getOrDefault(r, new MapEventGraph());
+            MapEventGraph mustEncodeSet = context.getAnalysisContext().get(RelationAnalysis.class).getKnowledge(r).getMustSet();
             encodeSet.addAll(mustEncodeSet);
             eventGraphs.put(r, encodeSet);
         }

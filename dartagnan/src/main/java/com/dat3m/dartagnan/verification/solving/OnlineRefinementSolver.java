@@ -25,7 +25,6 @@ import com.dat3m.dartagnan.wmm.axiom.Axiom;
 import com.dat3m.dartagnan.wmm.axiom.Emptiness;
 import com.dat3m.dartagnan.wmm.definition.*;
 import com.dat3m.dartagnan.wmm.utils.Cut;
-import com.dat3m.dartagnan.wmm.utils.EventGraph;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import org.apache.logging.log4j.LogManager;
