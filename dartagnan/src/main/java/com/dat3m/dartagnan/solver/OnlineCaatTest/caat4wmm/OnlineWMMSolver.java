@@ -159,7 +159,7 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
         if (waitForBacktrack) {
             return;
         }
-        long curTime = System.currentTimeMillis();
+        //long curTime = System.currentTimeMillis();
         knownValues.push(expr);
         partialModel.put(expr, value);
         // moved to onPush/onPop for batch processing
@@ -196,10 +196,10 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
             }
         }
 
-        curStats.modelExtractionTime += System.currentTimeMillis() - curTime;
-        curTime = System.currentTimeMillis();
+        //curStats.modelExtractionTime += System.currentTimeMillis() - curTime;
+        //curTime = System.currentTimeMillis();
         progressPropagation();
-        curStats.refinementTime += System.currentTimeMillis() - curTime;
+        //curStats.refinementTime += System.currentTimeMillis() - curTime;
     }
 
     private void processBatchEdges(int time) {
