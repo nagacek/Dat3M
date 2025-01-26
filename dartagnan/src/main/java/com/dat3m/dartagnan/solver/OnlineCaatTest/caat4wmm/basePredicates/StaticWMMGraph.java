@@ -6,6 +6,7 @@ import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.misc.EdgeDirection;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.Derivable;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.relationGraphs.Edge;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -15,7 +16,7 @@ public abstract class StaticWMMGraph extends AbstractWMMGraph {
     protected int size;
 
     @Override
-    public void validate (int time, Set<Derivable> activeSet, boolean active) {}
+    public void validate (int time, Set<? extends Derivable> activeSet, boolean active) {}
 
     @Override
     public Edge get(Edge edge) {
@@ -52,7 +53,7 @@ public abstract class StaticWMMGraph extends AbstractWMMGraph {
     }
 
     @Override
-    public Set<Edge> checkBoneActivation(int triggerId, int time, Set<BoneInfo> bones) { return new HashSet<>(); }
+    public Set<Edge> checkBoneActivation(int triggerId, int time, Set<BoneInfo> bones) { return Collections.emptySet(); }
 
     @Override
     public int staticDerivationLength() {

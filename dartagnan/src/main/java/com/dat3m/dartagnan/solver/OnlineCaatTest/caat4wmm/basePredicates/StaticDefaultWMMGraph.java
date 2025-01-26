@@ -19,7 +19,7 @@ public class StaticDefaultWMMGraph extends MaterializedWMMGraph {
     }
 
     @Override
-    public void validate (int time, Set<Derivable> activeSet, boolean active) {}
+    public void validate (int time, Set<? extends Derivable> activeSet, boolean active) {}
 
     @Override
     public void repopulate() {

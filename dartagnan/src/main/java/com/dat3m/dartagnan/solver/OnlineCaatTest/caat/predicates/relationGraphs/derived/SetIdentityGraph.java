@@ -25,7 +25,7 @@ public class SetIdentityGraph extends AbstractPredicate implements RelationGraph
     }
 
     @Override
-    public void validate (int time, Set<Derivable> activeSet, boolean active) {}
+    public void validate (int time, Set<? extends Derivable> activeSet, boolean active) {}
 
     @Override
     public List<SetPredicate> getDependencies() {
@@ -94,7 +94,7 @@ public class SetIdentityGraph extends AbstractPredicate implements RelationGraph
 
     @Override
     public Set<Edge> checkBoneActivation(int triggerId, int time, Set<BoneInfo> bones) {
-        return new HashSet<>();
+        return Collections.emptySet();
     }
 
     @Override

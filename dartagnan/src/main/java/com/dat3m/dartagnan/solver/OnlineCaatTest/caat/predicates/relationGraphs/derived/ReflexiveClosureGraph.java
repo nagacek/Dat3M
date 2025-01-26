@@ -30,8 +30,10 @@ public class ReflexiveClosureGraph extends AbstractPredicate implements Relation
 
     private final RelationGraph inner;
 
+    private Set<Edge> staticEdges;
+
     @Override
-    public void validate (int time, Set<Derivable> activeSet, boolean active) {}
+    public void validate (int time, Set<? extends Derivable> activeSet, boolean active) {}
 
     public ReflexiveClosureGraph(RelationGraph inner) {
         this.inner = inner;
@@ -70,6 +72,9 @@ public class ReflexiveClosureGraph extends AbstractPredicate implements Relation
     public boolean containsById(int id1, int id2) {
         return id1 == id2 || inner.containsById(id1, id2);
     }
+
+    @Override
+    public boolean staticContains(Edge edge) { return staticEdges.contains(edge); }
 
     @Override
     public int getMinSize() {
@@ -124,6 +129,11 @@ public class ReflexiveClosureGraph extends AbstractPredicate implements Relation
             maxDerivationLength = inner.staticDerivationLength() + 1;
         }
         return maxDerivationLength;
+    }
+
+    @Override
+    public void initializeStaticEdges(Set<Edge> edges) {
+        staticEdges = edges;
     }
 
     @Override

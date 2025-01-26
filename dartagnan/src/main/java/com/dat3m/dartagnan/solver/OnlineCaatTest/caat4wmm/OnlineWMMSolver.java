@@ -17,15 +17,20 @@ import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.relationGraphs.
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.relationGraphs.base.SimpleGraph;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.relationGraphs.derived.CompositionGraph;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.relationGraphs.derived.RecursiveGraph;
+import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.relationGraphs.derived.ReflexiveClosureGraph;
+import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.relationGraphs.derived.TransitiveGraph;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.reasoning.CAATLiteral;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat4wmm.coreReasoning.CoreLiteral;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat4wmm.coreReasoning.CoreReasoner;
 import com.dat3m.dartagnan.utils.logic.Conjunction;
 import com.dat3m.dartagnan.utils.logic.DNF;
 import com.dat3m.dartagnan.verification.Context;
+import com.dat3m.dartagnan.wmm.Constraint;
 import com.dat3m.dartagnan.wmm.Relation;
 import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
+import com.dat3m.dartagnan.wmm.axiom.Axiom;
 import com.dat3m.dartagnan.wmm.utils.graph.EventGraph;
+import com.dat3m.dartagnan.wmm.utils.graph.mutable.MapEventGraph;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.Sets;
 import org.sosy_lab.java_smt.api.BooleanFormula;
@@ -74,8 +79,10 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
         executionGraph.initializeToDomain(domain);
         translateSets(encoder.getActiveSets(), activeSets);
         translateSets(encoder.getInactiveBoundarySets(), boundarySets);
-        makeSkeleton(analysisContext);
         executionGraph.initializeActiveSets(activeSets);
+        initializeStaticEdges();
+
+        makeSkeleton(analysisContext);
 
         // used for (semi-) offline solving
         /*this.offlineExecutionGraph = new ExecutionGraph(refinementModel);
@@ -96,8 +103,8 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
     // Static Skeleton
 
     private final Context analysisContext;
-    private final Map<RelationGraph, Set<Derivable>> activeSets;
-    private final Map<RelationGraph, Set<Derivable>> boundarySets;
+    private final Map<RelationGraph, Set<Edge>> activeSets;
+    private final Map<RelationGraph, Set<Edge>> boundarySets;
 
     /*private final List<HashMap<RelationGraph, Set<BoneInfo>>> boundaryBones;
     private final List<HashMap<RelationGraph, Set<BoneInfo>>> inactiveBones;*/
@@ -108,7 +115,7 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
 
     private void makeSkeleton(Context analysisContext) {
         RelationAnalysis ra = analysisContext.get(RelationAnalysis.class);
-        final Set<Relation> relations = refinementModel.getOriginalModel().getRelations();
+        final Set<Relation> relations = refinementModel.getOriginalModel().getAxioms().stream().map(Axiom::getRelation).collect(Collectors.toSet());
         for (Relation rel : relations) {
             RelationGraph graph = executionGraph.getRelationGraph(rel);
 
@@ -144,6 +151,21 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
             }
             graph.addBones(bones);
         }
+        for (RelationGraph graph : boundarySets.keySet()) {
+            Set<Edge> derivs = boundarySets.get(graph);
+            Set<Edge> bones = new HashSet<>();
+            for (Derivable deriv : derivs) {
+                if (deriv instanceof Edge edge) {
+                    Edge boneEdge = edge.asBone();
+                    bones.add(boneEdge);
+                    buildListeners(graph, edge);
+                }
+            }
+            if (graph instanceof RecursiveGraph) {
+                ((RelationGraph)graph.getDependencies().get(0)).addBones(bones);
+            }
+            graph.addBones(bones);
+        }
 
         //BiMap<RelationGraph, Relation> relationMap = executionGraph.getRelationGraphMap().inverse();
         /*for (CAATPredicate pred : executionGraph.getCAATModel().getHierarchy().getPredicateList()) {
@@ -171,7 +193,7 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
         int id1 = edge.getFirst();
         int id2 = edge.getSecond();
 
-        Set<Derivable> boundarySet = boundarySets.get(graph);
+        Set<Edge> boundarySet = boundarySets.get(graph);
         boolean isBoundary = boundarySet != null && boundarySet.contains(edge);
         BoneInfo boneInfo;
         BoneInfo compositionBoneInfo = handleCompositionListeners(graph, edge, isBoundary);
@@ -275,6 +297,39 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
             return boneInfo;
         }
         return null;
+    }
+
+    private void initializeStaticEdges() {
+        RelationAnalysis ra = analysisContext.get(RelationAnalysis.class);
+        Map<Relation, EventGraph> mustSets = new HashMap<>();
+        for (Relation rel : executionGraph.getRelationGraphMap().keySet()) {
+            EventGraph must = ra.getKnowledge(rel).getMustSet();
+            mustSets.put(rel, must);
+        }
+
+        Map<RelationGraph, Set<Edge>> mustEdges = new HashMap<>();
+        translateSets(mustSets, mustEdges);
+
+        for (RelationGraph testGraph : executionGraph.getRelationGraphMap().values()) {
+            if (testGraph instanceof CompositionGraph gr) {
+                RelationGraph first = gr.getFirst();
+                RelationGraph second = gr.getSecond();
+                boundarySets.merge(first, mustEdges.get(first), Sets::union);
+                boundarySets.merge(second, mustEdges.get(second), Sets::union);
+            }
+            if (testGraph instanceof ReflexiveClosureGraph gr) {
+                for (RelationGraph inner : gr.getDependencies()) {
+                    boundarySets.merge(inner, mustEdges.get(inner), Sets::union);
+                }
+            }
+            if (testGraph instanceof TransitiveGraph gr) {
+                for (RelationGraph inner : gr.getDependencies()) {
+                    boundarySets.merge(inner, mustEdges.get(inner), Sets::union);
+                }
+            }
+        }
+
+        executionGraph.initializeStaticEdges(mustEdges);
     }
 
     private void updateSkeleton(Event event) {
@@ -410,14 +465,17 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
         }
     }
 
-    private void translateSets(Map<Relation, EventGraph> rawSets, Map<RelationGraph, Set<Derivable>> newSets) {
+    private void triggerDeferredPropagation() {
+
+    }
+
+    private void translateSets(Map<Relation, EventGraph> rawSets, Map<RelationGraph, Set<Edge>> newSets) {
         for (Relation r : rawSets.keySet()) {
             RelationGraph graph = executionGraph.getRelationGraph(r);
             if (graph == null) {
                 continue;
             }
-            newSets.putIfAbsent(graph, new HashSet<>());
-            Set<Derivable> translatedEdges = newSets.get(graph);
+            Set<Edge> translatedEdges = new HashSet<>();
             Map<Event, Set<Event>> containedEdges = rawSets.get(r).getOutMap();
             for (Event e1 : containedEdges.keySet()) {
                 domain.weakAddElement(e1);
@@ -425,10 +483,11 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
                     domain.weakAddElement(e2);
                     int id1 = domain.weakGetId(e1);
                     int id2 = domain.weakGetId(e2);
-                    Edge newEdge = new Edge(id1, id2);
+                    Edge newEdge = new Edge(id1, id2).withDerivationLength(-1);
                     translatedEdges.add(newEdge);
                 }
             }
+            newSets.put(graph, translatedEdges);
         }
     }
 
@@ -534,7 +593,7 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
             for (Event event : info.events()) {
                 if (event.hasTag(Tag.VISIBLE)) {
                     domain.addElement(event);
-                    //System.out.println(domain.getId(event));
+                    //System.out.println(domain.getId(event) + " : " + event.getGlobalId());
                     updateSkeleton(event);
                 }
             }
@@ -545,21 +604,32 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
                 if (graph != null) {
                     int sourceId = domain.getId(edge.source());
                     int targetId = domain.getId(edge.target());
-                    if (sourceId < 0 || targetId < 0) {
-                        pendingEdges.add(new PendingEdgeInfo(edge.relation(), edge.source(), edge.target(), backtrackPoints.size(), -1));
-                    } else {
-                        Edge e = new Edge(sourceId, targetId).withTime(backtrackPoints.size());
-                        List<Edge> graphBatch = batchEdges.computeIfAbsent(graph, g -> new ArrayList<>());
-                        graphBatch.add(e);
-                        // moved to onPush/onPop for batch processing
-                        //executionGraph.getCAATModel().getHierarchy().addAndPropagate(graph, Collections.singleton(e));
-                        if (!activeSets.get(graph).contains(e)) {
-                            PredicateHierarchy.PropagationMode mode = PredicateHierarchy.PropagationMode.DELETE;
-                            executionGraph.getCAATModel().getHierarchy().addAndPropagate(graph, Collections.singleton(e), mode);
-                        }
-                        //executionGraph.getCAATModel().getHierarchy().addAndPropagate(graph, Collections.singleton(e));
-                    }
+                    Edge e = new Edge(sourceId, targetId).withTime(backtrackPoints.size());
 
+                    if (activeSets.get(graph).contains(e)) {
+                        if (sourceId < 0 || targetId < 0) {
+                            pendingEdges.add(new PendingEdgeInfo(edge.relation(), edge.source(), edge.target(), backtrackPoints.size(), -1));
+                        } else {
+                            // moved to onPush/onPop for batch processing
+                            //executionGraph.getCAATModel().getHierarchy().addAndPropagate(graph, Collections.singleton(e));
+                            List<Edge> graphBatch = batchEdges.computeIfAbsent(graph, g -> new ArrayList<>());
+                            graphBatch.add(e);
+                            //executionGraph.getCAATModel().getHierarchy().addAndPropagate(graph, Collections.singleton(e));
+                        }
+                    } else {
+
+                        if (sourceId < 0 || targetId < 0) {
+                            pendingEdges.add(new PendingEdgeInfo(edge.relation(), edge.source(), edge.target(), backtrackPoints.size(), -1));
+                        } else {
+                            if (seen.add(graph)) {
+                                //System.out.println(graph.getName());
+                            }
+                            if (names.contains(graph.getName()) && (boundarySets.get(graph) == null || !boundarySets.get(graph).contains(e))) {
+                                executionGraph.getCAATModel().getHierarchy().addAndPropagate(graph, Collections.singleton(e), PredicateHierarchy.PropagationMode.DELETE);
+                            }
+                        }
+
+                    }
                 }
             }
         }
@@ -571,6 +641,22 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
         progressPropagation();
         curStats.refinementTime += System.currentTimeMillis() - curTime;
     }
+    Set<RelationGraph> seen = new HashSet<>();
+    Set<String> names = Set.of(
+            //"loc",
+            //"rf",
+            //,"[IW]"
+            //,"[W]",
+            //,"R*M"
+            //,"W*R"
+            //,"W*W"
+            //"ext"
+            //,"co"
+            //,"po"
+            //,"rmw"
+            //,"A*M"
+            //,"M*A"
+            );
 
     private void processBatchEdges(int time) {
         for (var batch : batchEdges.entrySet()) {

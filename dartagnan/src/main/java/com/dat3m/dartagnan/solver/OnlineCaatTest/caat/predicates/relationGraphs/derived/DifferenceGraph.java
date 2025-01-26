@@ -23,7 +23,7 @@ public class DifferenceGraph extends AbstractPredicate implements RelationGraph 
     private final RelationGraph second;
 
     @Override
-    public void validate (int time, Set<Derivable> activeSet, boolean active) {}
+    public void validate (int time, Set<? extends Derivable> activeSet, boolean active) {}
 
     @Override
     public List<RelationGraph> getDependencies() {
@@ -128,7 +128,7 @@ public class DifferenceGraph extends AbstractPredicate implements RelationGraph 
     public void backtrackTo(int time) { }
 
     @Override
-    public Set<Edge> checkBoneActivation(int triggerId, int time, Set<BoneInfo> bones) { return new HashSet<>(); }
+    public Set<Edge> checkBoneActivation(int triggerId, int time, Set<BoneInfo> bones) { return Collections.emptySet(); }
 
     @Override
     public void repopulate() { }

@@ -273,38 +273,85 @@ public class WmmEncoder implements Encoder {
         }
 
         @Override
+        public Map<Relation, EventGraph> visitTransitiveClosure(TransitiveClosure def) {
+            return computeSimpleBoundary(def);
+        }
+
+        // TODO: for this to be beneficial, we need the old may-analysis back!
+        @Override
         public Map<Relation, EventGraph> visitComposition(Composition def) {
+
+            final Relation r1 = def.getLeftOperand();
+            final Relation r2 = def.getRightOperand();
+            EventGraph firstMust = ra.getKnowledge(r1).getMustSet();
+            EventGraph secondMust = ra.getKnowledge(r2).getMustSet();
+
+            Map<Relation, EventGraph> boundarySets = new HashMap<>();
+            boundarySets.put(r1, firstMust);
+            boundarySets.put(r2, secondMust);
+            return boundarySets;
+
+            /*final Relation rel = def.getDefinedRelation();
             final Relation r1 = def.getLeftOperand();
             final Relation r2 = def.getRightOperand();
             final MapEventGraph boundary1 = new MapEventGraph();
             final MapEventGraph boundary2 = new MapEventGraph();
-            EventGraph activeSet = encodeSets.get(def.getDefinedRelation());
-            Map<Event, Set<Event>> firstActive = encodeSets.get(r1).getOutMap();
+            EventGraph mustSet = ra.getKnowledge(rel).getMustSet();
+            Map<Event, Set<Event>> firstMustOut = ra.getKnowledge(r1).getMustSet().getOutMap();
+            Map<Event, Set<Event>> firstMustIn = ra.getKnowledge(r1).getMustSet().getInMap();
             EventGraph firstActiveGraph = encodeSets.get(r1);
             EventGraph secondActiveGraph = encodeSets.get(r2);
-            Map<Event, Set<Event>> secondActive = encodeSets.get(r2).getInMap();
+            Map<Event, Set<Event>> secondMayIn = ra.getKnowledge(r2).getMaySet().getInMap();
+            Map<Event, Set<Event>> secondMustOut = ra.getKnowledge(r2).getMustSet().getOutMap();
             EventGraph firstMust = ra.getKnowledge(r1).getMustSet();
             EventGraph secondMust = ra.getKnowledge(r2).getMustSet();
-            activeSet.apply((e1, e2) -> {
-                for (Event e : firstActive.getOrDefault(e1, Set.of())) {
-                    if (secondMust.contains(e, e2)) {
-                        boundary2.add(e, e2);
-                    } else if (secondActiveGraph.contains(e, e2)) {
-                        int i = 5;
-                    } else {
-                        int i = 5;
+
+            for (Event e1 : firstMustOut.keySet()) {
+                for (Event e2 : firstMustOut.get(e1)) {
+                    if (secondMustOut.get(e2).isEmpty()) {
+                        for (Event e3 : lastEvents) {
+                            if (!mustSet.contains(e1, e3)) {
+                                assert secondMust.contains(e2, e3);
+                                boundary2.add(e2, e3);
+                            }
+                        }
                     }
                 }
-                for (Event e : secondActive.getOrDefault(e2, Set.of())) {
-                    if (firstMust.contains(e1, e)) {
-                        boundary1.add(e1, e);
-                    } else if (firstActiveGraph.contains(e1, e)) {
-                        int i = 5;
-                    } else {
-                        int i = 5;
+            }
+
+            for (Event e3 : secondMayIn.keySet()) {
+                for (Event e2 : secondMayIn.get(e3)) {
+                    Set<Event> firstEvents = firstMustIn.get(e2);
+                    if (firstEvents != null) {
+                        for (Event e1 : firstEvents) {
+                            if (!mustSet.contains(e1, e3)) {
+                                assert firstMust.contains(e1, e2);
+                                boundary1.add(e1, e2);
+                            }
+                        }
                     }
                 }
-            });
+            }
+
+            /*for (Event e : firstActive.getOrDefault(e1, Set.of())) {
+                if (secondMust.contains(e, e2)) {
+                    boundary2.add(e, e2);
+                } else if (secondActiveGraph.contains(e, e2)) {
+                    int i = 5;
+                } else {
+                    int i = 5;
+                }
+            }
+            for (Event e : secondActive.getOrDefault(e2, Set.of())) {
+                if (firstMust.contains(e1, e)) {
+                    boundary1.add(e1, e);
+                } else if (firstActiveGraph.contains(e1, e)) {
+                    int i = 5;
+                } else {
+                    int i = 5;
+                }
+            }
+
             if (boundary1.isEmpty() && boundary2.isEmpty()) {
                 return Map.of();
             }
@@ -314,8 +361,9 @@ public class WmmEncoder implements Encoder {
             if (boundary2.isEmpty()) {
                 return Map.of(r1, boundary1);
             }
-            return r1.equals(r2) ? Map.of(r1, EventGraph.union(boundary1, boundary2)) : Map.of(r1, boundary1, r2, boundary2);
+            return r1.equals(r2) ? Map.of(r1, EventGraph.union(boundary1, boundary2)) : Map.of(r1, boundary1, r2, boundary2);*/
         }
+
     }
 
     private final class RelationEncoder implements Constraint.Visitor<Void> {

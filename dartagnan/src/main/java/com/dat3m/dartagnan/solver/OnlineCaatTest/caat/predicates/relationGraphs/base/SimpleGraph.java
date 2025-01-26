@@ -29,6 +29,7 @@ public final class SimpleGraph extends AbstractBaseGraph {
         thisCount = count++;
     }
 
+    private final DataItem emptyItem = new DataItem(false);
     private ArrayList<DataItem> outgoing = new ArrayList<>();
     private ArrayList<DataItem> ingoing = new ArrayList<>();
     private int edgeCount = 0;
@@ -37,7 +38,7 @@ public final class SimpleGraph extends AbstractBaseGraph {
     private int numEvents = 0;
 
     @Override
-    public void validate (int time, Set<Derivable> activeSet, boolean active) {
+    public void validate (int time, Set<? extends Derivable> activeSet, boolean active) {
         AtomicLong activeCount = new AtomicLong();
         AtomicLong inactiveCount = new AtomicLong();
         edgeStream().forEach(e -> {
@@ -60,6 +61,8 @@ public final class SimpleGraph extends AbstractBaseGraph {
 
     private final HashMap<Edge, Edge> edgeMap = new HashMap<>(100);
 
+    protected Set<Edge> staticEdges;
+
 
     @Override
     public List<RelationGraph> getDependencies() {
@@ -80,6 +83,11 @@ public final class SimpleGraph extends AbstractBaseGraph {
 
     @Override
     public int staticDerivationLength() { return 0; }
+
+    @Override
+    public void initializeStaticEdges(Set<Edge> edges) {
+        staticEdges = edges;
+    }
 
     @Override
     public void backtrackTo(int time) {
@@ -200,6 +208,11 @@ public final class SimpleGraph extends AbstractBaseGraph {
 
     public boolean contains(Edge e) {
         return get(e) != null;
+    }
+
+    @Override
+    public boolean staticContains(Edge e) {
+        return staticEdges.contains(e);
     }
 
     public void addBones(Collection<? extends Derivable> bones) {
@@ -394,13 +407,13 @@ public final class SimpleGraph extends AbstractBaseGraph {
     @Override
     public Stream<Edge> edgeStream(int e, EdgeDirection dir) {
         DataItem item = getItem(e, dir);
-        return item == null ? Stream.empty() : item.stream();
+        return item == null ? emptyItem.weakStream() : item.stream();
     }
 
     @Override
     public Stream<Edge> weakEdgeStream(int e, EdgeDirection dir) {
         DataItem item = getItem(e, dir);
-        return item == null ? Stream.empty() : item.weakStream();
+        return item == null ? emptyItem.weakStream() : item.weakStream();
     }
 
     @Override

@@ -20,6 +20,7 @@ public class IntersectionGraph extends MaterializedGraph {
 
     private final RelationGraph[] operands;
 
+
     @Override
     protected Set<Edge> computeFromInnerEdges() {
         HashSet<Edge> innerEdges = new HashSet<>();
@@ -108,17 +109,19 @@ public class IntersectionGraph extends MaterializedGraph {
         int time = edge.getTime();
         int length = edge.getDerivationLength();
         for (RelationGraph g : operands) {
-            Edge e;
-            if (edge.isBone() && !edge.isActive()) {
-                e = g.weakGet(edge);
-            } else {
-                e = g.get(edge);
+            if (!g.staticContains(edge)) {
+                Edge e;
+                if (edge.isBone() && !edge.isActive()) {
+                    e = g.weakGet(edge);
+                } else {
+                    e = g.get(edge);
+                }
+                if (e == null) {
+                    return null;
+                }
+                time = Math.max(time, e.getTime());
+                length = Math.max(length, e.getDerivationLength());
             }
-            if (e == null) {
-                return null;
-            }
-            time = Math.max(time, e.getTime());
-            length = Math.max(length, e.getDerivationLength());
         }
         return edge.with(time, length);
     }

@@ -5,6 +5,7 @@ import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.domain.Domain;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.CAATPredicate;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.Derivable;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.PredicateHierarchy;
+import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.relationGraphs.Edge;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.relationGraphs.RelationGraph;
 import com.google.common.base.Preconditions;
 import java.util.*;
@@ -58,8 +59,12 @@ public class CAATModel {
         this.hierarchy.initializeToDomain(domain);
     }
 
-    public void initializeActiveSets(Map<RelationGraph, Set<Derivable>> activeSets) {
+    public void initializeActiveSets(Map<RelationGraph, Set<Edge>> activeSets) {
         this.hierarchy.initializeActiveSets(activeSets);
+    }
+
+    public void initializeStaticEdges(Map<RelationGraph, Set<Edge>> staticEdges) {
+        this.hierarchy.initializeStaticEdges(staticEdges);
     }
 
     public void populate() {
@@ -80,5 +85,6 @@ public class CAATModel {
     public boolean checkInconsistency() {
         return constraints.stream().anyMatch(Constraint::checkForViolations);
     }
+
 
 }

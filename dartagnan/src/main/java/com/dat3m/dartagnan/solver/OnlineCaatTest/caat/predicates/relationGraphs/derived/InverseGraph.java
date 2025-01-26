@@ -20,7 +20,7 @@ public class InverseGraph extends AbstractPredicate implements RelationGraph {
     protected final RelationGraph inner;
 
     @Override
-    public void validate (int time, Set<Derivable> activeSet, boolean active) {}
+    public void validate (int time, Set<? extends Derivable> activeSet, boolean active) {}
 
     public InverseGraph(RelationGraph inner) {
         this.inner = inner;
@@ -49,6 +49,9 @@ public class InverseGraph extends AbstractPredicate implements RelationGraph {
     public boolean contains(Edge edge) {
         return inner.contains(edge.inverse());
     }
+
+    @Override
+    public boolean staticContains(Edge edge) { return inner.contains(edge.inverse()); }
 
     @Override
     public boolean containsById(int id1, int id2) {
@@ -159,5 +162,5 @@ public class InverseGraph extends AbstractPredicate implements RelationGraph {
     }
 
     @Override
-    public Set<Edge> checkBoneActivation(int triggerId, int time, Set<BoneInfo> bones) { return new HashSet<>(); }
+    public Set<Edge> checkBoneActivation(int triggerId, int time, Set<BoneInfo> bones) { return Collections.emptySet(); }
 }

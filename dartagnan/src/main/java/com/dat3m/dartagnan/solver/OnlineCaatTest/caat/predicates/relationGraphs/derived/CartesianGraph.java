@@ -26,7 +26,7 @@ public class CartesianGraph extends AbstractPredicate implements RelationGraph {
     }
 
     @Override
-    public void validate (int time, Set<Derivable> activeSet, boolean active) {}
+    public void validate (int time, Set<? extends Derivable> activeSet, boolean active) {}
 
     @Override
     public List<SetPredicate> getDependencies() {
@@ -44,7 +44,7 @@ public class CartesianGraph extends AbstractPredicate implements RelationGraph {
     public void backtrackTo(int time) { }
 
     @Override
-    public Set<Edge> checkBoneActivation(int triggerId, int time, Set<BoneInfo> bones) { return new HashSet<>(); }
+    public Set<Edge> checkBoneActivation(int triggerId, int time, Set<BoneInfo> bones) { return Collections.emptySet(); }
 
     private Edge derive(Element a, Element b) {
         return new Edge(a.getId(), b.getId(), Math.max(a.getTime(), b.getTime()),

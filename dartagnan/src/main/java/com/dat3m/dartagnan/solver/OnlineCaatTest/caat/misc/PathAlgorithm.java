@@ -50,8 +50,8 @@ public class PathAlgorithm {
                 // Forward BFS
                 int curSize = queue1.size();
                 while (curSize-- > 0 && !found) {
-                    for (Edge next : graph.outEdges(queue1.poll())) {
-                        if (!filter.test(next)) {
+                    for (Edge next : graph.weakOutEdges(queue1.poll())) {
+                        if (!next.isActive() || !filter.test(next)) {
                             continue;
                         }
 

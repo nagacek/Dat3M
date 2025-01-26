@@ -9,6 +9,7 @@ import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.misc.AbstractPr
 import com.dat3m.dartagnan.utils.collections.OneTimeIterable;
 
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -32,6 +33,7 @@ public interface RelationGraph extends CAATPredicate {
 
     Stream<Edge> weakEdgeStream();
     Stream<Edge> weakEdgeStream(int e, EdgeDirection dir);
+
 
 
     // ================= Default methods ==================
@@ -92,12 +94,22 @@ public interface RelationGraph extends CAATPredicate {
     default Iterable<Edge> inEdges(int e) { return edges(e, EdgeDirection.INGOING); }
     default Iterable<Edge> outEdges(int e) {  return edges(e, EdgeDirection.OUTGOING); }
 
+    default Iterable<Edge> weakInEdges(int e) { return weakEdges(e, EdgeDirection.INGOING); }
+    default Iterable<Edge> weakOutEdges(int e) {  return weakEdges(e, EdgeDirection.OUTGOING); }
+
     @Override
     default Set<Edge> setView() { return new SetView(this); }
 
     default Set<Edge> checkBoneActivation(int triggerId, int time, Set<BoneInfo> bones) {
-        return bones.stream().map(b -> b.edge().withTime(time)).collect(Collectors.toSet());
+        Set<Edge> result = new HashSet<>();
+        for (BoneInfo bone : bones) {
+            result.add(bone.edge().withTime(time));
+        }
+        return result;
     }
+
+    default void initializeStaticEdges(Set<Edge> edges) {}
+    default boolean staticContains(Edge e) { return false;}
 
     class SetView extends AbstractPredicateSetView<Edge> {
 

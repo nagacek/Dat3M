@@ -14,7 +14,7 @@ public class RMWGraph extends MaterializedWMMGraph {
     public RMWGraph() { }
 
     @Override
-    public void validate (int time, Set<Derivable> activeSet, boolean active) {}
+    public void validate (int time, Set<? extends Derivable> activeSet, boolean active) {}
 
     @Override
     public int staticDerivationLength() { return 0; }

@@ -83,14 +83,14 @@ public class Reasoner {
         if (edge == null) {
             int i = 5;
         }
-        if (!graph.contains(edge)) {
-            return Conjunction.FALSE();
-        }
 
         Conjunction<CAATLiteral> reason;
         if (edge.getDerivationLength() == -1) {
             reason = new EdgeLiteral(graph, edge, true).toSingletonReason();
         } else {
+            if (!graph.contains(edge)) {
+                return Conjunction.FALSE();
+            }
             reason = graph.accept(graphVisitor, edge, null);
         }
 
@@ -127,7 +127,12 @@ public class Reasoner {
             Edge min = edge;
             RelationGraph next = graph;
             for (RelationGraph g : (List<RelationGraph>) graph.getDependencies()) {
-                Edge e = g.get(edge);
+                Edge e;
+                if (!g.staticContains(edge)) {
+                    e = g.get(edge);
+                } else {
+                    e = edge.with(-1, -1);
+                }
                 if (e != null && e.getDerivationLength() < min.getDerivationLength()) {
                     next = g;
                     min = e;
@@ -152,7 +157,12 @@ public class Reasoner {
         public Conjunction<CAATLiteral> visitGraphIntersection(RelationGraph graph, Edge edge, Void unused) {
             Conjunction<CAATLiteral> reason = Conjunction.TRUE();
             for (RelationGraph g : (List<RelationGraph>) graph.getDependencies()) {
-                Edge e = g.get(edge);
+                Edge e;
+                if (!g.staticContains(edge)) {
+                    e = g.get(edge);
+                } else {
+                    e = edge.with(-1, -1);
+                }
                 reason = reason.and(computeReason(g, e));
             }
             assert !reason.isFalse();

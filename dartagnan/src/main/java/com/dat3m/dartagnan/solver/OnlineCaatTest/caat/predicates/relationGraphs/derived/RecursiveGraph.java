@@ -37,6 +37,12 @@ public class RecursiveGraph extends MaterializedGraph {
     public RelationGraph getInner() { return inner; }
 
     @Override
+    public void initializeStaticEdges(Set<Edge> edges) {
+        super.initializeStaticEdges(edges);
+        inner.initializeStaticEdges(edges);
+    }
+
+    @Override
     @SuppressWarnings("unchecked")
     public Collection<Edge> forwardPropagate(CAATPredicate changedSource, Collection<? extends Derivable> added, PredicateHierarchy.PropagationMode mode) {
          if (changedSource == inner

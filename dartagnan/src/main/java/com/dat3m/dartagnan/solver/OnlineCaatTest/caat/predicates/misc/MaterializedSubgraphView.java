@@ -31,9 +31,10 @@ public class MaterializedSubgraphView extends MaterializedGraph {
         sourceGraph = source;
         simpleGraph.initializeToDomain(source.getDomain());
 
+        // TODO: not valid for theory propagation
         for (Integer e : elements) {
             sourceGraph.outEdgeStream(e)
-                    .filter(edge -> elements.contains(edge.getSecond()))
+                    .filter(edge -> edge.isActive() && elements.contains(edge.getSecond()))
                     .forEach(simpleGraph::add);
         }
     }

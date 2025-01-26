@@ -26,6 +26,7 @@ public abstract class MaterializedGraph extends AbstractPredicate implements Rel
 
     protected final SimpleGraph simpleGraph;
 
+
     protected MaterializedGraph() {
         this.simpleGraph = new SimpleGraph();
     }
@@ -33,7 +34,7 @@ public abstract class MaterializedGraph extends AbstractPredicate implements Rel
     // ----------------- Debug only ------------------
 
     @Override
-    public void validate(int time, Set<Derivable> activeSet, boolean active) {
+    public void validate(int time, Set<? extends Derivable> activeSet, boolean active) {
         AtomicLong activeCount = new AtomicLong();
         AtomicLong inactiveCount = new AtomicLong();
         Set<Edge> innerEdges = computeFromInnerEdges();
@@ -77,6 +78,7 @@ public abstract class MaterializedGraph extends AbstractPredicate implements Rel
 
     protected abstract Set<Edge> computeFromInnerEdges();
 
+
     // -----------------------------------------------
 
     @Override
@@ -112,6 +114,14 @@ public abstract class MaterializedGraph extends AbstractPredicate implements Rel
         super.initializeToDomain(domain);
         simpleGraph.initializeToDomain(domain);
     }
+
+    @Override
+    public void initializeStaticEdges(Set<Edge> edges) {
+        simpleGraph.initializeStaticEdges(edges);
+    }
+
+    @Override
+    public boolean staticContains(Edge e) { return simpleGraph.staticContains(e); }
 
     @Override
     public int getEstimatedSize() {

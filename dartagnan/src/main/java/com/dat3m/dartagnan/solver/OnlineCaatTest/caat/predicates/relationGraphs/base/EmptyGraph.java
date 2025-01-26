@@ -13,7 +13,7 @@ import java.util.stream.Stream;
 public class EmptyGraph extends AbstractBaseGraph {
 
     @Override
-    public void validate (int time, Set<Derivable> activeSet, boolean active) {}
+    public void validate (int time, Set<? extends Derivable> activeSet, boolean active) {}
 
     @Override
     public void backtrackTo(int time) { }
@@ -30,7 +30,7 @@ public class EmptyGraph extends AbstractBaseGraph {
     public void addBones(Collection<? extends Derivable> bones) {}
 
     @Override
-    public Set<Edge> checkBoneActivation(int triggerId, int time, Set<BoneInfo> bones) { return new HashSet<>(); }
+    public Set<Edge> checkBoneActivation(int triggerId, int time, Set<BoneInfo> bones) { return Collections.emptySet(); }
 
     @Override
     public Edge get(Edge edge) { return null; }

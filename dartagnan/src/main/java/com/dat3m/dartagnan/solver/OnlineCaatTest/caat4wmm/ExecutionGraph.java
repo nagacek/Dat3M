@@ -79,8 +79,13 @@ public class ExecutionGraph {
         caatModel.initializeToDomain(domain);
     }
 
-    public void initializeActiveSets(Map<RelationGraph, Set<Derivable>> activeSets) {
+    public void initializeActiveSets(Map<RelationGraph, Set<Edge>> activeSets) {
         caatModel.initializeActiveSets(activeSets);
+    }
+
+
+    public void initializeStaticEdges(Map<RelationGraph, Set<Edge>> staticEdges) {
+        caatModel.initializeStaticEdges(staticEdges);
     }
 
     public void validate(int time, boolean active) {
@@ -280,6 +285,7 @@ public class ExecutionGraph {
         return set;
 
     }
+
 
     // =======================================================
 

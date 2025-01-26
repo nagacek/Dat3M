@@ -2,9 +2,11 @@ package com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates;
 
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.domain.Domain;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.misc.PredicateListener;
+import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.relationGraphs.Edge;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.relationGraphs.RelationGraph;
 import com.dat3m.dartagnan.solver.OnlineCaatTest.caat.predicates.relationGraphs.derived.RecursiveGraph;
 import com.dat3m.dartagnan.utils.dependable.DependencyGraph;
+import com.dat3m.dartagnan.wmm.Relation;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -25,7 +27,7 @@ public class PredicateHierarchy {
     private final PriorityQueue<Task> tasks = new PriorityQueue<>();
     private final PriorityQueue<Task> deferredTasks = new PriorityQueue<>();
 
-    private Map<? extends CAATPredicate, Set<Derivable>> activeSets;
+    private Map<? extends CAATPredicate, Set<Edge>> activeSets;
     private Domain<?> domain;
 
 
@@ -67,7 +69,7 @@ public class PredicateHierarchy {
             System.out.println("-------------------------------");
         }
         for (CAATPredicate pred : getPredicateList()) {
-            Set<Derivable> activeSet = activeSets.get(pred);
+            Set<? extends Derivable> activeSet = activeSets.get(pred);
             if (activeSet != null) {
 
                 pred.validate(time, activeSet, active);
@@ -85,8 +87,14 @@ public class PredicateHierarchy {
         }
     }
 
-    public void initializeActiveSets(Map<RelationGraph, Set<Derivable>> activeSets) {
+    public void initializeActiveSets(Map<RelationGraph, Set<Edge>> activeSets) {
         this.activeSets = activeSets;
+    }
+
+    public void initializeStaticEdges(Map<RelationGraph, Set<Edge>> staticEdges) {
+        for (RelationGraph graph : staticEdges.keySet()) {
+            graph.initializeStaticEdges(staticEdges.get(graph));
+        }
     }
 
     // Computes the content of all derived predicates in topological order

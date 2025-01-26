@@ -53,7 +53,7 @@ public interface CAATPredicate extends Dependent<CAATPredicate> {
     // Gives a view on this predicate as a Set<Derivable>
     Set<? extends Derivable> setView();
 
-    void validate(int time, Set<Derivable> activeSet, boolean active);
+    void validate(int time, Set<? extends Derivable> activeSet, boolean active);
 
 
     // ======================================== Defaults ==============================================

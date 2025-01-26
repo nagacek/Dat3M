@@ -30,7 +30,7 @@ public interface SetPredicate extends CAATPredicate {
 
     // ===================== Default methods =======================
     @Override
-    default void validate(int time, Set<Derivable> activeSet, boolean active) { elementStream().forEach(e->{ assert e.getTime() <= time; }); }
+    default void validate(int time, Set<? extends Derivable> activeSet, boolean active) { elementStream().forEach(e->{ assert e.getTime() <= time; }); }
 
     default Element getById(int id) { return get(new Element(id)); }
     default boolean contains(Element e) { return get(e) != null; }

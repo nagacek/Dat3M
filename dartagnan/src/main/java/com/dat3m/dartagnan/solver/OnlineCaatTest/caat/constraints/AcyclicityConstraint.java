@@ -239,7 +239,10 @@ public class AcyclicityConstraint extends AbstractConstraint {
         v.isOnStack = true;
         index++;
 
-        for (Edge e : constrainedGraph.outEdges(v.id)) {
+        for (Edge e : constrainedGraph.weakOutEdges(v.id)) {
+            if (!e.isActive()) {
+                continue;
+            }
             Node w = nodeMap.get(e.getSecond());
             if (!w.wasVisited()) {
                 strongConnect(w);
