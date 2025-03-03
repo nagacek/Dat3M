@@ -105,6 +105,10 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
 
     boolean toggle = true;
 
+    public int getOvershootNumber() {
+        return overshootRepresenterMap.size();
+    }
+
     private void initTheroyPropagation() {
         Set<Relation> constrainedRelations = refinementModel.getOriginalModel().getAxioms()
                 .stream().map(Axiom::getRelation).collect(Collectors.toSet());
@@ -121,7 +125,7 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
     }
 
 
-    int numProp = 0;
+    public int numProp = 0;
     private boolean progressTheoryPropagation() {
         while (!openTheoryPropagations.isEmpty()) {
             var propagation = openTheoryPropagations.peek();
@@ -129,15 +133,15 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
             Set<BooleanFormula> assignmentList = new HashSet<>();
             assignmentList.addAll(propagation.getFirst().getVariables());
             Pair<Set<BooleanFormula>, Set<CAATLiteral>> pair = new Pair<>(assignmentList, propagation.getSecond());
-            if (usedTheoryPropagations.contains(pair)) {
+            /*if (usedTheoryPropagations.contains(pair)) {
                 openTheoryPropagations.poll();
                 return progressTheoryPropagation();
-            }
+            }*/
 
             for (BooleanFormula assignment : assignmentList) {
                 if (!partialModel.containsKey(assignment)) {
                     openTheoryPropagations.poll();
-                    return progressPropagation();
+                    return false;
                 }
             }
             BooleanFormula[] assignments = propagation.getFirst().getVariables().toArray(new BooleanFormula[0]);

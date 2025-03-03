@@ -253,6 +253,8 @@ public class OnlineRefinementSolver extends ModelChecker {
 
         // TODO: fix stats
         System.out.println(userPropagator.getTotalStats());
+        System.out.println("#Theory Propagations: " + userPropagator.numProp);
+        System.out.println("#Additional Edges: " + userPropagator.getOvershootNumber());
 
         if (logger.isDebugEnabled()) {
             StringBuilder smtStatistics = new StringBuilder("\n ===== SMT Statistics (after final iteration) ===== \n");
