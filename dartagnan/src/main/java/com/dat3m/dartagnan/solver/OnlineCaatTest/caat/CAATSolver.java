@@ -87,8 +87,10 @@ public class CAATSolver {
             stats.reasonComputationTime += (System.currentTimeMillis() - curTime);
 
             // ============= Prepare Theory Propagation ==================
-            List<Pair<Conjunction<CAATLiteral>, Set<CAATLiteral>>> nearlyViolated = computeNearInconsistencyReasons(model.getConstraints());
-            result.nearlyViolationReasons = nearlyViolated;
+            if (result.status == CONSISTENT) {
+                List<Pair<Conjunction<CAATLiteral>, Set<CAATLiteral>>> nearlyViolated = computeNearInconsistencyReasons(model.getConstraints());
+                result.nearlyViolationReasons = nearlyViolated;
+            }
         } else {
             result.setStatus(CONSISTENT);
         }

@@ -99,6 +99,7 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
     Set<Pair<Set<BooleanFormula>, Set<CAATLiteral>>> usedTheoryPropagations = new HashSet<>();
     HashMap<Conjunction<CAATLiteral>, Set<Conjunction<CoreLiteral>>> undershootCoreReasonMap = new HashMap<>();
     HashMap<CAATLiteral, BooleanFormula> overshootRepresenterMap = new HashMap<>();
+    HashMap<CAATLiteral, BooleanFormula> overshootEncoding = new HashMap<>();
 
     Queue<Pair<Refiner.Conflict, Set<CAATLiteral>>> openTheoryPropagations = new ArrayDeque<>();
 
@@ -120,8 +121,9 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
     }
 
 
+    int numProp = 0;
     private boolean progressTheoryPropagation() {
-        if (!openTheoryPropagations.isEmpty()) {
+        while (!openTheoryPropagations.isEmpty()) {
             var propagation = openTheoryPropagations.peek();
 
             Set<BooleanFormula> assignmentList = new HashSet<>();
@@ -139,8 +141,9 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
                 }
             }
             BooleanFormula[] assignments = propagation.getFirst().getVariables().toArray(new BooleanFormula[0]);
-            assignmentList.toArray(assignments);
+            //assignmentList.toArray(assignments);
 
+            ArrayList<BooleanFormula> encodings = new ArrayList<>();
             List<BooleanFormula> consequences = new ArrayList<>(propagation.getSecond().size());
             for (CAATLiteral overshoot : propagation.getSecond()) {
 
@@ -148,12 +151,15 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
 
                     RelationTuple tuple = toRelationTuple(overshootEdge);
                     BooleanFormula encoding = encoder.computeEdgeEncoding(tuple.rel(), tuple.first(), tuple.second());
-                    getBackend().propagateConsequence(new BooleanFormula[0], encoding);
+                    overshootEncoding.put(overshoot, encoding);
+                    //getBackend().propagateConsequence(new BooleanFormula[0], encoding);
+
 
                     overshootRepresenterMap.put(overshootEdge, encoder.getInitialEncoding(tuple.rel(), tuple.first(), tuple.second()));
-                    return true;
+                    //return true;
                 }
                 consequences.add(overshootRepresenterMap.get(overshoot));
+                encodings.add(overshootEncoding.get(overshoot));
 
             }
 
@@ -165,12 +171,15 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
 
 
             // comment out for all the overhead and (almost) none of the benefits
-            getBackend().propagateConsequence(new BooleanFormula[0],  bmgr.implication(propagationPre, propagationCons));
+            //getBackend().propagateConsequence(new BooleanFormula[0],  bmgr.implication(propagationPre, propagationCons));
+            getBackend().propagateConsequence(new BooleanFormula[0],  bmgr.and(encodings));
+            getBackend().propagateConsequence(assignments,  propagationCons);
+            numProp++;
 
 
-            return true;
+            //return true;
         }
-        return false;
+        return true;
     }
 
     // ======================================================
@@ -289,7 +298,7 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
         curStats.modelExtractionTime += System.currentTimeMillis() - curTime;
         curTime = System.currentTimeMillis();
         if(!progressPropagation()) {
-            progressTheoryPropagation();
+            //progressTheoryPropagation();
         }
         curStats.refinementTime += System.currentTimeMillis() - curTime;
     }
@@ -408,6 +417,7 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
                     openTheoryPropagations.add(new Pair<>(singleUndershootConflict, overshoots));
                 }
             }
+            progressTheoryPropagation();
         }
 
         return result;
@@ -425,6 +435,7 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
 
         if (result.status != CAATSolver.Status.INCONSISTENT) {
             System.out.println("#Overshoot edges: " + overshootRepresenterMap.size());
+            System.out.println("#Theory Propagations: " + numProp);
         }
     }
 
@@ -461,7 +472,7 @@ public class OnlineWMMSolver extends AbstractUserPropagator {
                     if (!vio.getFirst().getLiterals().isEmpty()) {
                         result.nearlyViolationCoreReasons.add(new Pair<>(nearlyCoreReason, vio.getSecond()));
                     }
-                    usedTheoryLemmas.add(vio);
+                    //usedTheoryLemmas.add(vio);
                 }
             }
         }
