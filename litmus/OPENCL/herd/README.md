@@ -1,1 +1,0 @@
-The tests in this folder were manually written using the tests from the [herd](https://github.com/herd/legacy/tree/master/herdtools/herd/testsuite/OpenCLTests) repository as a guide.

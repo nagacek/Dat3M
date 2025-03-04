@@ -1,1 +1,0 @@
-The tests in this folder were manually written using the tests from the [mixedproxy](https://github.com/NVlabs/mixedproxy) repository as a guide.

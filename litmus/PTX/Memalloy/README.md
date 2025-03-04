@@ -1,1 +1,0 @@
-The tests in this folder were manually written using the tests from the [memalloy](https://github.com/johnwickerson/memalloy) repository as a guide.
