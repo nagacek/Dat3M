@@ -65,13 +65,13 @@ public class CoreReasoner {
         Since we compute only (at most) B core reasons, we try to estimate which
         base reasons give us the best (smallest) core reasons (Steps (1)-(3)).
      */
-    public Set<Conjunction<CoreLiteral>> toCoreReasons(DNF<CAATLiteral> baseReasons) {
+    public Set<Conjunction<CoreLiteral>> toCoreReasons(DNF<CAATLiteral> baseReasons, EventDomain domain) {
 
         // (1) Reduce base reasons to simplified core reasons (without symmetry).
         final BiMap<Conjunction<CAATLiteral>, Conjunction<CoreLiteral>> base2core =
                 HashBiMap.create(baseReasons.getNumberOfCubes());
         for (Conjunction<CAATLiteral> baseReason : baseReasons.getCubes()) {
-            final Conjunction<CoreLiteral> coreReason = toCoreReasonNoSymmetry(baseReason);
+            final Conjunction<CoreLiteral> coreReason = toCoreReasonNoSymmetry(baseReason, domain);
             if (!coreReason.isFalse() && !base2core.containsValue(coreReason)) {
                 // NOTE: We only add productive base reasons whose core reasons are not FALSE.
                 base2core.put(baseReason, coreReason);
@@ -90,7 +90,7 @@ public class CoreReasoner {
         //  Stop early, if the number of reasons exceeds a bound.
         final Set<Conjunction<CoreLiteral>> coreReasons = new HashSet<>();
         for (Conjunction<CAATLiteral> baseReason : reducedBaseReasons) {
-            coreReasons.addAll(toCoreReasons(baseReason));
+            coreReasons.addAll(toCoreReasons(baseReason, domain));
             if (coreReasons.size() > MAX_NUM_COMPUTED_REASONS) {
                 break;
             }
@@ -99,9 +99,11 @@ public class CoreReasoner {
         return coreReasons;
     }
 
-    public Set<Conjunction<CoreLiteral>> toCoreReasons(Conjunction<CAATLiteral> baseReason) {
-        final EventDomain domain = executionGraph.getDomain();
+    public Set<Conjunction<CoreLiteral>> toCoreReasons(DNF<CAATLiteral> baseReasons) {
+        return toCoreReasons(baseReasons, executionGraph.getDomain());
+    }
 
+    public Set<Conjunction<CoreLiteral>> toCoreReasons(Conjunction<CAATLiteral> baseReason, EventDomain domain) {
         // We compute the orbit of <baseReason> under the symmetry group of the program's threads.
         // We use a standard worklist algorithm to do so.
         // NOTE: We compute the orbit of an "unreduced" core reason, because
@@ -123,8 +125,8 @@ public class CoreReasoner {
         return orbit.stream().map(this::reduce).filter(Objects::nonNull).map(Conjunction::new).collect(Collectors.toSet());
     }
 
-    private Conjunction<CoreLiteral> toCoreReasonNoSymmetry(Conjunction<CAATLiteral> baseReason) {
-        List<CoreLiteral> reduced = reduce(toUnreducedCoreReason(baseReason, executionGraph.getDomain()));
+    private Conjunction<CoreLiteral> toCoreReasonNoSymmetry(Conjunction<CAATLiteral> baseReason, EventDomain domain) {
+        List<CoreLiteral> reduced = reduce(toUnreducedCoreReason(baseReason, domain));
         return reduced == null ? Conjunction.FALSE() : new Conjunction<>(reduced);
     }
 

@@ -46,8 +46,23 @@ public class Refiner {
         return bmgr.and(refinement);
     }
 
+    public BooleanFormula[] encodeVariables(Conjunction<CoreLiteral> coreReason, EncodingContext context) {
+        BooleanFormula[] reasonVariables = new BooleanFormula[coreReason.getSize()];
+        int i = 0;
+        for (CoreLiteral lit : coreReason.getLiterals()) {
+            final BooleanFormula litFormula = encode(lit, context);
+            reasonVariables[i++] = litFormula;
+        }
+        return reasonVariables;
+    }
+
     private BooleanFormula encode(CoreLiteral literal, EncodingContext encoder) {
         final BooleanFormulaManager bmgr = encoder.getBooleanFormulaManager();
+        final BooleanFormula enc = encodeVariable(literal, encoder);
+        return literal.isNegative() ? bmgr.not(enc) : enc;
+    }
+
+    private BooleanFormula encodeVariable(CoreLiteral literal, EncodingContext encoder) {
         final BooleanFormula enc;
         if (literal instanceof ExecLiteral lit) {
             enc = encoder.execution(lit.getEvent());
@@ -59,8 +74,7 @@ public class Refiner {
         } else {
             throw new IllegalArgumentException("CoreLiteral " + literal + " is not supported");
         }
-
-        return literal.isNegative() ? bmgr.not(enc) : enc;
+        return enc;
     }
 
 }

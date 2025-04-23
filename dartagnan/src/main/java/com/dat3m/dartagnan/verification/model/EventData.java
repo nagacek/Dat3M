@@ -20,7 +20,7 @@ public class EventData implements Comparable<EventData> {
     private int coIndex = Integer.MIN_VALUE;
     private boolean wasExecuted;
 
-    EventData(Event e) {
+    public EventData(Event e) {
         this.event = e;
     }
 
