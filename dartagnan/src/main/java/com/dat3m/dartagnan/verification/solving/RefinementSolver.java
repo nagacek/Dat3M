@@ -22,7 +22,7 @@ import com.dat3m.dartagnan.solver.caat4wmm.Refiner;
 import com.dat3m.dartagnan.solver.caat4wmm.WMMSolver;
 import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.CoreLiteral;
 import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.RelLiteral;
-import com.dat3m.dartagnan.solver.caat4wmm.propagator.AtomicityPropagator;
+import com.dat3m.dartagnan.solver.caat4wmm.propagator.DummyPropagator;
 import com.dat3m.dartagnan.utils.equivalence.EquivalenceClass;
 import com.dat3m.dartagnan.utils.logic.Conjunction;
 import com.dat3m.dartagnan.utils.logic.DNF;
@@ -263,8 +263,8 @@ public class RefinementSolver extends ModelChecker {
         prover.writeComment("Property encoding");
         prover.addConstraint(propertyEncoder.encodeProperties(task.getProperty()));
 
-        UserPropagator atomicitySolver = new AtomicityPropagator(refinementModel, context, analysisContext, refiner, solver.getExecution(), solver.getExecutionGraph());
-        prover.registerUserPropagator(atomicitySolver);
+        UserPropagator dummySolver = new DummyPropagator(refinementModel, context, analysisContext, refiner, solver.getExecution(), solver.getExecutionGraph());
+        prover.registerUserPropagator(dummySolver);
 
         final RefinementTrace propertyTrace = runRefinement(task, prover, solver, refiner);
         SMTStatus smtStatus = propertyTrace.getFinalResult();
@@ -323,7 +323,7 @@ public class RefinementSolver extends ModelChecker {
 
         // -------------------------- Report statistics summary --------------------------
 
-        System.out.println(((AtomicityPropagator) atomicitySolver).printStats());
+        System.out.println(((DummyPropagator)dummySolver).printStats());
 
         if (logger.isInfoEnabled()) {
             logger.info(generateSummary(combinedTrace, boundCheckTime));
