@@ -5,6 +5,7 @@ import com.dat3m.dartagnan.program.event.Event;
 import com.dat3m.dartagnan.solver.caat.misc.EdgeDirection;
 import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.Edge;
 import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.base.SimpleGraph;
+import com.dat3m.dartagnan.solver.caat4wmm.GeneralExecutionGraph;
 import com.dat3m.dartagnan.utils.Pair;
 import com.dat3m.dartagnan.wmm.Relation;
 import com.dat3m.dartagnan.solver.caat4wmm.propagator.patterns.ViolationPattern.PatternNode;
@@ -17,20 +18,22 @@ import java.util.stream.Stream;
 
 public class Joiner {
 
-    Map<Relation, SimpleGraph> relationMap;
-    //Map<PatternNode, Integer> nodeMap = new HashMap<>();
-    Set<PatternNode> unvisited = new HashSet<>();
-    Set<PatternNode> visited = new HashSet<>();
-    Set<PatternNode> hasEntries = new HashSet<>();
+    private final GeneralExecutionGraph executionGraph;
+    //private Map<PatternNode, Integer> nodeMap = new HashMap<>();
+    private final Set<PatternNode> unvisited = new HashSet<>();
+    private final Set<PatternNode> visited = new HashSet<>();
+    private final Set<PatternNode> hasEntries = new HashSet<>();
+    private List<int[]> joinResult = new ArrayList<>();
 
-    public Joiner(Map<Relation, SimpleGraph> relationMap) {
-        this.relationMap = relationMap;
+    public Joiner(GeneralExecutionGraph executionGraph) {
+        this.executionGraph = executionGraph;
     }
 
     private void reset() {
         unvisited.clear();
         visited.clear();
         hasEntries.clear();
+        joinResult.clear();
     }
 
     public List<int[]> join(ViolationPattern pattern, Edge newEdge, Relation edgeRelation) {
@@ -41,7 +44,6 @@ public class Joiner {
         for (PatternEdge pEdge : candidateEdges) {
             reset();
             unvisited.addAll(pattern.getNodes());
-            List<int[]> joinResult = new ArrayList<>();
             PatternNode first = pEdge.source();
             PatternNode second = pEdge.target();
             int[] initialResult = new int[numNodes];
@@ -49,14 +51,13 @@ public class Joiner {
             initialResult[pattern.getNodeId(second)] = newEdge.getSecond();
             hasEntries.add(first);
             hasEntries.add(second);
-            joinResult.add(initialResult);
-
             //TODO: start join with smallest edge
             PatternNode toVisit;
-            PatternEdge smallestEdge = findSmallestIncident(pattern, pEdge, newEdge, relationMap);
+            PatternEdge smallestEdge = findSmallestIncident(pattern, pEdge, newEdge);
             if (smallestEdge == null) { // there are no other edges to join with
                 continue;
             }
+            joinResult.add(initialResult);
             if (smallestEdge.source() == first || smallestEdge.target() == first) {
                 toVisit = first;
             } else if (smallestEdge.source() == second || smallestEdge.target() == second) {
@@ -64,15 +65,15 @@ public class Joiner {
             } else {
                 throw new RuntimeException("Smallest edge not connected to added edge");
             }
+            unvisited.remove(toVisit);
+            hasEntries.remove(toVisit);
+            visited.add(toVisit);
 
             while (!unvisited.isEmpty()) {
-                if (!joinOverDirection(pattern, toVisit, EdgeDirection.INGOING, joinResult) ||
-                        !joinOverDirection(pattern, toVisit, EdgeDirection.OUTGOING, joinResult)) {
+                if (!joinOverDirection(pattern, toVisit, EdgeDirection.INGOING) ||
+                        !joinOverDirection(pattern, toVisit, EdgeDirection.OUTGOING)) {
                     break;
                 }
-                unvisited.remove(toVisit);
-                hasEntries.remove(toVisit);
-                visited.add(toVisit);
 
                 Set<PatternNode> successors = pattern.getSuccessors(toVisit).stream().map(PatternEdge::target).collect(Collectors.toSet());
                 Set<PatternNode> unvisitedSucs = Sets.intersection(successors, unvisited);
@@ -85,6 +86,10 @@ public class Joiner {
                 } else {
                     toVisit = hasEntries.iterator().next();
                 }
+
+                unvisited.remove(toVisit);
+                hasEntries.remove(toVisit);
+                visited.add(toVisit);
             }
             returnResult.addAll(joinResult);
         }
@@ -92,7 +97,7 @@ public class Joiner {
         return returnResult;
     }
 
-    private boolean joinOverDirection(ViolationPattern pattern, PatternNode toVisit, EdgeDirection dir, List<int[]> joinResult) {
+    private boolean joinOverDirection(ViolationPattern pattern, PatternNode toVisit, EdgeDirection dir) {
         for (PatternEdge neighbor : pattern.getEdges(toVisit, dir)) {
             PatternNode joinNode;
             if (dir == EdgeDirection.INGOING) {
@@ -101,7 +106,7 @@ public class Joiner {
                 joinNode = neighbor.target();
             }
             if (unvisited.contains(joinNode)) {
-                SimpleGraph joinGraph = relationMap.get(neighbor.relation());
+                SimpleGraph joinGraph = (SimpleGraph)executionGraph.getRelationGraph(neighbor.relation());
 
                 if (hasEntries.contains(joinNode)) {
                     List<Integer> substitutionsToRemove = new ArrayList<>();
@@ -118,17 +123,17 @@ public class Joiner {
                     }
 
                 } else {
+                    List<int[]> newJoinResult = new ArrayList<>();
                     for (int i = joinResult.size() - 1; i >= 0; i--) {
                         int[] tableRow = joinResult.get(i);
-                        List<int[]> newJoinResult = new ArrayList<>();
                         for (Edge neighborEdge : joinGraph.getEdges(tableRow[pattern.getNodeId(toVisit)], dir)) {
                             int[] newRow = Arrays.copyOf(tableRow, tableRow.length);
                             newRow[pattern.getNodeId(joinNode)] = dir == EdgeDirection.INGOING ? neighborEdge.getFirst() : neighborEdge.getSecond();
                             newJoinResult.add(newRow);
                             hasEntries.add(joinNode);
                         }
-                        joinResult = newJoinResult;
                     }
+                    joinResult = newJoinResult;
                 }
 
                 if (joinResult.isEmpty()) {
@@ -139,21 +144,21 @@ public class Joiner {
         return true;
     }
 
-    private PatternEdge findSmallestIncident(ViolationPattern p, PatternEdge pEdge, Edge edge, Map<Relation, SimpleGraph> relationMap) {
-        Pair<PatternEdge, Integer> smallestFirstEdge = findSmallestIncident(p, pEdge, pEdge.source(), edge.getFirst(), relationMap);
-        Pair<PatternEdge, Integer> smallestSecondEdge = findSmallestIncident(p, pEdge, pEdge.target(), edge.getSecond(), relationMap);
+    private PatternEdge findSmallestIncident(ViolationPattern p, PatternEdge pEdge, Edge edge) {
+        Pair<PatternEdge, Integer> smallestFirstEdge = findSmallestIncident(p, pEdge, pEdge.source(), edge.getFirst());
+        Pair<PatternEdge, Integer> smallestSecondEdge = findSmallestIncident(p, pEdge, pEdge.target(), edge.getSecond());
 
         return smallestFirstEdge.second < smallestSecondEdge.second ? smallestFirstEdge.first : smallestSecondEdge.first;
     }
 
-    private Pair<PatternEdge, Integer> findSmallestIncident(ViolationPattern p, PatternEdge pEdge, PatternNode pNode, int edgeId, Map<Relation, SimpleGraph> relationMap) {
+    private Pair<PatternEdge, Integer> findSmallestIncident(ViolationPattern p, PatternEdge pEdge, PatternNode pNode, int edgeId) {
         int minSize = -1;
         PatternEdge minEdge = null;
         for (PatternEdge suc : p.getSuccessors(pNode)) {
             if (suc == pEdge || visited.contains(suc.target())) {
                 continue;
             }
-            int curSize = relationMap.get(suc.relation()).getMinSize(edgeId, EdgeDirection.OUTGOING);
+            int curSize = executionGraph.getRelationGraph(suc.relation()).getMinSize(edgeId, EdgeDirection.OUTGOING);
             if (minEdge == null && curSize > 0) {
                 minEdge = suc;
                 minSize = curSize;
@@ -168,7 +173,7 @@ public class Joiner {
             if (pre == pEdge || visited.contains(pre.source())) {
                 continue;
             }
-            int curSize = relationMap.get(pre.relation()).getMinSize(edgeId, EdgeDirection.INGOING);
+            int curSize = executionGraph.getRelationGraph(pre.relation()).getMinSize(edgeId, EdgeDirection.INGOING);
             if (minEdge == null && curSize > 0) {
                 minEdge = pre;
                 minSize = curSize;

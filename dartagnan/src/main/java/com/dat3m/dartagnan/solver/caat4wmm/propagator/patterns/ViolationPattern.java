@@ -7,6 +7,7 @@ import com.dat3m.dartagnan.solver.caat.reasoning.CAATLiteral;
 import com.dat3m.dartagnan.solver.caat.reasoning.EdgeLiteral;
 import com.dat3m.dartagnan.solver.caat4wmm.ExecutionGraph;
 import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.RelLiteral;
+import com.dat3m.dartagnan.solver.propagator.PropagatorExecutionGraph;
 import com.dat3m.dartagnan.utils.logic.Conjunction;
 import com.dat3m.dartagnan.utils.logic.DNF;
 import com.dat3m.dartagnan.wmm.Relation;
@@ -81,7 +82,8 @@ public class ViolationPattern {
             }
         }
 
-        for (Relation rel : staticRelations) {
+        for (Relation rel : trackedRelations) {
+        //for (Relation rel : staticRelations) {
             if (rel.getNameOrTerm().equals("rmw")) {
                 edges.add(newEdge = new PatternEdge(rel, nodeList.get(1), nodeList.get(2), true));
                 relationEdges.computeIfAbsent(rel, k -> new ArrayList<>()).add(newEdge);
@@ -103,7 +105,7 @@ public class ViolationPattern {
         nodes = nodeList;
     }
 
-    public DNF<CAATLiteral> applySubstitutions(List<int[]> substitutions, ExecutionGraph executionGraph) {
+    public DNF<CAATLiteral> applySubstitutions(List<int[]> substitutions, PropagatorExecutionGraph executionGraph) {
         List<Conjunction<CAATLiteral>> cubes = new ArrayList<>();
         for (int[] substitution : substitutions) {
             cubes.add(applySubstitution(substitution, executionGraph));
@@ -111,7 +113,7 @@ public class ViolationPattern {
         return new DNF<>(cubes);
     }
 
-    private Conjunction<CAATLiteral> applySubstitution(int[] substitution, ExecutionGraph executionGraph) {
+    private Conjunction<CAATLiteral> applySubstitution(int[] substitution, PropagatorExecutionGraph executionGraph) {
         List<CAATLiteral> substituted = new ArrayList<>();
         for (Relation rel : relationEdges.keySet()) {
             RelationGraph graph = executionGraph.getRelationGraph(rel);
@@ -139,9 +141,9 @@ public class ViolationPattern {
 
     public Collection<PatternEdge> getEdges(PatternNode node, EdgeDirection dir) {
         if (dir == EdgeDirection.INGOING) {
-            return ingoingEdges.get(node);
+            return ingoingEdges.getOrDefault(node, Collections.emptyList());
         } else if (dir == EdgeDirection.OUTGOING) {
-            return outgoingEdges.get(node);
+            return outgoingEdges.getOrDefault(node, Collections.emptyList());
         } else {
             return Collections.emptyList();
         }

@@ -46,22 +46,21 @@ public final class SimpleGraph extends AbstractBaseGraph {
         if (maxTime <= time) {
             return;
         }
-        final int bound = Math.min(numEvents, outgoing.length);
-        for (int i = 0; i < bound; i++) {
-            DataItem item = outgoing[i];
+        int newMaxTime = -1;
+        for (DataItem item : outgoing) {
             if (item != null) {
+                int oldItemTime = item.maxTime;
                 item.backtrackTo(time);
-                maxTime = Math.max(maxTime, item.maxTime);
+                newMaxTime = newMaxTime < 0 ? item.maxTime : Math.max(newMaxTime, item.maxTime);
             }
         }
 
-        final int bound2 = Math.min(numEvents, ingoing.length);
-        for (int i = 0; i < bound2; i++) {
-            DataItem item = ingoing[i];
+        for (DataItem item : ingoing) {
             if (item != null) {
                 item.backtrackTo(time);
             }
         }
+        maxTime = newMaxTime < 0 ? maxTime : newMaxTime;
 
     }
 
@@ -231,25 +230,28 @@ public final class SimpleGraph extends AbstractBaseGraph {
         }
 
         public void backtrackTo(int time) {
+            //TODO: In case of online solving the list is no longer sorted. Can it be fixed?
             //NOTE: We use the fact that the edge list
             // should be sorted by timestamp (since edges with higher timestamp get added later)
+            int newMaxTime = 0;
             if (maxTime > time) {
                 final List<Edge> edgeList = this.edgeList;
-                final Map<Edge, Edge> edgeMap = SimpleGraph.this.edgeMap;
+                //final Map<Edge, Edge> edgeMap = SimpleGraph.this.edgeMap;
                 int i = edgeList.size();
                 while (--i >= 0) {
                     Edge e = edgeList.get(i);
                     if (e.getTime() > time) {
                         edgeList.remove(i);
                         if (deleteFromMap) {
+                            //SimpleGraph.this.edgeCount--;
                             edgeMap.remove(e);
                         }
                     } else {
-                        maxTime = e.getTime();
-                        return;
+                        newMaxTime = Math.max(e.getTime(), newMaxTime);
+                        //break;
                     }
                 }
-                maxTime = 0;
+                maxTime = newMaxTime;
             }
         }
 

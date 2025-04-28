@@ -323,6 +323,8 @@ public class RefinementSolver extends ModelChecker {
 
         // -------------------------- Report statistics summary --------------------------
 
+        System.out.println(((AtomicityPropagator) atomicitySolver).printStats());
+
         if (logger.isInfoEnabled()) {
             logger.info(generateSummary(combinedTrace, boundCheckTime));
         }

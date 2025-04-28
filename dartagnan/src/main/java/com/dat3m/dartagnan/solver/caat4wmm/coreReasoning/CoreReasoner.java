@@ -9,6 +9,7 @@ import com.dat3m.dartagnan.solver.caat.reasoning.EdgeLiteral;
 import com.dat3m.dartagnan.solver.caat.reasoning.ElementLiteral;
 import com.dat3m.dartagnan.solver.caat4wmm.EventDomain;
 import com.dat3m.dartagnan.solver.caat4wmm.ExecutionGraph;
+import com.dat3m.dartagnan.solver.caat4wmm.GeneralExecutionGraph;
 import com.dat3m.dartagnan.utils.equivalence.EquivalenceClass;
 import com.dat3m.dartagnan.utils.logic.Conjunction;
 import com.dat3m.dartagnan.utils.logic.DNF;
@@ -44,12 +45,12 @@ public class CoreReasoner {
 
     public enum SymmetricLearning { NONE, FULL }
 
-    private final ExecutionGraph executionGraph;
+    private final GeneralExecutionGraph executionGraph;
     private final ExecutionAnalysis exec;
     private final RelationAnalysis ra;
     private final List<Function<Event, Event>> symmGenerators;
 
-    public CoreReasoner(Context analysisContext, ExecutionGraph executionGraph) {
+    public CoreReasoner(Context analysisContext, GeneralExecutionGraph executionGraph) {
         this.executionGraph = executionGraph;
         this.exec = analysisContext.requires(ExecutionAnalysis.class);
         this.ra = analysisContext.requires(RelationAnalysis.class);
@@ -65,13 +66,17 @@ public class CoreReasoner {
         Since we compute only (at most) B core reasons, we try to estimate which
         base reasons give us the best (smallest) core reasons (Steps (1)-(3)).
      */
-    public Set<Conjunction<CoreLiteral>> toCoreReasons(DNF<CAATLiteral> baseReasons, EventDomain domain) {
+    public Set<Conjunction<CoreLiteral>> toCoreReasons(DNF<CAATLiteral> baseReasons, boolean useSymmetry) {
+        final Set<Conjunction<CoreLiteral>> coreReasons = new HashSet<>();
 
         // (1) Reduce base reasons to simplified core reasons (without symmetry).
         final BiMap<Conjunction<CAATLiteral>, Conjunction<CoreLiteral>> base2core =
                 HashBiMap.create(baseReasons.getNumberOfCubes());
         for (Conjunction<CAATLiteral> baseReason : baseReasons.getCubes()) {
-            final Conjunction<CoreLiteral> coreReason = toCoreReasonNoSymmetry(baseReason, domain);
+            final Conjunction<CoreLiteral> coreReason = toCoreReasonNoSymmetry(baseReason, executionGraph.getDomain());
+            if (!useSymmetry) {
+                coreReasons.add(coreReason);
+            }
             if (!coreReason.isFalse() && !base2core.containsValue(coreReason)) {
                 // NOTE: We only add productive base reasons whose core reasons are not FALSE.
                 base2core.put(baseReason, coreReason);
@@ -86,31 +91,31 @@ public class CoreReasoner {
         final List<Conjunction<CAATLiteral>> reducedBaseReasons =
                 reducedCoreReasons.stream().map(base2core.inverse()::get).toList();
 
-        // (4) Recompute core reasons with symmetry reasoning.
-        //  Stop early, if the number of reasons exceeds a bound.
-        final Set<Conjunction<CoreLiteral>> coreReasons = new HashSet<>();
-        for (Conjunction<CAATLiteral> baseReason : reducedBaseReasons) {
-            coreReasons.addAll(toCoreReasons(baseReason, domain));
-            if (coreReasons.size() > MAX_NUM_COMPUTED_REASONS) {
-                break;
+        if (useSymmetry) {
+            // (4) Recompute core reasons with symmetry reasoning.
+            //  Stop early, if the number of reasons exceeds a bound.
+            for (Conjunction<CAATLiteral> baseReason : reducedBaseReasons) {
+                coreReasons.addAll(toCoreReasons(baseReason));
+                if (coreReasons.size() > MAX_NUM_COMPUTED_REASONS) {
+                    break;
+                }
             }
         }
-
         return coreReasons;
     }
 
     public Set<Conjunction<CoreLiteral>> toCoreReasons(DNF<CAATLiteral> baseReasons) {
-        return toCoreReasons(baseReasons, executionGraph.getDomain());
+        return toCoreReasons(baseReasons, true);
     }
 
-    public Set<Conjunction<CoreLiteral>> toCoreReasons(Conjunction<CAATLiteral> baseReason, EventDomain domain) {
+    public Set<Conjunction<CoreLiteral>> toCoreReasons(Conjunction<CAATLiteral> baseReason) {
         // We compute the orbit of <baseReason> under the symmetry group of the program's threads.
         // We use a standard worklist algorithm to do so.
         // NOTE: We compute the orbit of an "unreduced" core reason, because
         // reductions we can apply to a core reason may not be sound for its symmetric counterparts.
         final Set<List<CoreLiteral>> orbit = new HashSet<>();
         final Deque<List<CoreLiteral>> workqueue = new ArrayDeque<>();
-        workqueue.add(toUnreducedCoreReason(baseReason, domain));
+        workqueue.add(toUnreducedCoreReason(baseReason, executionGraph.getDomain()));
         while (!workqueue.isEmpty()) {
             final List<CoreLiteral> reason = workqueue.removeFirst();
             for (Function<Event, Event> generator : symmGenerators) {
