@@ -1,6 +1,7 @@
 package com.dat3m.dartagnan.solver.caat4wmm.propagator.patterns;
 
 import com.dat3m.dartagnan.solver.caat.misc.EdgeDirection;
+import com.dat3m.dartagnan.solver.caat.misc.EdgeSet;
 import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.Edge;
 import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.RelationGraph;
 import com.dat3m.dartagnan.solver.caat.reasoning.CAATLiteral;
@@ -11,6 +12,7 @@ import com.dat3m.dartagnan.solver.propagator.PropagatorExecutionGraph;
 import com.dat3m.dartagnan.utils.logic.Conjunction;
 import com.dat3m.dartagnan.utils.logic.DNF;
 import com.dat3m.dartagnan.wmm.Relation;
+import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 
 import java.util.*;
 import java.util.stream.Stream;
@@ -26,11 +28,18 @@ public class ViolationPattern {
         private PatternNode(int nodeId) {
             this.nodeId = nodeId;
         }
+        public String toString() {
+            return "" + nodeId;
+        }
     }
 
     record PatternEdge(Relation relation, PatternNode source, PatternNode target, boolean isStatic) {
         PatternEdge(Relation relation, PatternNode source, PatternNode target) {
             this(relation, source, target, false);
+        }
+
+        public PatternNode get(PatternNode from, EdgeDirection dir) {
+            return dir == EdgeDirection.INGOING ? source : target;
         }
     }
 
@@ -47,6 +56,7 @@ public class ViolationPattern {
 
     List<Joiner.JoinQuery> joinPlan = null;
 
+    // TODO: Support for uncovered static edges
     // So far, only atomicity violations are supported
     public ViolationPattern(Set<Relation> trackedRelations, Set<Relation> staticRelations) {
         List<PatternNode> nodeList = new ArrayList<>();
@@ -62,7 +72,7 @@ public class ViolationPattern {
         }
 
         /*          Pattern for atomicity
-        * Tracked edges: rf(0, 1)  co(0, 3)  co(3, 2)
+        * Tracked edges:  rf(0, 1)   co(0, 3)   co(3, 2)
         * Static edges:   rmw(1, 2)  ext(1, 3)  ext(3, 2)
         * */
 
@@ -82,17 +92,17 @@ public class ViolationPattern {
             }
         }
 
-        for (Relation rel : trackedRelations) {
-        //for (Relation rel : staticRelations) {
+        for (Relation rel : staticRelations) {
+            boolean isStatic = staticRelations.contains(rel);
             if (rel.getNameOrTerm().equals("rmw")) {
-                edges.add(newEdge = new PatternEdge(rel, nodeList.get(1), nodeList.get(2), true));
+                edges.add(newEdge = new PatternEdge(rel, nodeList.get(1), nodeList.get(2), isStatic));
                 relationEdges.computeIfAbsent(rel, k -> new ArrayList<>()).add(newEdge);
             }
 
             if (rel.getNameOrTerm().equals("ext")) {
-                edges.add(newEdge = new PatternEdge(rel, nodeList.get(1), nodeList.get(3), true));
+                edges.add(newEdge = new PatternEdge(rel, nodeList.get(1), nodeList.get(3), isStatic));
                 relationEdges.computeIfAbsent(rel, k -> new ArrayList<>()).add(newEdge);
-                edges.add(newEdge = new PatternEdge(rel, nodeList.get(3), nodeList.get(2), true));
+                edges.add(newEdge = new PatternEdge(rel, nodeList.get(3), nodeList.get(2), isStatic));
                 relationEdges.computeIfAbsent(rel, k -> new ArrayList<>()).add(newEdge);
             }
         }
@@ -153,7 +163,7 @@ public class ViolationPattern {
         return nodeMap.getOrDefault(n, -1);
     }
 
-    Stream<Joiner.JoinQuery> getJoinPlan() {
+    /*Stream<Joiner.JoinQuery> getJoinPlan() {
         if (joinPlan == null) {
             nodes.sort((n1, n2) -> (ingoingEdges.get(n2).size() + outgoingEdges.get(n2).size()) -
                     (ingoingEdges.get(n1).size() + ingoingEdges.get(n1).size()));
@@ -172,7 +182,7 @@ public class ViolationPattern {
         }
 
         return joinPlan.stream();
-    }
+    }*/
 
     public List<PatternNode> getNodes() { return nodes; }
 

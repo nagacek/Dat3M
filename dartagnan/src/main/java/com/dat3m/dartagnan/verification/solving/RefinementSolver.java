@@ -23,6 +23,7 @@ import com.dat3m.dartagnan.solver.caat4wmm.WMMSolver;
 import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.CoreLiteral;
 import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.RelLiteral;
 import com.dat3m.dartagnan.solver.caat4wmm.propagator.AtomicityPropagator;
+import com.dat3m.dartagnan.solver.caat4wmm.propagator.Extractor;
 import com.dat3m.dartagnan.utils.equivalence.EquivalenceClass;
 import com.dat3m.dartagnan.utils.logic.Conjunction;
 import com.dat3m.dartagnan.utils.logic.DNF;
@@ -266,7 +267,7 @@ public class RefinementSolver extends ModelChecker {
         UserPropagator atomicitySolver = new AtomicityPropagator(refinementModel, context, analysisContext, refiner, solver.getExecution(), solver.getExecutionGraph());
         prover.registerUserPropagator(atomicitySolver);
 
-        final RefinementTrace propertyTrace = runRefinement(task, prover, solver, refiner);
+        final RefinementTrace propertyTrace = runRefinement(task, prover, solver, refiner, (Extractor)atomicitySolver);
         SMTStatus smtStatus = propertyTrace.getFinalResult();
 
         if (smtStatus == SMTStatus.UNKNOWN) {
@@ -301,7 +302,7 @@ public class RefinementSolver extends ModelChecker {
             // Add back the refinement clauses we already found, hoping that this improves the performance.
             prover.writeComment("Refinement encoding");
             prover.addConstraint(bmgr.and(propertyTrace.getRefinementFormulas()));
-            final RefinementTrace boundTrace = runRefinement(task, prover, solver, refiner);
+            final RefinementTrace boundTrace = runRefinement(task, prover, solver, refiner, (Extractor)atomicitySolver);
             boundCheckTime = System.currentTimeMillis() - lastTime;
 
             smtStatus = boundTrace.getFinalResult();
@@ -393,14 +394,14 @@ public class RefinementSolver extends ModelChecker {
     // Refinement core algorithm
 
     // TODO: We could expose the following method(s) to allow for more general application of refinement.
-    private RefinementTrace runRefinement(VerificationTask task, ProverWithTracker prover, WMMSolver solver, Refiner refiner)
+    private RefinementTrace runRefinement(VerificationTask task, ProverWithTracker prover, WMMSolver solver, Refiner refiner, Extractor extractor)
             throws SolverException, InterruptedException {
 
         final List<RefinementIteration> trace = new ArrayList<>();
         boolean isFinalIteration = false;
         while (!isFinalIteration) {
 
-            final RefinementIteration iteration = doRefinementIteration(prover, solver, refiner);
+            final RefinementIteration iteration = doRefinementIteration(prover, solver, refiner, extractor);
             trace.add(iteration);
             isFinalIteration = !checkProgress(trace) || iteration.isConclusive();
 
@@ -454,7 +455,7 @@ public class RefinementSolver extends ModelChecker {
         return !last.inconsistencyReasons.equals(prev.inconsistencyReasons);
     }
 
-    private RefinementIteration doRefinementIteration(ProverWithTracker prover, WMMSolver solver, Refiner refiner)
+    private RefinementIteration doRefinementIteration(ProverWithTracker prover, WMMSolver solver, Refiner refiner, Extractor extractor)
             throws SolverException, InterruptedException {
 
         long nativeTime = 0;
@@ -491,6 +492,7 @@ public class RefinementSolver extends ModelChecker {
                 inconsistencyReasons = solverResult.getCoreReasons();
                 lastTime = System.currentTimeMillis();
                 refinementFormula = refiner.refine(inconsistencyReasons, context);
+                extractor.extract(inconsistencyReasons);
                 prover.writeComment("Refinement encoding");
                 prover.addConstraint(refinementFormula);
                 refineTime = (System.currentTimeMillis() - lastTime);

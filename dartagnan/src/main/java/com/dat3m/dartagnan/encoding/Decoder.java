@@ -25,10 +25,12 @@ public class Decoder {
     }
 
     private final Map<BooleanFormula, Info> formula2Info = new HashMap<>(1000, 0.5f);
+    EncodingContext ctx;
+    RefinementModel refinementModel;
 
     public Decoder(EncodingContext ctx, RefinementModel refinementModel) {
-        extractExecutionInfo(ctx);
-        extractRelationInfo(ctx, refinementModel);
+        this.ctx = ctx;
+        this.refinementModel = refinementModel;
     }
 
     public Info decode(BooleanFormula formula) {
@@ -40,7 +42,19 @@ public class Decoder {
         return formula2Info.keySet();
     }
 
-    private void extractRelationInfo(EncodingContext ctx, RefinementModel refinementModel) {
+    // requires the provided edge to be contained in the relation's may set
+    public void registerEdge(Relation rel, Event x, Event y) {
+        final BooleanFormula edgeLiteral = ctx.edge(rel, x, y);
+        final Info info = formula2Info.computeIfAbsent(edgeLiteral, key -> new Info());
+        info.add(rel, x, y);
+    }
+
+    public void extractInfo() {
+        extractRelationInfo();
+        extractExecutionInfo(ctx);
+    }
+
+    private void extractRelationInfo() {
         final Set<Relation> boundary = refinementModel.computeBoundaryRelations();
         final RelationAnalysis ra = ctx.getAnalysisContext().requires(RelationAnalysis.class);
         for (Relation rel : boundary) {

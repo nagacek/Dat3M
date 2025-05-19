@@ -6,6 +6,7 @@ import com.dat3m.dartagnan.encoding.EdgeInfo;
 import com.dat3m.dartagnan.encoding.EncodingContext;
 import com.dat3m.dartagnan.program.event.Event;
 import com.dat3m.dartagnan.solver.caat.domain.GenericDomain;
+import com.dat3m.dartagnan.solver.caat.misc.EdgeSet;
 import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.Edge;
 import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.base.SimpleGraph;
 import com.dat3m.dartagnan.solver.caat.reasoning.CAATLiteral;
@@ -16,12 +17,14 @@ import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.CoreReasoner;
 import com.dat3m.dartagnan.solver.caat4wmm.propagator.patterns.Joiner;
 import com.dat3m.dartagnan.solver.caat4wmm.propagator.patterns.ViolationPattern;
 import com.dat3m.dartagnan.solver.propagator.PropagatorExecutionGraph;
+import com.dat3m.dartagnan.utils.Pair;
 import com.dat3m.dartagnan.utils.logic.Conjunction;
 import com.dat3m.dartagnan.utils.logic.DNF;
 import com.dat3m.dartagnan.verification.Context;
 import com.dat3m.dartagnan.verification.model.ExecutionModel;
 import com.dat3m.dartagnan.wmm.Relation;
 import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
+import com.dat3m.dartagnan.wmm.utils.graph.EventGraph;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.Sets;
@@ -31,7 +34,7 @@ import org.sosy_lab.java_smt.basicimpl.AbstractUserPropagator;
 
 import java.util.*;
 
-public class AtomicityPropagator extends AbstractUserPropagator {
+public class AtomicityPropagator extends AbstractUserPropagator implements Extractor {
     private final RefinementModel refinementModel;
     private final EncodingContext encodingContext;
     private final ExecutionGraph executionGraph;
@@ -39,6 +42,7 @@ public class AtomicityPropagator extends AbstractUserPropagator {
     private final Decoder decoder;
     private CoreReasoner reasoner;
     private Refiner refiner;
+    private final RelationAnalysis ra;
 
     private final GenericDomain<Event> domain;
     private final Map<BooleanFormula, Boolean> partialModel = new HashMap<>();
@@ -48,12 +52,21 @@ public class AtomicityPropagator extends AbstractUserPropagator {
 
     private final Set<Relation> staticRelations = new HashSet<>();
     private final Set<Relation> trackedRelations = new HashSet<>();
+    private final Set<Relation> allRelations = new HashSet<>();
+    private final Map<Relation, EdgeSet> staticEdges;
 
     private final ViolationPattern pattern;
     private final Joiner joiner;
     private int patternCount = 0;
     private long joinTime = 0;
     private long patternTime = 0;
+    /*private int numRegistered = 0;
+    private int numRF = 0;
+    private int numCO = 0;*/
+
+    private boolean isFirst = true;
+
+    private final boolean debug = false;
 
     public AtomicityPropagator(RefinementModel refinementModel, EncodingContext encCtx, Context analysisContext, Refiner refiner, ExecutionModel model, ExecutionGraph executionGraph) {
         this.refinementModel = refinementModel;
@@ -67,39 +80,18 @@ public class AtomicityPropagator extends AbstractUserPropagator {
         EventDomainWrapper eventDomain = new EventDomainWrapper(model);
         eventDomain.initializeToDomain(domain);
 
-        Set<Relation> allRelations = new HashSet<>();
-
-
-        BiMap<Relation, SimpleGraph> relationMap = HashBiMap.create();
-        refinementModel.getOriginalModel().getRelations().stream()
-                .filter(r -> r.getNameOrTerm().equals("rf") || r.getNameOrTerm().equals("co"))
-                .forEach(r -> {
-                    //Relation origR = refinementModel.translateToOriginal(r);
-                    trackedRelations.add(r);
-                    allRelations.add(r);
-                    //SimpleGraph graph = new SimpleGraph();
-                    //graph.initializeToDomain(domain);
-                    //relationMap.put(r, graph);
-                });
 
         refinementModel.getOriginalModel().getRelations().stream()
-                .filter(r -> r.getNameOrTerm().equals("rmw") || r.getNameOrTerm().equals("ext"))
-                .forEach(r -> {
-                    //Relation origR = refinementModel.translateToOriginal(r);
-                    //staticRelations.add(r);
-                    trackedRelations.add(r);
-                    allRelations.add(r);
-                    //SimpleGraph graph = new SimpleGraph();
-                    //graph.initializeToDomain(domain);
-                    //relationMap.put(r, graph);
-                });
-
-        //trackedRelations.forEach(refinementModel::translateToOriginal);
-        //staticRelations.forEach(refinementModel::translateToOriginal);
-        pattern = new ViolationPattern(trackedRelations, staticRelations);
+                .filter(r -> r.getNameOrTerm().equals("rf") || r.getNameOrTerm().equals("co") ||
+                        r.getNameOrTerm().equals("rmw") || r.getNameOrTerm().equals("ext"))
+                .forEach(allRelations::add);
+        RelationAnalysis ra = analysisContext.requires(RelationAnalysis.class);
+        this.ra = ra;
+        this.staticEdges = translateStaticEdges(ra);
+        pattern = new ViolationPattern(trackedRelations, staticEdges.keySet());
         this.propExecutionGraph = new PropagatorExecutionGraph(eventDomain, allRelations, executionGraph.getCutRelations());
         this.reasoner = new CoreReasoner(analysisContext, propExecutionGraph);
-        joiner = new Joiner(propExecutionGraph);
+        joiner = new Joiner(propExecutionGraph, staticEdges);
 
         // TODO: populate static graphs - perhaps listen for exec as well? => is now handled by onKnownValue
         // TODO: optional - precompute joins on them
@@ -107,79 +99,130 @@ public class AtomicityPropagator extends AbstractUserPropagator {
 
     }
 
+    private Map<Relation, EdgeSet> translateStaticEdges(RelationAnalysis ra) {
+        Map<Relation, EdgeSet> staticEdges = new HashMap<>();
+        for (Relation rel : allRelations) {
+            RelationAnalysis.Knowledge knowledge = ra.getKnowledge(rel);
+            if (!knowledge.getMaySet().isEmpty() && knowledge.getMaySet().size() == knowledge.getMustSet().size()) {
+                EdgeSet edgeSet = EdgeSet.from(domain, knowledge.getMustSet());
+                staticEdges.put(rel, edgeSet);
+                staticRelations.add(rel);
+            } else {
+                trackedRelations.add(rel);
+            }
+        }
+        return staticEdges;
+    }
+
     @Override
     public void initializeWithBackend(PropagatorBackend backend) {
         super.initializeWithBackend(backend);
         getBackend().notifyOnKnownValue();
 
-        for (BooleanFormula tLiteral : decoder.getDecodableFormulas()) {
-            Decoder.Info info = decoder.decode(tLiteral);
-            if (info.edges().stream().anyMatch(i -> trackedRelations.contains(refinementModel.translateToOriginal(i.relation()))
-                    || staticRelations.contains(refinementModel.translateToOriginal(i.relation())))) {
-                getBackend().registerExpression(tLiteral);
+        for (Relation rel : allRelations) {
+            if (staticRelations.contains(rel)) {
+                continue;
+            }
+            EventGraph maySet = ra.getKnowledge(rel).getMaySet();
+            for (Event x : maySet.getDomain()) {
+                for (Event y : maySet.getRange(x)) {
+                    /*if (rel.getNameOrTerm().equals("co")) {
+                        numCO++;
+                    }
+                    if (rel.getNameOrTerm().equals("rf")) {
+                        numRF++;
+                    }
+                    numRegistered++;*/
+                    decoder.registerEdge(refinementModel.translateToBase(rel), x, y);
+                }
             }
         }
+        for (BooleanFormula expr : decoder.getDecodableFormulas()) {
+            getBackend().registerExpression(expr);
+        }
+        /*System.out.println("Rf: " + numRF);
+        System.out.println("Co: " + numCO);
+        System.out.println(numRegistered);*/
     }
+
 
     @Override
     public void onKnownValue(BooleanFormula expr, boolean value) {
+        /*if (value) {
+            System.out.println("                                  " + expr);
+        }*/
+        if (debug || !isFirst) {
+            return;
+        }
         knownValues.push(expr);
         partialModel.put(expr, value);
         if (value) {
             Decoder.Info info = decoder.decode(expr);
-
-
-            boolean isFirst = true;
-            for (EdgeInfo edgeInfo : info.edges()) {
-                Relation originalRelation = refinementModel.translateToOriginal(edgeInfo.relation());
-                final SimpleGraph graph = (SimpleGraph)propExecutionGraph.getRelationGraph(originalRelation);
-                if (graph != null) {
-                    int id1 = domain.getId(edgeInfo.source());
-                    int id2 = domain.getId(edgeInfo.target());
-                    Edge edge = new Edge(id1, id2, backtrackPoints.size(), 0);
-                    graph.add(edge);
-
-                    if (trackedRelations.contains(originalRelation)) {
-                        long curTime = System.currentTimeMillis();
-                        List<int[]> substitutions = joiner.join(pattern, edge, originalRelation);
-                        joinTime += System.currentTimeMillis() - curTime;
-                        if (!substitutions.isEmpty()) {
-                            curTime = System.currentTimeMillis();
-                            DNF<CAATLiteral> baseReasons = pattern.applySubstitutions(substitutions, propExecutionGraph);
-                            Set<Conjunction<CoreLiteral>> coreReasons = reasoner.toCoreReasons(baseReasons, false);
-                            for (Conjunction<CoreLiteral> coreReason : coreReasons) {
-                                BooleanFormula[] conflict = refiner.encodeVariables(coreReason, encodingContext);
-                                if (isFirst) {
-                                    getBackend().propagateConflict(conflict);
-                                    isFirst = false;
-                                    patternCount++;
-                                } else {
-                                    retentionConflicts.add(conflict);
-                                }
-                            }
-                            patternTime += System.currentTimeMillis() - curTime;
-                        }
-                    }
-                }
-            }
-            if (!isFirst) {
-                long curTime = System.currentTimeMillis();
-                progressRetention();
-                patternTime += System.currentTimeMillis() - curTime;
-            }
+            Collection<Pair<Relation, Edge>> newEdges = addToRelationGraphs(info);
+            matchAndPropagateConflicts(newEdges);
         }
     }
 
+    private Collection<Pair<Relation, Edge>> addToRelationGraphs(Decoder.Info info) {
+        List<Pair<Relation, Edge>> newEdges = new ArrayList<>(info.edges().size());
+        for (EdgeInfo edgeInfo : info.edges()) {
+            Relation originalRelation = refinementModel.translateToOriginal(edgeInfo.relation());
+            final SimpleGraph graph = (SimpleGraph)propExecutionGraph.getRelationGraph(originalRelation);
+            if (graph != null) {
+                int id1 = domain.getId(edgeInfo.source());
+                int id2 = domain.getId(edgeInfo.target());
+                Edge edge = new Edge(id1, id2, backtrackPoints.size(), 0);
+                graph.add(edge);
+                newEdges.add(new Pair<>(originalRelation, edge));
+            }
+        }
+        return newEdges;
+    }
+
+    private void matchAndPropagateConflicts(Collection<Pair<Relation, Edge>> edges) {
+        for (Pair<Relation, Edge> pair : edges) {
+            if (trackedRelations.contains(pair.first)) {
+                long curTime = System.currentTimeMillis();
+                List<int[]> substitutions = joiner.join(pattern, pair.second, pair.first);
+                joinTime += System.currentTimeMillis() - curTime;
+                if (!substitutions.isEmpty()) {
+                    curTime = System.currentTimeMillis();
+                    DNF<CAATLiteral> baseReasons = pattern.applySubstitutions(substitutions, propExecutionGraph);
+                    Set<Conjunction<CoreLiteral>> coreReasons = reasoner.toCoreReasons(baseReasons, false);
+                    for (Conjunction<CoreLiteral> coreReason : coreReasons) {
+                        BooleanFormula[] conflict = refiner.encodeVariables(coreReason, encodingContext);
+                        if (isFirst) {
+                            getBackend().propagateConflict(conflict);
+                            //System.out.println(coreReason);
+                            //System.out.println(Arrays.toString(conflict));
+                            isFirst = false;
+                            patternCount++;
+                        } else {
+                            retentionConflicts.add(conflict);
+                        }
+                    }
+                    patternTime += System.currentTimeMillis() - curTime;
+                }
+            }
+        }
+        //progressRetention();
+    }
+
     private void progressRetention() {
-        if (!retentionConflicts.isEmpty()) {
+        if (!isFirst && !retentionConflicts.isEmpty()) {
+            long curTime = System.currentTimeMillis();
             BooleanFormula[] conflict = retentionConflicts.remove(0);
             getBackend().propagateConflict(conflict);
             patternCount++;
+            patternTime += System.currentTimeMillis() - curTime;
         }
     }
 
     @Override
     public void onPop(int numLevels) {
+        if (debug) {
+            return;
+        }
         int popLevels = numLevels;
         int backtrackKnownValues = knownValues.size();
         while (popLevels > 0) {
@@ -192,13 +235,29 @@ public class AtomicityPropagator extends AbstractUserPropagator {
             partialModel.remove(expr);
         }
 
+        isFirst = true;
+
         propExecutionGraph.backtrackTo(backtrackPoints.size());
+
+        //System.out.println("### Did pop ###");
     }
 
     @Override
     public void onPush() {
+        if (!isFirst) {
+            //System.out.println("Useless conflict");
+        }
+        if (debug) {
+            return;
+        }
         backtrackPoints.push(knownValues.size());
+        //System.out.println("*** Did push ***");
     }
+
+
+    // TODO: extract new patterns from inconsistencies
+    @Override
+    public void extract(DNF<CoreLiteral> inconsistencyReasons) { }
 
     public String printStats() {
         StringBuilder str = new StringBuilder();
@@ -208,4 +267,5 @@ public class AtomicityPropagator extends AbstractUserPropagator {
 
         return str.toString();
     }
+
 }
