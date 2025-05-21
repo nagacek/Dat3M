@@ -48,7 +48,7 @@ public class Joiner {
     }
 
     public List<int[]> join(ViolationPattern pattern, Edge newEdge, Relation edgeRelation) {
-        Collection<PatternEdge> candidateEdges = pattern.getRelationEdges(edgeRelation);
+        Collection<PatternEdge> candidateEdges = pattern.getEdges(edgeRelation);
 
         List<int[]> returnResult = new ArrayList<>();
         for (PatternEdge pEdge : candidateEdges) {
@@ -90,6 +90,9 @@ public class Joiner {
 
             returnResult.addAll(joinResult);
         }
+        /*if (!validate(returnResult, pattern).isEmpty()) {
+            int i = 5;
+        }*/
         return returnResult;
     }
 
@@ -178,22 +181,31 @@ public class Joiner {
         joinResult = newJoinResult;
     }
 
+    // TODO: Can be optimized if handling of non-covered static edges is implemented
     private PatternEdge findSmallestIncident(ViolationPattern p, PatternEdge pEdge, Edge edge) {
         Pair<PatternEdge, Integer> smallestFirstEdge = findSmallestIncident(p, pEdge, pEdge.source(), edge.getFirst());
         Pair<PatternEdge, Integer> smallestSecondEdge = findSmallestIncident(p, pEdge, pEdge.target(), edge.getSecond());
 
-        if (smallestFirstEdge.first == null || smallestSecondEdge.first == null) {
-            return smallestFirstEdge.first == null ? smallestSecondEdge.first : smallestFirstEdge.first;
+        if (smallestFirstEdge.first == null) {
+            return smallestSecondEdge.first;
+        } else if (smallestSecondEdge.first == null) {
+            return smallestFirstEdge.first;
+        } else {
+            return smallestFirstEdge.second < smallestSecondEdge.second ? smallestFirstEdge.first : smallestSecondEdge.first;
         }
-        return smallestFirstEdge.second < smallestSecondEdge.second ? smallestFirstEdge.first : smallestSecondEdge.first;
     }
 
     private Pair<PatternEdge, Integer> findSmallestIncident(ViolationPattern p, PatternEdge pEdge, PatternNode pNode, int edgeId) {
         Pair<PatternEdge, Integer> outgoing = findSmallestIncident(p, pEdge, pNode, edgeId, EdgeDirection.OUTGOING);
         Pair<PatternEdge, Integer> ingoing = findSmallestIncident(p, pEdge, pNode, edgeId, EdgeDirection.INGOING);
 
-        return outgoing.second < ingoing.second && outgoing.first != null ? outgoing : ingoing;
-
+        if (outgoing.first == null) {
+            return ingoing;
+        } else if (ingoing.first == null) {
+            return outgoing;
+        } else {
+            return outgoing.second < ingoing.second ? outgoing : ingoing;
+        }
     }
 
     private Pair<PatternEdge, Integer> findSmallestIncident(ViolationPattern p, PatternEdge pEdge, PatternNode pNode, int edgeId, EdgeDirection dir) {
@@ -219,6 +231,47 @@ public class Joiner {
         return new Pair<>(minEdge, minSize);
     }
 
+    private Collection<int[]> validate(Collection<int[]> toValidate, ViolationPattern pattern) {
+        Collection<int[]> incorrect = new ArrayList<>();
+        for (int[] substitution : toValidate) {
+            Set<Integer> executed = new HashSet<>();
+            Set<Integer> checkExecution = new HashSet<>();
+            for (PatternEdge pEdge : pattern.getEdges()) {
+                int firstId = substitution[pattern.getNodeId(pEdge.source())];
+                int secondId = substitution[pattern.getNodeId(pEdge.target())];
+
+                if (pEdge.isStatic()) {
+                    Set<Integer> possible = staticEdges.get(pEdge.relation()).getOutgoingEdges(firstId);
+                    if (!possible.contains(secondId)) {
+                        incorrect.add(substitution);
+                        System.err.println("Substitution " + Arrays.toString(substitution) + " does not respect static edges.");
+                        break;
+                    } else if (!executed.contains(firstId) || !executed.contains(secondId)) {
+                        if (!executed.contains(firstId)) {
+                            checkExecution.add(firstId);
+                        }
+                        if (!executed.contains(secondId)) {
+                            checkExecution.add(secondId);
+                        }
+                    }
+                } else {
+                    if (executionGraph.getRelationGraph(pEdge.relation()).contains(new Edge(firstId, secondId))) {
+                        executed.add(firstId);
+                        executed.add(secondId);
+                        checkExecution.remove(firstId);
+                        checkExecution.remove(secondId);
+                    } else {
+                        System.err.println("Substitution " + Arrays.toString(substitution) + " does not respect dynamic edges.");
+                        break;
+                    }
+                }
+            }
+            if (!checkExecution.isEmpty()) {
+                System.err.println("Substitution " + Arrays.toString(substitution) + " does not check for execution of event(s) with id(s) " + checkExecution + " used in static edge(s).");
+            }
+        }
+        return incorrect;
+    }
 
     public record JoinQuery(Collection<JoinRelation> joinRelation, PatternNode node) {}
 

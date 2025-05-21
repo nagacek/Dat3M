@@ -48,6 +48,8 @@ public class ViolationPattern {
     private final Map<PatternNode, Collection<PatternEdge>> outgoingEdges;
     private final Map<PatternNode, Collection<PatternEdge>> ingoingEdges;
     private final Map<Relation, Collection<PatternEdge>> relationEdges;
+
+    // TODO: Handling of negative edges
     private final Set<PatternEdge> negative = new HashSet<>();
 
     protected static int nodeId = 0;
@@ -77,34 +79,12 @@ public class ViolationPattern {
         * */
 
         List<PatternEdge> edges = new ArrayList<>();
-        PatternEdge newEdge;
         for (Relation rel : trackedRelations) {
-            if (rel.getNameOrTerm().equals("rf")) {
-                edges.add(newEdge = new PatternEdge(rel, nodeList.get(0), nodeList.get(1)));
-                relationEdges.computeIfAbsent(rel, k -> new ArrayList<>()).add(newEdge);
-            }
-
-            if (rel.getNameOrTerm().equals("co")) {
-                edges.add(newEdge = new PatternEdge(rel, nodeList.get(0), nodeList.get(3)));
-                relationEdges.computeIfAbsent(rel, k -> new ArrayList<>()).add(newEdge);
-                edges.add(newEdge = new PatternEdge(rel, nodeList.get(3), nodeList.get(2)));
-                relationEdges.computeIfAbsent(rel, k -> new ArrayList<>()).add(newEdge);
-            }
+            handleManualPattern(edges, rel, staticRelations, nodeList);
         }
 
         for (Relation rel : staticRelations) {
-            boolean isStatic = staticRelations.contains(rel);
-            if (rel.getNameOrTerm().equals("rmw")) {
-                edges.add(newEdge = new PatternEdge(rel, nodeList.get(1), nodeList.get(2), isStatic));
-                relationEdges.computeIfAbsent(rel, k -> new ArrayList<>()).add(newEdge);
-            }
-
-            if (rel.getNameOrTerm().equals("ext")) {
-                edges.add(newEdge = new PatternEdge(rel, nodeList.get(1), nodeList.get(3), isStatic));
-                relationEdges.computeIfAbsent(rel, k -> new ArrayList<>()).add(newEdge);
-                edges.add(newEdge = new PatternEdge(rel, nodeList.get(3), nodeList.get(2), isStatic));
-                relationEdges.computeIfAbsent(rel, k -> new ArrayList<>()).add(newEdge);
-            }
+            handleManualPattern(edges, rel, staticRelations, nodeList);
         }
 
         for (PatternEdge edge : edges) {
@@ -113,6 +93,35 @@ public class ViolationPattern {
         }
 
         nodes = nodeList;
+    }
+
+    private void handleManualPattern(List<PatternEdge> edges, Relation rel, Set<Relation> staticRelations, List<PatternNode> nodeList) {
+        boolean isStatic = staticRelations.contains(rel);
+        PatternEdge newEdge;
+
+        if (rel.getNameOrTerm().equals("rf")) {
+            edges.add(newEdge = new PatternEdge(rel, nodeList.get(0), nodeList.get(1)));
+            relationEdges.computeIfAbsent(rel, k -> new ArrayList<>()).add(newEdge);
+        }
+
+        if (rel.getNameOrTerm().equals("co")) {
+            edges.add(newEdge = new PatternEdge(rel, nodeList.get(0), nodeList.get(3)));
+            relationEdges.computeIfAbsent(rel, k -> new ArrayList<>()).add(newEdge);
+            edges.add(newEdge = new PatternEdge(rel, nodeList.get(3), nodeList.get(2)));
+            relationEdges.computeIfAbsent(rel, k -> new ArrayList<>()).add(newEdge);
+        }
+
+        if (rel.getNameOrTerm().equals("rmw")) {
+            edges.add(newEdge = new PatternEdge(rel, nodeList.get(1), nodeList.get(2), isStatic));
+            relationEdges.computeIfAbsent(rel, k -> new ArrayList<>()).add(newEdge);
+        }
+
+        if (rel.getNameOrTerm().equals("ext")) {
+            edges.add(newEdge = new PatternEdge(rel, nodeList.get(1), nodeList.get(3), isStatic));
+            relationEdges.computeIfAbsent(rel, k -> new ArrayList<>()).add(newEdge);
+            edges.add(newEdge = new PatternEdge(rel, nodeList.get(3), nodeList.get(2), isStatic));
+            relationEdges.computeIfAbsent(rel, k -> new ArrayList<>()).add(newEdge);
+        }
     }
 
     public DNF<CAATLiteral> applySubstitutions(List<int[]> substitutions, PropagatorExecutionGraph executionGraph) {
@@ -137,9 +146,6 @@ public class ViolationPattern {
         return new Conjunction<>(substituted);
     }
 
-    public Collection<PatternEdge> getRelationEdges(Relation rel) {
-        return relationEdges.get(rel);
-    }
 
     public Collection<PatternEdge> getSuccessors(PatternNode node) {
         return outgoingEdges.getOrDefault(node, Collections.emptyList());
@@ -147,6 +153,18 @@ public class ViolationPattern {
 
     public Collection<PatternEdge> getPredecessors(PatternNode node) {
         return ingoingEdges.getOrDefault(node, Collections.emptyList());
+    }
+
+    public Collection<PatternEdge> getEdges() {
+        List<PatternEdge> edges = new ArrayList<>();
+        for (var entry : relationEdges.entrySet()) {
+            edges.addAll(entry.getValue());
+        }
+        return edges;
+    }
+
+    public Collection<PatternEdge> getEdges(Relation rel) {
+        return relationEdges.get(rel);
     }
 
     public Collection<PatternEdge> getEdges(PatternNode node, EdgeDirection dir) {

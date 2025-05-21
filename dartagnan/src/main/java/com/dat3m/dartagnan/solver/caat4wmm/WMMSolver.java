@@ -5,6 +5,7 @@ import com.dat3m.dartagnan.encoding.EncodingContext;
 import com.dat3m.dartagnan.solver.caat.CAATSolver;
 import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.CoreLiteral;
 import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.CoreReasoner;
+import com.dat3m.dartagnan.solver.caat4wmm.propagator.Extractor;
 import com.dat3m.dartagnan.utils.logic.Conjunction;
 import com.dat3m.dartagnan.utils.logic.DNF;
 import com.dat3m.dartagnan.verification.Context;
@@ -25,6 +26,7 @@ public class WMMSolver {
     private final ExecutionModel executionModel;
     private final CAATSolver solver;
     private final CoreReasoner reasoner;
+    private Extractor extractor;
 
     private WMMSolver(RefinementModel refinementModel, Context analysisContext, ExecutionModel m) {
         final RelationAnalysis ra = analysisContext.requires(RelationAnalysis.class);
@@ -39,6 +41,10 @@ public class WMMSolver {
         final var solver = new WMMSolver(refinementModel, analysisContext, ExecutionModel.withContext(context));
         config.inject(solver.reasoner);
         return solver;
+    }
+
+    public void injectExtractor(Extractor extractor) {
+        this.extractor = extractor;
     }
 
     public ExecutionModel getExecution() {
@@ -66,7 +72,9 @@ public class WMMSolver {
         if (result.getStatus() == CAATSolver.Status.INCONSISTENT) {
             // ============== Compute Core reasons ==============
             curTime = System.currentTimeMillis();
+            extractor.extract(caatResult.getBaseReasons());
             Set<Conjunction<CoreLiteral>> coreReasons = reasoner.toCoreReasons(caatResult.getBaseReasons());
+            //System.out.println(caatResult.getBaseReasons());
             stats.numComputedCoreReasons = coreReasons.size();
             result.coreReasons = new DNF<>(coreReasons);
             stats.numComputedReducedCoreReasons = result.coreReasons.getNumberOfCubes();

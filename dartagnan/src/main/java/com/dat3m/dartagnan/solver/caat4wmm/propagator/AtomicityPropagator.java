@@ -10,7 +10,6 @@ import com.dat3m.dartagnan.solver.caat.misc.EdgeSet;
 import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.Edge;
 import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.base.SimpleGraph;
 import com.dat3m.dartagnan.solver.caat.reasoning.CAATLiteral;
-import com.dat3m.dartagnan.solver.caat.reasoning.Reasoner;
 import com.dat3m.dartagnan.solver.caat4wmm.*;
 import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.CoreLiteral;
 import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.CoreReasoner;
@@ -25,9 +24,6 @@ import com.dat3m.dartagnan.verification.model.ExecutionModel;
 import com.dat3m.dartagnan.wmm.Relation;
 import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import com.dat3m.dartagnan.wmm.utils.graph.EventGraph;
-import com.google.common.collect.BiMap;
-import com.google.common.collect.HashBiMap;
-import com.google.common.collect.Sets;
 import org.sosy_lab.java_smt.api.BooleanFormula;
 import org.sosy_lab.java_smt.api.PropagatorBackend;
 import org.sosy_lab.java_smt.basicimpl.AbstractUserPropagator;
@@ -35,6 +31,19 @@ import org.sosy_lab.java_smt.basicimpl.AbstractUserPropagator;
 import java.util.*;
 
 public class AtomicityPropagator extends AbstractUserPropagator implements Extractor {
+    private enum FUNCTIONALITY {
+        TRACKING,
+        JOIN,
+        CONFLICT
+    }
+    private final FUNCTIONALITY functionality = FUNCTIONALITY.CONFLICT;
+
+    private enum OPTIMIZATION {
+        NONE,
+        STATIC
+    }
+    private final OPTIMIZATION optimization = OPTIMIZATION.STATIC;
+
     private final RefinementModel refinementModel;
     private final EncodingContext encodingContext;
     private final ExecutionGraph executionGraph;
@@ -57,12 +66,16 @@ public class AtomicityPropagator extends AbstractUserPropagator implements Extra
 
     private final ViolationPattern pattern;
     private final Joiner joiner;
+
+    // ----- stats -----
     private int patternCount = 0;
     private long joinTime = 0;
     private long patternTime = 0;
+    private int attempts = 0;
     /*private int numRegistered = 0;
     private int numRF = 0;
     private int numCO = 0;*/
+
 
     private boolean isFirst = true;
 
@@ -87,7 +100,12 @@ public class AtomicityPropagator extends AbstractUserPropagator implements Extra
                 .forEach(allRelations::add);
         RelationAnalysis ra = analysisContext.requires(RelationAnalysis.class);
         this.ra = ra;
-        this.staticEdges = translateStaticEdges(ra);
+        if (optimization.ordinal() >= OPTIMIZATION.STATIC.ordinal()) {
+            this.staticEdges = translateStaticEdges(ra);
+        } else {
+            trackedRelations.addAll(allRelations);
+            this.staticEdges = Collections.emptyMap();
+        }
         pattern = new ViolationPattern(trackedRelations, staticEdges.keySet());
         this.propExecutionGraph = new PropagatorExecutionGraph(eventDomain, allRelations, executionGraph.getCutRelations());
         this.reasoner = new CoreReasoner(analysisContext, propExecutionGraph);
@@ -151,15 +169,20 @@ public class AtomicityPropagator extends AbstractUserPropagator implements Extra
         /*if (value) {
             System.out.println("                                  " + expr);
         }*/
-        if (debug || !isFirst) {
+        if (!isFirst) {
             return;
         }
         knownValues.push(expr);
         partialModel.put(expr, value);
         if (value) {
             Decoder.Info info = decoder.decode(expr);
-            Collection<Pair<Relation, Edge>> newEdges = addToRelationGraphs(info);
-            matchAndPropagateConflicts(newEdges);
+            if (functionality.ordinal() >= FUNCTIONALITY.TRACKING.ordinal()) {
+                Collection<Pair<Relation, Edge>> newEdges = addToRelationGraphs(info);
+
+                if (functionality.ordinal() >= FUNCTIONALITY.JOIN.ordinal()) {
+                    matchAndPropagateConflicts(newEdges);
+                }
+            }
         }
     }
 
@@ -184,21 +207,24 @@ public class AtomicityPropagator extends AbstractUserPropagator implements Extra
             if (trackedRelations.contains(pair.first)) {
                 long curTime = System.currentTimeMillis();
                 List<int[]> substitutions = joiner.join(pattern, pair.second, pair.first);
+                attempts++;
                 joinTime += System.currentTimeMillis() - curTime;
                 if (!substitutions.isEmpty()) {
                     curTime = System.currentTimeMillis();
                     DNF<CAATLiteral> baseReasons = pattern.applySubstitutions(substitutions, propExecutionGraph);
-                    Set<Conjunction<CoreLiteral>> coreReasons = reasoner.toCoreReasons(baseReasons, false);
-                    for (Conjunction<CoreLiteral> coreReason : coreReasons) {
-                        BooleanFormula[] conflict = refiner.encodeVariables(coreReason, encodingContext);
-                        if (isFirst) {
-                            getBackend().propagateConflict(conflict);
-                            //System.out.println(coreReason);
-                            //System.out.println(Arrays.toString(conflict));
-                            isFirst = false;
-                            patternCount++;
-                        } else {
-                            retentionConflicts.add(conflict);
+                    if (functionality.ordinal() >= FUNCTIONALITY.CONFLICT.ordinal()) {
+                        Set<Conjunction<CoreLiteral>> coreReasons = reasoner.toCoreReasons(baseReasons, false);
+                        for (Conjunction<CoreLiteral> coreReason : coreReasons) {
+                            BooleanFormula[] conflict = refiner.encodeVariables(coreReason, encodingContext);
+                            if (isFirst) {
+                                getBackend().propagateConflict(conflict);
+                                //System.out.println(coreReason);
+                                //System.out.println(Arrays.toString(conflict));
+                                isFirst = false;
+                                patternCount++;
+                            } else {
+                                retentionConflicts.add(conflict);
+                            }
                         }
                     }
                     patternTime += System.currentTimeMillis() - curTime;
@@ -220,7 +246,7 @@ public class AtomicityPropagator extends AbstractUserPropagator implements Extra
 
     @Override
     public void onPop(int numLevels) {
-        if (debug) {
+        if (functionality.ordinal() < FUNCTIONALITY.TRACKING.ordinal()) {
             return;
         }
         int popLevels = numLevels;
@@ -247,7 +273,7 @@ public class AtomicityPropagator extends AbstractUserPropagator implements Extra
         if (!isFirst) {
             //System.out.println("Useless conflict");
         }
-        if (debug) {
+        if (functionality.ordinal() < FUNCTIONALITY.TRACKING.ordinal()) {
             return;
         }
         backtrackPoints.push(knownValues.size());
@@ -257,13 +283,14 @@ public class AtomicityPropagator extends AbstractUserPropagator implements Extra
 
     // TODO: extract new patterns from inconsistencies
     @Override
-    public void extract(DNF<CoreLiteral> inconsistencyReasons) { }
+    public void extract(DNF<CAATLiteral> inconsistencyReasons) { }
 
     public String printStats() {
         StringBuilder str = new StringBuilder();
         str.append("#Applied patterns: ").append(patternCount).append("\n");
+        str.append("#Attempts of matching: " + attempts).append("\n");
         str.append("Pattern matching time (ms): ").append(joinTime).append("\n");
-        str.append("Substitution application time (ms): ").append(patternTime).append("\n");
+        str.append("Substitution application time (ms): ").append(patternTime);
 
         return str.toString();
     }
