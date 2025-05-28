@@ -111,7 +111,7 @@ public class Joiner {
         }
         return null;
     }
-
+    // cannot handle unconnected pattern nodes. Will take the initial result as final result
     private boolean joinOverDirection(ViolationPattern pattern, PatternNode toVisit, EdgeDirection dir) {
         for (PatternEdge neighbor : pattern.getEdges(toVisit, dir)) {
             PatternNode joinNode = neighbor.get(toVisit, dir);
@@ -207,14 +207,14 @@ public class Joiner {
             return outgoing.second < ingoing.second ? outgoing : ingoing;
         }
     }
-
+    // can the join be optimized by aborting when curSize is 0 at some point?
     private Pair<PatternEdge, Integer> findSmallestIncident(ViolationPattern p, PatternEdge pEdge, PatternNode pNode, int edgeId, EdgeDirection dir) {
         boolean forward = dir == EdgeDirection.OUTGOING;
         int minSize = -1;
         PatternEdge minEdge = null;
         Collection<PatternEdge> edges = forward ? p.getSuccessors(pNode) : p.getPredecessors(pNode);
         for (PatternEdge edge : edges) {
-            if (edge == pEdge || pEdge.isStatic() || visited.contains(forward ? edge.target() : edge.source())) {
+            if (edge == pEdge || edge.isStatic() || visited.contains(forward ? edge.target() : edge.source())) {
                 continue;
             }
             int curSize = executionGraph.getRelationGraph(edge.relation()).getMinSize(edgeId, dir);

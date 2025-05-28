@@ -210,6 +210,14 @@ public class AtomicityPropagator extends AbstractUserPropagator implements Extra
                 attempts++;
                 joinTime += System.currentTimeMillis() - curTime;
                 if (!substitutions.isEmpty()) {
+                    /*// TODO: check for match starting from edge co(3, 2) (there have not been any so far)
+                    // debug
+                        System.out.println("P: " + pair.first.getNameOrTerm() + pair.second + " found:");
+                        for (var subs : substitutions) {
+                            System.out.println("    " + Arrays.toString(subs));
+                        }
+                    // ^^^^^^*/
+
                     curTime = System.currentTimeMillis();
                     DNF<CAATLiteral> baseReasons = pattern.applySubstitutions(substitutions, propExecutionGraph);
                     if (functionality.ordinal() >= FUNCTIONALITY.CONFLICT.ordinal()) {
