@@ -10,11 +10,16 @@ import com.dat3m.dartagnan.solver.caat.misc.EdgeSet;
 import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.Edge;
 import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.base.SimpleGraph;
 import com.dat3m.dartagnan.solver.caat.reasoning.CAATLiteral;
-import com.dat3m.dartagnan.solver.caat4wmm.*;
+import com.dat3m.dartagnan.solver.caat4wmm.EventDomainWrapper;
+import com.dat3m.dartagnan.solver.caat4wmm.ExecutionGraph;
+import com.dat3m.dartagnan.solver.caat4wmm.RefinementModel;
+import com.dat3m.dartagnan.solver.caat4wmm.Refiner;
 import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.CoreLiteral;
 import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.CoreReasoner;
 import com.dat3m.dartagnan.solver.caat4wmm.propagator.patterns.Joiner;
 import com.dat3m.dartagnan.solver.caat4wmm.propagator.patterns.ViolationPattern;
+import com.dat3m.dartagnan.solver.online.StaticRelationGraphWrapper;
+import com.dat3m.dartagnan.solver.online.ViolationPatternNew;
 import com.dat3m.dartagnan.solver.propagator.PropagatorExecutionGraph;
 import com.dat3m.dartagnan.utils.Pair;
 import com.dat3m.dartagnan.utils.logic.Conjunction;
@@ -65,6 +70,7 @@ public class AtomicityPropagator extends AbstractUserPropagator implements Extra
     private final Map<Relation, EdgeSet> staticEdges;
 
     private final ViolationPattern pattern;
+    private final ViolationPatternNew patternNew;
     private final Joiner joiner;
 
     // ----- stats -----
@@ -111,10 +117,46 @@ public class AtomicityPropagator extends AbstractUserPropagator implements Extra
         this.reasoner = new CoreReasoner(analysisContext, propExecutionGraph);
         joiner = new Joiner(propExecutionGraph, staticEdges);
 
+        // TEST
+        patternNew = generateAtomicityViolationPattern();
+
         // TODO: populate static graphs - perhaps listen for exec as well? => is now handled by onKnownValue
         // TODO: optional - precompute joins on them
         RelationAnalysis relAna = analysisContext.get(RelationAnalysis.class);
+    }
 
+    private ViolationPatternNew generateAtomicityViolationPattern() {
+        final ViolationPatternNew pattern = new ViolationPatternNew();
+        final ViolationPatternNew.Node n0 = pattern.addNode();
+        final ViolationPatternNew.Node n1 = pattern.addNode();
+        final ViolationPatternNew.Node n2 = pattern.addNode();
+        final ViolationPatternNew.Node n3 = pattern.addNode();
+
+        final Relation rmw = refinementModel.getOriginalModel().getRelation("rmw");
+        final Relation rf = refinementModel.getOriginalModel().getRelation("rf");
+        final Relation co = refinementModel.getOriginalModel().getRelation("co");
+        final Relation ext = refinementModel.getOriginalModel().getRelation("ext");
+
+        for (Relation rel : List.of(rf, co)) {
+            final var graph = propExecutionGraph.getRelationGraph(rel);
+            pattern.addRelationGraph(rel, graph);
+        }
+
+        for  (Relation rel : List.of(rmw, ext)) {
+            final var graph = new StaticRelationGraphWrapper(rel, ra);
+            pattern.addRelationGraph(rel, graph);
+            graph.initializeToDomain(domain);
+        }
+
+        pattern.addEdge(rf, n0, n1, false);
+        pattern.addEdge(co, n0, n3, false);
+        pattern.addEdge(co, n3, n2, false);
+        pattern.addEdge(rmw, n1, n2, true);
+        pattern.addEdge(ext, n1, n3, true);
+        pattern.addEdge(ext, n3, n2, true);
+
+
+        return pattern;
     }
 
     private Map<Relation, EdgeSet> translateStaticEdges(RelationAnalysis ra) {
@@ -206,7 +248,21 @@ public class AtomicityPropagator extends AbstractUserPropagator implements Extra
         for (Pair<Relation, Edge> pair : edges) {
             if (trackedRelations.contains(pair.first)) {
                 long curTime = System.currentTimeMillis();
-                List<int[]> substitutions = joiner.join(pattern, pair.second, pair.first);
+                // OLD
+                //List<int[]> substitutions = joiner.join(pattern, pair.second, pair.first);
+                //  ==== NEW ====
+                final Edge edge = pair.second;
+                final Relation relation = pair.first;
+                final var joinCandidates = patternNew.findEdgesByRelation(relation);
+                final List<ViolationPatternNew.Match> matches = new ArrayList<>();
+                for (var candidate : joinCandidates) {
+                    matches.addAll(patternNew.findMatches(candidate, edge.getFirst(), edge.getSecond()));
+                }
+                List<int[]> substitutions = new ArrayList<>(matches.size());
+                for (var match : matches) {
+                    substitutions.add(match.toArray());
+                }
+                // ----
                 attempts++;
                 joinTime += System.currentTimeMillis() - curTime;
                 if (!substitutions.isEmpty()) {
@@ -217,7 +273,6 @@ public class AtomicityPropagator extends AbstractUserPropagator implements Extra
                             System.out.println("    " + Arrays.toString(subs));
                         }
                     // ^^^^^^*/
-
                     curTime = System.currentTimeMillis();
                     DNF<CAATLiteral> baseReasons = pattern.applySubstitutions(substitutions, propExecutionGraph);
                     if (functionality.ordinal() >= FUNCTIONALITY.CONFLICT.ordinal()) {
