@@ -10,7 +10,6 @@ import com.dat3m.dartagnan.expression.type.*;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 public class HelperInputs {
 
@@ -20,67 +19,50 @@ public class HelperInputs {
     private HelperInputs() {
     }
 
-    public static Type castInputType(String id, ScopedPointerType pointer, Type type) {
-        if (type instanceof IntegerType) {
-            return pointer.getPointedType();
-        }
-        if (type instanceof AggregateType aType) {
-            return castAggregateInputType(id, pointer, aType);
-        }
-        if (type instanceof ArrayType aType) {
-            return castArrayInputType(id, pointer, aType);
-        }
-        throw new ParsingException(errorUnexpectedInputType(id));
-    }
-
-    private static Type castAggregateInputType(String id, ScopedPointerType pointer, AggregateType type) {
-        int uniqueTypesCount = type.getFields().stream()
-                .map(TypeOffset::type)
-                .collect(Collectors.toSet())
-                .size();
-        if (uniqueTypesCount != 1) {
-            throw new ParsingException(errorMixedTypeElements(id));
-        }
-        Type member = type.getFields().get(0).type();
-        int count = type.getFields().size();
-        if (count == 1 || member instanceof IntegerType) {
-            return TypeFactory.getInstance().getArrayType(castInputType(String.format("%s[0]", id), pointer, member), count);
-        }
-        throw new ParsingException(errorMismatchingElementCount(id, 1, count));
-    }
-
-    private static Type castArrayInputType(String id, ScopedPointerType pointer, ArrayType type) {
-        Type member = type.getElementType();
-        int count = type.getNumElements();
-        if (count == 1 || member instanceof IntegerType) {
-            return TypeFactory.getInstance().getArrayType(castInputType(String.format("%s[0]", id), pointer, member), count);
-        }
-        throw new ParsingException(errorMismatchingElementCount(id, 1, count));
+    public static String castPointerId(String id) {
+        return "&" + id;
     }
 
     public static Expression castInput(String id, Type type, Expression value) {
-        if (type instanceof ArrayType aType) {
-            return castArray(id, aType, value);
+        if (!(type instanceof ScopedPointerType)) {
+            if (type.equals(value.getType())) {
+                return value;
+            }
+            if (type instanceof ArrayType aType) {
+                return castArray(id, aType, value);
+            }
+            if (type instanceof AggregateType aType) {
+                return castAggregate(id, aType, value);
+            }
+            return castScalar(id, type, value);
         }
-        if (type instanceof AggregateType aType) {
-            return castAggregate(id, aType, value);
-        }
-        return castScalar(id, type, value);
+        throw new ParsingException(errorMismatchingType(id, type, value.getType()));
     }
 
     private static Expression castArray(String id, ArrayType type, Expression value) {
         if (value instanceof ConstructExpr aValue) {
             int expectedSize = type.getNumElements();
             int actualSize = aValue.getOperands().size();
-            if (expectedSize != -1 && expectedSize != actualSize) {
-                throw new ParsingException(errorMismatchingElementCount(id, expectedSize, actualSize));
+            if (expectedSize == -1 || expectedSize == actualSize) {
+                Type elType = type.getElementType();
+                List<Expression> elements = new ArrayList<>();
+                for (int i = 0; i < actualSize; i++) {
+                    elements.add(castInput(String.format("%s[%d]", id, i), elType, aValue.getOperands().get(i)));
+                }
+                long distinctTypeCount = elements.stream().map(Expression::getType).distinct().count();
+                if (distinctTypeCount <= 1) {
+                    if (!elements.isEmpty()) {
+                        elType = elements.get(0).getType();
+                        if (type.getStride() != null && type.getStride() < types.getMemorySizeInBytes(elType)) {
+                            throw new ParsingException("Mismatching value type for variable '%s', " +
+                                    "element size %d is greater than array stride %d", id,
+                                    types.getMemorySizeInBytes(elType), type.getStride());
+                        }
+                    }
+                    ArrayType aType = types.getArrayType(elType, actualSize, type.getStride(), type.getAlignment());
+                    return expressions.makeArray(aType, elements);
+                }
             }
-            Type elementType = type.getElementType();
-            List<Expression> elements = new ArrayList<>();
-            for (int i = 0; i < actualSize; i++) {
-                elements.add(castInput(String.format("%s[%d]", id, i), elementType, aValue.getOperands().get(i)));
-            }
-            return expressions.makeArray(elements.get(0).getType(), elements, true);
         }
         throw new ParsingException(errorMismatchingType(id, type, value.getType()));
     }
@@ -89,58 +71,36 @@ public class HelperInputs {
         if (value instanceof ConstructExpr aValue) {
             int expectedSize = type.getFields().size();
             int actualSize = aValue.getOperands().size();
-            if (expectedSize != actualSize) {
-                throw new ParsingException(errorMismatchingElementCount(id, expectedSize, actualSize));
+            if (expectedSize == actualSize) {
+                List<Expression> elements = new ArrayList<>();
+                for (int i = 0; i < actualSize; i++) {
+                    elements.add(castInput(String.format("%s[%d]", id, i), type.getFields().get(i).type(), aValue.getOperands().get(i)));
+                }
+                List<Type> fields = elements.stream().map(Expression::getType).toList();
+                List<Integer> offsets = type.getFields().stream().map(TypeOffset::offset).toList();
+                AggregateType aType = types.getAggregateType(fields, offsets);
+                return expressions.makeConstruct(aType, elements);
             }
-            List<Expression> elements = new ArrayList<>();
-            for (int i = 0; i < actualSize; i++) {
-                elements.add(castInput(id, type.getFields().get(i).type(), aValue.getOperands().get(i)));
-            }
-            List<Type> fields = elements.stream().map(Expression::getType).toList();
-            List<Integer> offsets = type.getFields().stream().map(TypeOffset::offset).toList();
-            AggregateType aType = types.getAggregateType(fields, offsets);
-            return expressions.makeConstruct(aType, elements);
         }
         throw new ParsingException(errorMismatchingType(id, type, value.getType()));
     }
 
     private static Expression castScalar(String id, Type type, Expression value) {
-        if (value.getType().equals(types.getArchType())) {
-            if (value instanceof IntLiteral iConst) {
-                int iValue = iConst.getValueAsInt();
-                if (type instanceof BooleanType) {
-                    return iValue == 0 ? expressions.makeFalse() : expressions.makeTrue();
-                }
-                if (type instanceof IntegerType iType) {
-                    return expressions.makeValue(iValue, iType);
-                }
-                throw new ParsingException("Unexpected element type '%s' for variable '%s'", type, id);
+        if (value instanceof IntLiteral iConst) {
+            int iValue = iConst.getValueAsInt();
+            if (type instanceof BooleanType) {
+                return iValue == 0 ? expressions.makeFalse() : expressions.makeTrue();
             }
-            throw new ParsingException("Illegal input for variable '%s', the value is not constant", id);
+            if (type instanceof IntegerType iType) {
+                return expressions.makeValue(iValue, iType);
+            }
+            throw new ParsingException("Unexpected element type '%s' for variable '%s'", type, id);
         }
         throw new ParsingException(errorMismatchingType(id, type, value.getType()));
-    }
-
-    public static String castPointerId(String id) {
-        return "&" + id;
-    }
-
-    private static String errorUnexpectedInputType(String id) {
-        return String.format("Unexpected input type for variable '%s'", id);
-    }
-
-    private static String errorMixedTypeElements(String id) {
-        return String.format("Mismatching value type for variable '%s', " +
-                "expected same-type elements but received elements of different types", id);
     }
 
     private static String errorMismatchingType(String id, Type expected, Type actual) {
         return String.format("Mismatching value type for variable '%s', " +
                 "expected '%s' but received '%s'", id, expected, actual);
-    }
-
-    private static String errorMismatchingElementCount(String id, int expected, int actual) {
-        return String.format("Unexpected number of elements in variable '%s', " +
-                "expected %d but received %d", id, expected, actual);
     }
 }

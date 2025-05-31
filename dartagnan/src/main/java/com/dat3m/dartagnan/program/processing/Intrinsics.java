@@ -6,6 +6,7 @@ import com.dat3m.dartagnan.expression.ExpressionFactory;
 import com.dat3m.dartagnan.expression.Type;
 import com.dat3m.dartagnan.expression.integers.IntBinaryOp;
 import com.dat3m.dartagnan.expression.integers.IntLiteral;
+import com.dat3m.dartagnan.expression.type.FunctionType;
 import com.dat3m.dartagnan.expression.type.IntegerType;
 import com.dat3m.dartagnan.expression.type.TypeFactory;
 import com.dat3m.dartagnan.program.Function;
@@ -15,12 +16,10 @@ import com.dat3m.dartagnan.program.Register;
 import com.dat3m.dartagnan.program.event.Event;
 import com.dat3m.dartagnan.program.event.EventFactory;
 import com.dat3m.dartagnan.program.event.Tag;
-import com.dat3m.dartagnan.program.event.core.CondJump;
-import com.dat3m.dartagnan.program.event.core.ExecutionStatus;
-import com.dat3m.dartagnan.program.event.core.Label;
-import com.dat3m.dartagnan.program.event.core.Local;
+import com.dat3m.dartagnan.program.event.core.*;
 import com.dat3m.dartagnan.program.event.functions.FunctionCall;
 import com.dat3m.dartagnan.program.event.functions.ValueFunctionCall;
+import com.dat3m.dartagnan.program.event.lang.dat3m.DynamicThreadCreate;
 import com.dat3m.dartagnan.program.event.lang.svcomp.BeginAtomic;
 import com.dat3m.dartagnan.program.memory.MemoryObject;
 import com.google.common.collect.ImmutableList;
@@ -37,6 +36,9 @@ import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
 
 import static com.dat3m.dartagnan.configuration.OptionNames.REMOVE_ASSERTION_OF_TYPE;
+import static com.dat3m.dartagnan.program.event.EventFactory.*;
+import static com.dat3m.dartagnan.program.event.lang.dat3m.DynamicThreadJoin.Status.INVALID_TID;
+import static com.dat3m.dartagnan.program.event.lang.dat3m.DynamicThreadJoin.Status.SUCCESS;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
@@ -53,12 +55,12 @@ public class Intrinsics {
     private static final Logger logger = LogManager.getLogger(Intrinsics.class);
 
     @Option(name = REMOVE_ASSERTION_OF_TYPE,
-            description = "Remove assertions of type [user, overflow, invalidderef].",
+            description = "Remove assertions of type [user, overflow, invalidderef, unknown_function].",
             toUppercase=true,
             secure = true)
     private EnumSet<AssertionType> notToInline = EnumSet.noneOf(AssertionType.class);
 
-    private enum AssertionType { USER, OVERFLOW, INVALIDDEREF }
+    private enum AssertionType { USER, OVERFLOW, INVALIDDEREF, UNKNOWN_FUNCTION }
 
     private static final TypeFactory types = TypeFactory.getInstance();
     private static final ExpressionFactory expressions = ExpressionFactory.getInstance();
@@ -109,9 +111,9 @@ public class Intrinsics {
 
     public enum Info {
         // --------------------------- pthread threading ---------------------------
-        P_THREAD_CREATE("pthread_create", true, false, true, false, null),
-        P_THREAD_EXIT("pthread_exit", false, false, false, false, null),
-        P_THREAD_JOIN(List.of("pthread_join", "_pthread_join", "__pthread_join"), false, true, false, false, null),
+        P_THREAD_CREATE("pthread_create", true, false, true, true, Intrinsics::inlinePthreadCreate),
+        P_THREAD_EXIT("pthread_exit", false, false, true, true, Intrinsics::inlinePthreadExit),
+        P_THREAD_JOIN(List.of("pthread_join", "_pthread_join", "__pthread_join"), true, true, false, true, Intrinsics::inlinePthreadJoin),
         P_THREAD_BARRIER_WAIT("pthread_barrier_wait", false, false, true, true, Intrinsics::inlineAsZero),
         P_THREAD_SELF(List.of("pthread_self", "__VERIFIER_tid"), false, false, true, false, null),
         P_THREAD_EQUAL("pthread_equal", false, false, true, false, Intrinsics::inlinePthreadEqual),
@@ -201,16 +203,16 @@ public class Intrinsics {
         LLVM_MEMSET("llvm.memset", true, false, true, false, Intrinsics::inlineMemSet),
         LLVM_THREADLOCAL("llvm.threadlocal.address.p0", false, false, true, true, Intrinsics::inlineLLVMThreadLocal),
         // --------------------------- LKMM ---------------------------
-        LKMM_LOAD("__LKMM_LOAD", false, true, true, true, Intrinsics::handleLKMMIntrinsic),
-        LKMM_STORE("__LKMM_STORE", true, false, true, true, Intrinsics::handleLKMMIntrinsic),
-        LKMM_XCHG("__LKMM_XCHG", true, true, true, true, Intrinsics::handleLKMMIntrinsic),
-        LKMM_CMPXCHG("__LKMM_CMPXCHG", true, true, true, true, Intrinsics::handleLKMMIntrinsic),
-        LKMM_ATOMIC_FETCH_OP("__LKMM_ATOMIC_FETCH_OP", true, true, true, true, Intrinsics::handleLKMMIntrinsic),
-        LKMM_ATOMIC_OP("__LKMM_ATOMIC_OP", true, true, true, true, Intrinsics::handleLKMMIntrinsic),
-        LKMM_ATOMIC_OP_RETURN("__LKMM_ATOMIC_OP_RETURN", true, true, true, true, Intrinsics::handleLKMMIntrinsic),
+        LKMM_LOAD("__LKMM_load", false, true, true, true, Intrinsics::handleLKMMIntrinsic),
+        LKMM_STORE("__LKMM_store", true, false, true, true, Intrinsics::handleLKMMIntrinsic),
+        LKMM_XCHG("__LKMM_xchg", true, true, true, true, Intrinsics::handleLKMMIntrinsic),
+        LKMM_CMPXCHG("__LKMM_cmpxchg", true, true, true, true, Intrinsics::handleLKMMIntrinsic),
+        LKMM_ATOMIC_FETCH_OP("__LKMM_atomic_fetch_op", true, true, true, true, Intrinsics::handleLKMMIntrinsic),
+        LKMM_ATOMIC_OP("__LKMM_atomic_op", true, true, true, true, Intrinsics::handleLKMMIntrinsic),
+        LKMM_ATOMIC_OP_RETURN("__LKMM_atomic_op_return", true, true, true, true, Intrinsics::handleLKMMIntrinsic),
         LKMM_SPIN_LOCK("__LKMM_SPIN_LOCK", true, true, false, true, Intrinsics::handleLKMMIntrinsic),
         LKMM_SPIN_UNLOCK("__LKMM_SPIN_UNLOCK", true, false, true, true, Intrinsics::handleLKMMIntrinsic),
-        LKMM_FENCE("__LKMM_FENCE", false, false, false, true, Intrinsics::handleLKMMIntrinsic),
+        LKMM_FENCE("__LKMM_fence", false, false, false, true, Intrinsics::handleLKMMIntrinsic),
         // --------------------------- Misc ---------------------------
         STD_MEMCPY("memcpy", true, true, true, false, Intrinsics::inlineMemCpy),
         STD_MEMCPYS("memcpy_s", true, true, true, false, Intrinsics::inlineMemCpyS),
@@ -232,6 +234,8 @@ public class Intrinsics {
                 false, false, false, true, Intrinsics::inlineIntegerOverflow),
         UBSAN_TYPE_MISSMATCH(List.of("__ubsan_handle_type_mismatch_v1"), 
                 false, false, false, true, Intrinsics::inlineInvalidDereference),
+        // ------------------------- Unknown function ---------------------------
+        MISSING(List.of(), false, false, false, true, Intrinsics::inlineUnknownFunction),
         ;
 
         private final List<String> variants;
@@ -286,6 +290,7 @@ public class Intrinsics {
         }
     }
 
+
     @FunctionalInterface
     private interface Replacer {
         List<Event> replace(Intrinsics self, FunctionCall call);
@@ -299,12 +304,14 @@ public class Intrinsics {
                 Arrays.stream(Info.values())
                         .filter(info -> info.matches(funcName))
                         .findFirst()
-                        .ifPresentOrElse(func::setIntrinsicInfo, () -> missingSymbols.add(funcName));
+                        .ifPresentOrElse(func::setIntrinsicInfo, () -> {
+                            missingSymbols.add(funcName);
+                            func.setIntrinsicInfo(Info.MISSING);});
             }
         }
         if (!missingSymbols.isEmpty()) {
-            throw new UnsupportedOperationException(
-                    missingSymbols.stream().collect(Collectors.joining(", ", "Unknown intrinsics ", "")));
+            logger.warn(missingSymbols.stream().collect(Collectors.joining(", ", "Unknown intrinsics ", "")) +
+                ". Detecting calls to unknown functions requires --property=program_spec.");
         }
     }
 
@@ -385,7 +392,7 @@ public class Intrinsics {
 
     private List<Event> inlineAssume(FunctionCall call) {
         final Expression assumption = call.getArguments().get(0);
-        return List.of(EventFactory.newAssume(assumption));
+        return List.of(EventFactory.newAssume(expressions.makeBooleanCast(assumption)));
     }
 
     private List<Event> inlineAtomicBegin(FunctionCall ignored) {
@@ -395,6 +402,84 @@ public class Intrinsics {
     private List<Event> inlineAtomicEnd(FunctionCall ignored) {
         return List.of(EventFactory.Svcomp.newEndAtomic(checkNotNull(currentAtomicBegin)));
     }
+
+    private final static FunctionType PTHREAD_THREAD_TYPE = types.getFunctionType(
+            types.getPointerType(), List.of(types.getPointerType())
+    );
+
+    private List<Event> inlinePthreadCreate(FunctionCall call) {
+        final List<Expression> arguments = call.getArguments();
+        assert arguments.size() == 4;
+        final Expression pidResultAddress = arguments.get(0);
+        //final Expression attributes = arguments.get(1);
+        final Expression targetFunction = arguments.get(2);
+        final Expression argument = arguments.get(3);
+
+        final Register resultRegister = getResultRegister(call);
+        assert resultRegister.getType() instanceof IntegerType;
+
+        final Register tidReg = call.getFunction().newUniqueRegister("__tid", types.getArchType());
+        final DynamicThreadCreate createEvent = newDynamicThreadCreate(tidReg, PTHREAD_THREAD_TYPE, targetFunction, List.of(argument));
+
+        return eventSequence(
+                createEvent,
+                newStore(pidResultAddress, tidReg),
+                // TODO: Allow to return failure value (!= 0)
+                newLocal(resultRegister, expressions.makeZero((IntegerType) resultRegister.getType()))
+        );
+    }
+
+    private List<Event> inlinePthreadJoin(FunctionCall call) {
+        final List<Expression> arguments = call.getArguments();
+        assert arguments.size() == 2;
+        final Expression tidExpr = arguments.get(0);
+        final Expression returnAddr = arguments.get(1);
+        final boolean hasReturnAddr = !(returnAddr instanceof IntLiteral lit && lit.isZero());
+
+        final Register resultRegister = getResultRegister(call);
+        assert resultRegister.getType() instanceof IntegerType;
+
+        final Type joinType = types.getAggregateType(List.of(types.getIntegerType(8), PTHREAD_THREAD_TYPE.getReturnType()));
+        final Register joinReg = call.getFunction().newUniqueRegister("__joinReg", joinType);
+
+        final Expression status = expressions.makeExtract(joinReg, 0);
+        final Expression retVal = expressions.makeExtract(joinReg, 1);
+
+        final Expression statusSuccess = expressions.makeValue(SUCCESS.getErrorCode(), (IntegerType) status.getType());
+        final Expression statusInvalidTId = expressions.makeValue(INVALID_TID.getErrorCode(), (IntegerType) status.getType());
+
+        final Label joinEnd;
+        final Store storeRetVal;
+        final CondJump jump;
+        if (hasReturnAddr) {
+            joinEnd = newLabel("__pthread_join_end");
+            storeRetVal = newStore(returnAddr, retVal);
+            jump = newJump(expressions.makeNEQ(status, statusSuccess), joinEnd);
+        } else {
+            joinEnd = null;
+            storeRetVal = null;
+            jump = null;
+        }
+
+        return eventSequence(
+                newDynamicThreadJoin(joinReg, tidExpr),
+                // TODO: We use our internal error codes which do not match with pthread's error codes,
+                //  except for the success case (error code == 0).
+                newLocal(resultRegister, expressions.makeCast(status, resultRegister.getType())),
+                jump,
+                storeRetVal,
+                joinEnd,
+                newAssert(expressions.makeNEQ(status, statusInvalidTId), "Invalid thread id in pthread_join.")
+        );
+    }
+
+    private List<Event> inlinePthreadExit(FunctionCall call) {
+        final List<Expression> arguments = call.getArguments();
+        assert arguments.size() == 1 && arguments.get(0).getType().equals(PTHREAD_THREAD_TYPE.getReturnType());
+
+        return List.of(newThreadReturn(arguments.get(0)));
+    }
+
 
     private List<Event> inlinePthreadEqual(FunctionCall call) {
         final Register resultRegister = getResultRegisterAndCheckArguments(2, call);
@@ -431,7 +516,7 @@ public class Intrinsics {
         if (initial || suffix.equals("destroy")) {
             final Expression flag = expressions.makeValue(initial);
             return List.of(
-                    EventFactory.newStore(attrAddress, flag),
+                    newStore(attrAddress, flag),
                     assignSuccess(errorRegister)
             );
         }
@@ -453,7 +538,7 @@ public class Intrinsics {
         //final Expression attributes = call.getArguments().get(1);
         final Expression initializedState = expressions.makeTrue();
         return List.of(
-                EventFactory.newStore(condAddress, initializedState),
+                newStore(condAddress, initializedState),
                 assignSuccess(errorRegister)
         );
     }
@@ -464,7 +549,7 @@ public class Intrinsics {
         final Expression condAddress = call.getArguments().get(0);
         final Expression finalizedState = expressions.makeFalse();
         return List.of(
-                EventFactory.newStore(condAddress, finalizedState),
+                newStore(condAddress, finalizedState),
                 assignSuccess(errorRegister)
         );
     }
@@ -527,7 +612,7 @@ public class Intrinsics {
         final Expression attrAddress = call.getArguments().get(0);
         checkUnknownIntrinsic(init || destroy, call);
         return List.of(
-                EventFactory.newStore(attrAddress, expressions.makeValue(init)),
+                newStore(attrAddress, expressions.makeValue(init)),
                 assignSuccess(errorRegister)
         );
     }
@@ -546,8 +631,8 @@ public class Intrinsics {
         //TODO call destructor at each thread's normal exit
         return List.of(
                 EventFactory.newAlloc(storageAddressRegister, types.getArchType(), size, true, true),
-                EventFactory.newStore(keyAddress, storageAddressRegister),
-                EventFactory.newStore(expressions.makeAdd(storageAddressRegister, destructorOffset), destructor),
+                newStore(keyAddress, storageAddressRegister),
+                newStore(expressions.makeAdd(storageAddressRegister, destructorOffset), destructor),
                 assignSuccess(errorRegister)
         );
     }
@@ -582,7 +667,7 @@ public class Intrinsics {
         final int threadID = call.getThread().getId();
         final Expression offset = expressions.makeValue(threadID, (IntegerType) key.getType());
         return List.of(
-                EventFactory.newStore(expressions.makeAdd(key, offset), value),
+                newStore(expressions.makeAdd(key, offset), value),
                 assignSuccess(errorRegister)
         );
     }
@@ -669,7 +754,7 @@ public class Intrinsics {
         final Expression lockAddress = call.getArguments().get(0);
         final Expression locked = expressions.makeOne(type);
         final Expression unlocked = expressions.makeZero(type);
-        return EventFactory.eventSequence(
+        return eventSequence(
                 EventFactory.Llvm.newLoad(oldValueRegister, lockAddress, Tag.C11.MO_RELAXED),
                 notToInline.contains(AssertionType.USER) ? null : EventFactory.newAssert(expressions.makeEQ(oldValueRegister, locked), "Unlocking an already unlocked mutex"),
                 EventFactory.Llvm.newStore(lockAddress, unlocked, Tag.C11.MO_RELEASE),
@@ -689,7 +774,7 @@ public class Intrinsics {
         final Expression attrAddress = call.getArguments().get(0);
         if (init || destroy) {
             return List.of(
-                    EventFactory.newStore(attrAddress, expressions.makeValue(init)),
+                    newStore(attrAddress, expressions.makeValue(init)),
                     assignSuccess(errorRegister)
             );
         }
@@ -711,7 +796,7 @@ public class Intrinsics {
         final Expression lockAddress = call.getArguments().get(0);
         //final Expression attributes = call.getArguments().get(1);
         return List.of(
-                EventFactory.newStore(lockAddress, getRwlockUnlockedValue()),
+                newStore(lockAddress, getRwlockUnlockedValue()),
                 assignSuccess(errorRegister)
         );
     }
@@ -868,7 +953,7 @@ public class Intrinsics {
         final Expression attrAddress = call.getArguments().get(0);
         if (init || destroy) {
             return List.of(
-                    EventFactory.newStore(attrAddress, expressions.makeValue(init)),
+                    newStore(attrAddress, expressions.makeValue(init)),
                     assignSuccess(errorRegister)
             );
         }
@@ -927,7 +1012,7 @@ public class Intrinsics {
         }
         assert call.getArguments().size() == 1;
         final Expression condition = call.getArguments().get(0);
-        final Event assertion = EventFactory.newAssert(condition, errorMsg);
+        final Event assertion = EventFactory.newAssert(expressions.makeBooleanCast(condition), errorMsg);
         return List.of(assertion);
     }
 
@@ -946,6 +1031,17 @@ public class Intrinsics {
     private List<Event> inlineInvalidDereference(FunctionCall call) {
         return inlineAssert(call, AssertionType.INVALIDDEREF, "invalid dereference");
     }
+
+    private List<Event> inlineUnknownFunction(FunctionCall call) {
+        final List<Event> replacement = new ArrayList<>();
+        if (call instanceof ValueFunctionCall) {
+            replacement.addAll(inlineCallAsNonDet(call));
+        }
+        replacement.addAll(inlineAssert(call, AssertionType.UNKNOWN_FUNCTION,
+            "Calling unknown function " + call.getCalledFunction().getName()));
+        return replacement;
+    }
+
 
     // --------------------------------------------------------------------------------------------------------
     // LLVM intrinsics
@@ -990,7 +1086,7 @@ public class Intrinsics {
 
     private List<Event> inlineLLVMAssume(FunctionCall call) {
         //see https://llvm.org/docs/LangRef.html#llvm-assume-intrinsic
-        return List.of(EventFactory.newAssume(call.getArguments().get(0)));
+        return List.of(EventFactory.newAssume(expressions.makeBooleanCast(call.getArguments().get(0))));
     }
 
     private List<Event> inlineLLVMCtlz(ValueFunctionCall call) {
@@ -1216,61 +1312,85 @@ public class Intrinsics {
         final Expression p1 = args.size() > 1 ? args.get(1) : null;
         final Expression p2 = args.size() > 2 ? args.get(2) : null;
         final Expression p3 = args.size() > 3 ? args.get(3) : null;
+        final Expression p4 = args.size() > 4 ? args.get(4) : null;
 
-        final String mo;
-        final IntBinaryOp op;
         final List<Event> result = new ArrayList<>();
         switch (call.getCalledFunction().getName()) {
-            case "__LKMM_LOAD" -> {
-                checkArgument(p1 instanceof IntLiteral, "No support for variable memory order.");
-                mo = Tag.Linux.intToMo(((IntLiteral) p1).getValueAsInt());
-                result.add(EventFactory.Linux.newLKMMLoad(reg, p0, mo));
+            case "__LKMM_load" -> {
+                checkArguments(3, call);
+                final Type bytes = toLKMMAccessSize(p1);
+                final String mo = toLKMMMemoryOrder(p2);
+                final Register dummy = call.getFunction().newUniqueRegister("__lkmm_temp", bytes);
+                result.add(EventFactory.Linux.newLKMMLoad(dummy, p0, mo));
+                result.add(EventFactory.newLocal(reg, expressions.makeCast(dummy, reg.getType())));
             }
-            case "__LKMM_STORE" -> {
-                checkArgument(p2 instanceof IntLiteral, "No support for variable memory order.");
-                mo = Tag.Linux.intToMo(((IntLiteral) p2).getValueAsInt());
-                result.add(EventFactory.Linux.newLKMMStore(p0, p1, mo.equals(Tag.Linux.MO_MB) ? Tag.Linux.MO_ONCE : mo));
+            case "__LKMM_store" -> {
+                checkArguments(4, call);
+                final Type bytes = toLKMMAccessSize(p1);
+                final String mo = toLKMMMemoryOrder(p3);
+                final Expression value = expressions.makeCast(p2, bytes);
+                result.add(EventFactory.Linux.newLKMMStore(p0, value, mo.equals(Tag.Linux.MO_MB) ? Tag.Linux.MO_ONCE : mo));
                 if (mo.equals(Tag.Linux.MO_MB)) {
                     result.add(EventFactory.Linux.newMemoryBarrier());
                 }
             }
-            case "__LKMM_XCHG" -> {
-                checkArgument(p2 instanceof IntLiteral, "No support for variable memory order.");
-                mo = Tag.Linux.intToMo(((IntLiteral) p2).getValueAsInt());
-                result.add(EventFactory.Linux.newRMWExchange(p0, reg, p1, mo));
+            case "__LKMM_xchg" -> {
+                checkArguments(4, call);
+                final Type bytes = toLKMMAccessSize(p1);
+                final String mo = toLKMMMemoryOrder(p3);
+                final Register dummy = call.getFunction().newUniqueRegister("__lkmm_temp", bytes);
+                final Expression value = expressions.makeCast(p2, bytes);
+                result.add(EventFactory.Linux.newRMWExchange(p0, dummy, value, mo));
+                result.add(EventFactory.newLocal(reg, expressions.makeCast(dummy, reg.getType())));
             }
-            case "__LKMM_CMPXCHG" -> {
-                checkArgument(p3 instanceof IntLiteral, "No support for variable memory order.");
-                mo = Tag.Linux.intToMo(((IntLiteral) p3).getValueAsInt());
-                result.add(EventFactory.Linux.newRMWCompareExchange(p0, reg, p1, p2, mo));
+            case "__LKMM_cmpxchg" -> {
+                checkArguments(6, call);
+                final Type bytes = toLKMMAccessSize(p1);
+                final String mo = toLKMMMemoryOrder(p4);
+                final Register dummy = call.getFunction().newUniqueRegister("__lkmm_temp", bytes);
+                final Expression expectation = expressions.makeCast(p2, bytes);
+                final Expression value = expressions.makeCast(p3, bytes);
+                result.add(EventFactory.Linux.newRMWCompareExchange(p0, dummy, expectation, value, mo));
+                result.add(EventFactory.newLocal(reg, expressions.makeCast(dummy, reg.getType())));
             }
-            case "__LKMM_ATOMIC_FETCH_OP" -> {
-                checkArgument(p2 instanceof IntLiteral, "No support for variable memory order.");
-                mo = Tag.Linux.intToMo(((IntLiteral) p2).getValueAsInt());
-                checkArgument(p3 instanceof IntLiteral, "No support for variable operator.");
-                op = IntBinaryOp.intToOp(((IntLiteral) p3).getValueAsInt());
-                result.add(EventFactory.Linux.newRMWFetchOp(p0, reg, p1, op, mo));
+            case "__LKMM_atomic_fetch_op" -> {
+                checkArguments(5, call);
+                final Type bytes = toLKMMAccessSize(p1);
+                final String mo = toLKMMMemoryOrder(p3);
+                final IntBinaryOp op = toLKMMOperation(p4);
+                final Register dummy = call.getFunction().newUniqueRegister("__lkmm_temp", bytes);
+                final Expression value = expressions.makeCast(p2, bytes);
+                result.add(EventFactory.Linux.newRMWFetchOp(p0, dummy, value, op, mo));
+                result.add(EventFactory.newLocal(reg, expressions.makeCast(dummy, reg.getType())));
             }
-            case "__LKMM_ATOMIC_OP_RETURN" -> {
-                checkArgument(p2 instanceof IntLiteral, "No support for variable memory order.");
-                mo = Tag.Linux.intToMo(((IntLiteral) p2).getValueAsInt());
-                checkArgument(p3 instanceof IntLiteral, "No support for variable operator.");
-                op = IntBinaryOp.intToOp(((IntLiteral) p3).getValueAsInt());
-                result.add(EventFactory.Linux.newRMWOpReturn(p0, reg, p1, op, mo));
+            case "__LKMM_atomic_op_return" -> {
+                checkArguments(5, call);
+                final Type bytes = toLKMMAccessSize(p1);
+                final String mo = toLKMMMemoryOrder(p3);
+                final IntBinaryOp op = toLKMMOperation(p4);
+                final Register dummy = call.getFunction().newUniqueRegister("__lkmm_temp", bytes);
+                final Expression value = expressions.makeCast(p2, bytes);
+                result.add(EventFactory.Linux.newRMWOpReturn(p0, dummy, value, op, mo));
+                result.add(EventFactory.newLocal(reg, expressions.makeCast(dummy, reg.getType())));
             }
-            case "__LKMM_ATOMIC_OP" -> {
-                checkArgument(p2 instanceof IntLiteral, "No support for variable operator.");
-                op = IntBinaryOp.intToOp(((IntLiteral) p2).getValueAsInt());
-                result.add(EventFactory.Linux.newRMWOp(p0, p1, op));
+            case "__LKMM_atomic_op" -> {
+                checkArguments(4, call);
+                final Type bytes = toLKMMAccessSize(p1);
+                final IntBinaryOp op = toLKMMOperation(p3);
+                final Expression value = expressions.makeCast(p2, bytes);
+                result.add(EventFactory.Linux.newRMWOp(p0, value, op));
             }
-            case "__LKMM_FENCE" -> {
-                String fence = Tag.Linux.intToMo(((IntLiteral) p0).getValueAsInt());
-                result.add(EventFactory.Linux.newLKMMFence(fence));
+            case "__LKMM_fence" -> {
+                checkArguments(1, call);
+                final String mo = toLKMMMemoryOrder(p0);
+                result.add(EventFactory.Linux.newLKMMFence(mo));
             }
             case "__LKMM_SPIN_LOCK" -> {
+                checkArguments(1, call);
                 result.add(EventFactory.Linux.newLock(p0));
             }
             case "__LKMM_SPIN_UNLOCK" -> {
+                checkArguments(1, call);
                 result.add(EventFactory.Linux.newUnlock(p0));
             }
             default -> {
@@ -1278,6 +1398,27 @@ public class Intrinsics {
             }
         }
         return result;
+    }
+
+    private Type toLKMMAccessSize(Expression argument) {
+        if (!(argument instanceof IntLiteral literal)) {
+            throw new UnsupportedOperationException("Variable LKMM access size \"" + argument + "\"");
+        }
+        return types.getIntegerType(8 * literal.getValueAsInt());
+    }
+
+    private String toLKMMMemoryOrder(Expression argument) {
+        if (!(argument instanceof IntLiteral literal)) {
+            throw new UnsupportedOperationException("Variable LKMM memory order \"" + argument + "\"");
+        }
+        return Tag.Linux.intToMo(literal.getValueAsInt());
+    }
+
+    private IntBinaryOp toLKMMOperation(Expression argument) {
+        if (!(argument instanceof IntLiteral literal)) {
+            throw new UnsupportedOperationException("Variable LKMM operation \"" + argument + "\"");
+        }
+        return IntBinaryOp.intToOp(literal.getValueAsInt());
     }
 
     // --------------------------------------------------------------------------------------------------------
@@ -1375,7 +1516,7 @@ public class Intrinsics {
 
             replacement.addAll(List.of(
                     EventFactory.newLoad(reg, srcAddr),
-                    EventFactory.newStore(destAddr, reg)
+                    newStore(destAddr, reg)
             ));
         }
         if (call instanceof ValueFunctionCall valueCall) {
@@ -1465,7 +1606,7 @@ public class Intrinsics {
             final Expression destAddr = expressions.makeAdd(dest, offset);
             final Expression zero = expressions.makeZero(types.getArchType());
             replacement.add(
-                EventFactory.newStore(destAddr, zero)
+                newStore(destAddr, zero)
             );
         }
         replacement.addAll(List.of(
@@ -1485,7 +1626,7 @@ public class Intrinsics {
 
             replacement.addAll(List.of(
                     EventFactory.newLoad(reg, srcAddr),
-                    EventFactory.newStore(destAddr, reg)
+                    newStore(destAddr, reg)
             ));
         }
         replacement.addAll(List.of(
@@ -1567,7 +1708,7 @@ public class Intrinsics {
             final Expression offset = expressions.makeValue(i, types.getArchType());
             final Expression destAddr = expressions.makeAdd(dest, offset);
 
-            replacement.add(EventFactory.newStore(destAddr, zero));
+            replacement.add(newStore(destAddr, zero));
         }
         if (call instanceof ValueFunctionCall valueCall) {
             // std.memset returns the destination address, llvm.memset has no return value

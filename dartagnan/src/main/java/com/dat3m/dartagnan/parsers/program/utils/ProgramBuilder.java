@@ -51,7 +51,8 @@ public class ProgramBuilder {
     // ----------------------------------------------------------------------------------------------------------------
     // Construction
     private ProgramBuilder(SourceLanguage format) {
-        this.program = new Program(new Memory(), format, null);
+        Preconditions.checkArgument(format == SourceLanguage.LITMUS);
+        this.program = new Program(new Memory(), format);
     }
 
     public static ProgramBuilder forArch(SourceLanguage format, Arch arch) {
@@ -70,12 +71,11 @@ public class ProgramBuilder {
             // The terminator should not get inserted somewhere beforehand.
             Verify.verify(endOfThread.getFunction() == null);
             // Every event in litmus tests is non-optimisable
-            if (program.getFormat() == LITMUS) {
-                endOfThread.addTags(NOOPT);
-            }
+            endOfThread.addTags(NOOPT);
             thread.append(endOfThread);
         }
         processAfterParsing(program);
+        program.setEntrypoint(new Entrypoint.Resolved());
         return program;
     }
 
@@ -301,7 +301,7 @@ public class ProgramBuilder {
         ScopeHierarchy scopeHierarchy = switch (arch) {
             case PTX -> ScopeHierarchy.ScopeHierarchyForPTX(scopeIds[0], scopeIds[1]);
             case VULKAN -> ScopeHierarchy.ScopeHierarchyForVulkan(scopeIds[0], scopeIds[1], scopeIds[2]);
-            case OPENCL -> ScopeHierarchy.ScopeHierarchyForOpenCL(scopeIds[0], scopeIds[1]);
+            case OPENCL -> ScopeHierarchy.ScopeHierarchyForOpenCL(scopeIds[0], scopeIds[1], scopeIds[2]);
             default -> throw new UnsupportedOperationException("Unsupported architecture: " + arch);
         };
 

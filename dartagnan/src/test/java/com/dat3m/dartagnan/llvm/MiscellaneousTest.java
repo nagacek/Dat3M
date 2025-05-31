@@ -83,6 +83,9 @@ public class MiscellaneousTest extends AbstractCTest {
                 {"thread_local", IMM, PASS, 1},
                 {"thread_loop", IMM, FAIL, 1},
                 {"thread_id", IMM, PASS, 1},
+                {"thread_return_val", IMM, PASS, 1},
+                {"thread_invalid_join_self", IMM, FAIL, 1},
+                {"thread_invalid_join_uninit", IMM, FAIL, 1},
                 {"funcPtrInStaticMemory", IMM, PASS, 1},
                 {"verifierAssert", ARM8, FAIL, 1},
                 {"uninitRead", IMM, FAIL, 1},
@@ -97,6 +100,7 @@ public class MiscellaneousTest extends AbstractCTest {
                 {"nondet_alloc_2", IMM, PASS, 1},
                 {"nondet_aligned_alloc", IMM, PASS, 1},
                 {"alignment", IMM, PASS, 1},
+                {"unknown_function", IMM, FAIL, 1},
         });
     }
 

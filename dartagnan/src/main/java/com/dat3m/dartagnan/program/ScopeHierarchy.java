@@ -6,8 +6,9 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
-public class ScopeHierarchy{
+public class ScopeHierarchy {
 
     // There is a hierarchy of scopes, the order of keys
     // is important, thus we use a LinkedHashMap
@@ -32,11 +33,12 @@ public class ScopeHierarchy{
         return scopeHierarchy;
     }
 
-    public static ScopeHierarchy ScopeHierarchyForOpenCL(int dev, int wg) {
+    public static ScopeHierarchy ScopeHierarchyForOpenCL(int dev, int wg, int sg) {
         ScopeHierarchy scopeHierarchy = new ScopeHierarchy();
         scopeHierarchy.scopeIds.put(Tag.OpenCL.ALL, 0);
         scopeHierarchy.scopeIds.put(Tag.OpenCL.DEVICE, dev);
         scopeHierarchy.scopeIds.put(Tag.OpenCL.WORK_GROUP, wg);
+        scopeHierarchy.scopeIds.put(Tag.OpenCL.SUB_GROUP, sg);
         return scopeHierarchy;
     }
 
@@ -70,5 +72,12 @@ public class ScopeHierarchy{
         int thisId = this.getScopeId(scope);
         int otherId = other.getScopeId(scope);
         return (thisId == otherId && thisId != -1);
+    }
+
+    @Override
+    public String toString() {
+        return scopeIds.entrySet().stream()
+                .map(entry -> entry.getKey() + ":" + entry.getValue())
+                .collect(Collectors.joining(",", "[", "]"));
     }
 }

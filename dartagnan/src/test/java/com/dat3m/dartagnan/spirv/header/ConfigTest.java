@@ -1,6 +1,7 @@
 package com.dat3m.dartagnan.spirv.header;
 
 import com.dat3m.dartagnan.exception.ParsingException;
+import com.dat3m.dartagnan.program.Entrypoint;
 import com.dat3m.dartagnan.program.Program;
 import com.dat3m.dartagnan.program.ScopeHierarchy;
 import com.dat3m.dartagnan.program.ThreadGrid;
@@ -28,14 +29,14 @@ public class ConfigTest extends AbstractTest {
 
         // then
         int size = scopes.stream().reduce(1, (a, b) -> a * b);
-        ThreadGrid grid = program.getGrid();
+        ThreadGrid grid = ((Entrypoint.Grid) program.getEntrypoint()).getThreadGrid();
         assertEquals(size, grid.dvSize());
 
         int sg_size = scopes.get(0);
         int wg_size = scopes.get(1) * sg_size;
         int qf_size = scopes.get(2) * wg_size;
         for (int i = 0; i < size; i++) {
-            ScopeHierarchy hierarchy = grid.getScoreHierarchy(i);
+            ScopeHierarchy hierarchy = ScopeHierarchy.ScopeHierarchyForVulkan(grid.qfId(i), grid.wgId(i), grid.sgId(i));
             assertEquals(((i % qf_size) % wg_size) / sg_size, hierarchy.getScopeId(Tag.Vulkan.SUB_GROUP));
             assertEquals((i % qf_size) / wg_size, hierarchy.getScopeId(Tag.Vulkan.WORK_GROUP));
             assertEquals(i / qf_size, hierarchy.getScopeId(Tag.Vulkan.QUEUE_FAMILY));
