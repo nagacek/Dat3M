@@ -102,11 +102,20 @@ public class Joiner {
         Set<PatternNode> predecessors = pattern.getPredecessors(start).stream().map(PatternEdge::source).collect(Collectors.toSet());
         Set<PatternNode> unvisitedPreds = Sets.intersection(predecessors, unvisited);
 
+        PatternNode unvisitedNode = null;
         if (!unvisitedSucs.isEmpty()) {
-            return unvisitedSucs.iterator().next();
-        } else if (!unvisitedPreds.isEmpty()) {
-            return unvisitedPreds.iterator().next();
-        } else if (!unvisited.isEmpty()) {
+            PatternNode node = unvisitedSucs.iterator().next();
+            if (hasEntries.contains(node)) {
+                unvisitedNode = node;
+            }
+        }
+        if (unvisitedNode == null && !unvisitedPreds.isEmpty()) {
+            PatternNode node = unvisitedPreds.iterator().next();
+            if (hasEntries.contains(node)) {
+                unvisitedNode = node;
+            }
+        }
+        if (unvisitedNode == null && !unvisited.isEmpty()) {
             return hasEntries.iterator().next();
         }
         return null;

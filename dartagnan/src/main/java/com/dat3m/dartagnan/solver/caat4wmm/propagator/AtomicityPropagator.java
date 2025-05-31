@@ -242,6 +242,7 @@ public class AtomicityPropagator extends AbstractUserPropagator implements Extra
         //progressRetention();
     }
 
+
     private void progressRetention() {
         if (!isFirst && !retentionConflicts.isEmpty()) {
             long curTime = System.currentTimeMillis();
@@ -302,5 +303,18 @@ public class AtomicityPropagator extends AbstractUserPropagator implements Extra
 
         return str.toString();
     }
+
+    // Debug code
+    /*private void rotateSubstitutions(List<int[]> substitutions, ViolationPattern pattern) {
+        for (int[] substitution : substitutions) {
+            for (ViolationPattern.PatternEdge pEdge : pattern.getEdges()) {
+                if (!pEdge.isStatic()) {
+                    if (joiner.join(pattern, new Edge(substitution[pattern.getNodeId(pEdge.source())], substitution[pattern.getNodeId(pEdge.target())]), pEdge.relation()).isEmpty()) {
+                        System.err.println("Substitution failed for " + pEdge);
+                    }
+                }
+            }
+        }
+    }*/
 
 }
