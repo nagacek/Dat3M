@@ -1,4 +1,4 @@
-package com.dat3m.dartagnan.solver.online;
+package com.dat3m.dartagnan.solver.caat4wmm.propagator;
 
 import com.dat3m.dartagnan.program.event.Event;
 import com.dat3m.dartagnan.solver.caat.domain.Domain;

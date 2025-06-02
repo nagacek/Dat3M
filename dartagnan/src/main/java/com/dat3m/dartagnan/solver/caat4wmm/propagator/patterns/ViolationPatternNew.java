@@ -1,4 +1,4 @@
-package com.dat3m.dartagnan.solver.online;
+package com.dat3m.dartagnan.solver.caat4wmm.propagator.patterns;
 
 import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.RelationGraph;
 import com.dat3m.dartagnan.wmm.Relation;
