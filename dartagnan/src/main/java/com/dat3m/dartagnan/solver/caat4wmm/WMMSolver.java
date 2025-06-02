@@ -72,7 +72,9 @@ public class WMMSolver {
         if (result.getStatus() == CAATSolver.Status.INCONSISTENT) {
             // ============== Compute Core reasons ==============
             curTime = System.currentTimeMillis();
-            extractor.extract(caatResult.getBaseReasons());
+            if (extractor != null) {
+                extractor.extract(caatResult.getBaseReasons());
+            }
             Set<Conjunction<CoreLiteral>> coreReasons = reasoner.toCoreReasons(caatResult.getBaseReasons());
             //System.out.println(caatResult.getBaseReasons());
             stats.numComputedCoreReasons = coreReasons.size();
