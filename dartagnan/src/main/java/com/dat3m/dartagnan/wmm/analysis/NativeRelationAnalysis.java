@@ -17,6 +17,7 @@ import com.dat3m.dartagnan.program.event.core.*;
 import com.dat3m.dartagnan.program.event.lang.svcomp.EndAtomic;
 import com.dat3m.dartagnan.program.filter.Filter;
 import com.dat3m.dartagnan.program.memory.VirtualMemoryObject;
+import com.dat3m.dartagnan.solver.caat4wmm.RefinementModel;
 import com.dat3m.dartagnan.utils.dependable.DependencyGraph;
 import com.dat3m.dartagnan.verification.Context;
 import com.dat3m.dartagnan.verification.VerificationTask;
@@ -62,6 +63,7 @@ public class NativeRelationAnalysis implements RelationAnalysis {
     protected final WmmAnalysis wmmAnalysis;
     protected final Map<Relation, MutableKnowledge> knowledgeMap = new HashMap<>();
     protected final MutableEventGraph mutex = new MapEventGraph();
+    protected final Configuration config;
 
     protected NativeRelationAnalysis(VerificationTask t, Context context, Configuration config) {
         task = checkNotNull(t);
@@ -70,6 +72,7 @@ public class NativeRelationAnalysis implements RelationAnalysis {
         definitions = context.requires(ReachingDefinitionsAnalysis.class);
         alias = context.requires(AliasAnalysis.class);
         wmmAnalysis = context.requires(WmmAnalysis.class);
+        this.config = config;
     }
 
     /**
@@ -99,6 +102,21 @@ public class NativeRelationAnalysis implements RelationAnalysis {
     public EventGraph getContradictions() {
         //TODO return undirected pairs
         return mutex;
+    }
+
+    @Override
+    public RelationAnalysis getCopy(Context c) {
+        NativeRelationAnalysis ra = new NativeRelationAnalysis(this.task, c, config);
+        ra.knowledgeMap.putAll(this.knowledgeMap);
+        return ra;
+    }
+
+    @Override
+    public void translateToBase(RefinementModel refinementModel) {
+        for (Relation originalRel : refinementModel.getOriginalModel().getRelations()) {
+            MutableKnowledge k = knowledgeMap.remove(originalRel);
+            knowledgeMap.put(refinementModel.translateToBase(originalRel), k);
+        }
     }
 
     @Override

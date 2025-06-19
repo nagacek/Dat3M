@@ -13,6 +13,7 @@ import com.dat3m.dartagnan.program.event.RegReader;
 import com.dat3m.dartagnan.program.event.Tag;
 import com.dat3m.dartagnan.program.event.core.*;
 import com.dat3m.dartagnan.program.filter.Filter;
+import com.dat3m.dartagnan.solver.caat4wmm.RefinementModel;
 import com.dat3m.dartagnan.verification.Context;
 import com.dat3m.dartagnan.verification.VerificationTask;
 import com.dat3m.dartagnan.wmm.Definition;
@@ -93,6 +94,14 @@ public class LazyRelationAnalysis extends NativeRelationAnalysis {
     public long countMustSet() {
         return lazyKnowledgeMap.values().stream().mapToLong(k -> k.getMustSet().size()).sum();
     }
+
+    @Override
+    public RelationAnalysis getCopy(Context c) {
+        return null;
+    }
+
+    @Override
+    public void translateToBase(RefinementModel refinementModel) { }
 
     private class LazyInitializer implements Definition.Visitor<RelationAnalysis.Knowledge> {
         private final Program program;

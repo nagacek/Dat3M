@@ -8,6 +8,7 @@ import com.dat3m.dartagnan.solver.caat.predicates.Derivable;
 import com.dat3m.dartagnan.solver.caat.predicates.misc.PredicateVisitor;
 import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.Edge;
 import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.RelationGraph;
+import com.dat3m.dartagnan.verification.model.EventData;
 import com.dat3m.dartagnan.wmm.Relation;
 import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import com.dat3m.dartagnan.wmm.utils.graph.EventGraph;
@@ -55,10 +56,12 @@ public class StaticRelationGraphWrapper implements RelationGraph {
         edges.clear();
         EventGraph g = ra.getKnowledge(relation).getMustSet();
         for (Event e : g.getDomain()) {
-            int idSource = domain.getId(e);
+            EventData eData = new EventData(e);
+            int idSource = domain.getId(eData);
             final Set<Integer> targets = edges.computeIfAbsent(idSource, k -> new HashSet<>());
             for (Event e2 : g.getOutMap().get(e)) {
-                int idTarget = domain.getId(e2);
+                EventData e2Data = new EventData(e2);
+                int idTarget = domain.getId(e2Data);
                 targets.add(idTarget);
             }
         }

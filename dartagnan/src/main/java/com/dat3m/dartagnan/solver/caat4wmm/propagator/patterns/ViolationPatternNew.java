@@ -1,6 +1,11 @@
 package com.dat3m.dartagnan.solver.caat4wmm.propagator.patterns;
 
+import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.Edge;
 import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.RelationGraph;
+import com.dat3m.dartagnan.solver.caat.reasoning.CAATLiteral;
+import com.dat3m.dartagnan.solver.caat.reasoning.EdgeLiteral;
+import com.dat3m.dartagnan.solver.propagator.PropagatorExecutionGraph;
+import com.dat3m.dartagnan.utils.logic.Conjunction;
 import com.dat3m.dartagnan.wmm.Relation;
 
 import java.util.*;
@@ -117,6 +122,23 @@ public class ViolationPatternNew {
             return !relationGraph.containsById(source, target);
         });
     }
+
+    // ------------------------------------------------------------------------------------------
+    // Substitution
+
+    public Conjunction<CAATLiteral> substituteWithMatch(Match match) {
+        List<CAATLiteral> substituted = new ArrayList<>();
+        for (Edge edge : edges) {
+            RelationGraph graph = edge.graph;
+            Node from = edge.from;
+            Node to = edge.to;
+            CAATLiteral lit = new EdgeLiteral(graph, new com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.Edge(match.atNode(from), match.atNode(to)), !edge.isNegated);
+            substituted.add(lit);
+        }
+        return new Conjunction<>(substituted);
+    }
+
+
 
     // ===============================================================================================
     // ================================ Internal classes =============================================

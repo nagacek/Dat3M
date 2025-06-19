@@ -6,7 +6,6 @@ import com.dat3m.dartagnan.encoding.EdgeInfo;
 import com.dat3m.dartagnan.encoding.EncodingContext;
 import com.dat3m.dartagnan.program.event.Event;
 import com.dat3m.dartagnan.solver.caat.domain.GenericDomain;
-import com.dat3m.dartagnan.solver.caat.misc.EdgeSet;
 import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.Edge;
 import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.base.SimpleGraph;
 import com.dat3m.dartagnan.solver.caat.reasoning.CAATLiteral;
@@ -16,7 +15,6 @@ import com.dat3m.dartagnan.solver.caat4wmm.RefinementModel;
 import com.dat3m.dartagnan.solver.caat4wmm.Refiner;
 import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.CoreLiteral;
 import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.CoreReasoner;
-import com.dat3m.dartagnan.solver.caat4wmm.propagator.patterns.Joiner;
 import com.dat3m.dartagnan.solver.caat4wmm.propagator.patterns.ViolationPattern;
 import com.dat3m.dartagnan.solver.caat4wmm.propagator.patterns.ViolationPatternNew;
 import com.dat3m.dartagnan.solver.propagator.PropagatorExecutionGraph;
@@ -48,9 +46,7 @@ public class AtomicityPropagator extends AbstractUserPropagator implements Extra
     }
     private final OPTIMIZATION optimization = OPTIMIZATION.STATIC;
 
-    private final RefinementModel refinementModel;
     private final EncodingContext encodingContext;
-    private final ExecutionGraph executionGraph;
     private final PropagatorExecutionGraph propExecutionGraph;
     private final Decoder decoder;
     private CoreReasoner reasoner;
@@ -66,11 +62,9 @@ public class AtomicityPropagator extends AbstractUserPropagator implements Extra
     private final Set<Relation> staticRelations = new HashSet<>();
     private final Set<Relation> trackedRelations = new HashSet<>();
     private final Set<Relation> allRelations = new HashSet<>();
-    private final Map<Relation, EdgeSet> staticEdges;
 
     private final ViolationPattern pattern;
     private final ViolationPatternNew patternNew;
-    private final Joiner joiner;
 
     // ----- stats -----
     private int patternCount = 0;
@@ -87,11 +81,9 @@ public class AtomicityPropagator extends AbstractUserPropagator implements Extra
     private final boolean debug = false;
 
     public AtomicityPropagator(RefinementModel refinementModel, EncodingContext encCtx, Context analysisContext, Refiner refiner, ExecutionModel model, ExecutionGraph executionGraph) {
-        this.refinementModel = refinementModel;
         this.encodingContext = encCtx;
         this.decoder = new Decoder(encCtx, refinementModel);
         this.refiner = refiner;
-        this.executionGraph = executionGraph;
 
         Collection<Event> events = encodingContext.getTask().getProgram().getThreadEvents();
         domain = new GenericDomain<>(events);
@@ -99,52 +91,45 @@ public class AtomicityPropagator extends AbstractUserPropagator implements Extra
         eventDomain.initializeToDomain(domain);
 
 
-        refinementModel.getOriginalModel().getRelations().stream()
+        refinementModel.getBaseModel().getRelations().stream()
                 .filter(r -> r.getNameOrTerm().equals("rf") || r.getNameOrTerm().equals("co") ||
                         r.getNameOrTerm().equals("rmw") || r.getNameOrTerm().equals("ext"))
                 .forEach(allRelations::add);
         RelationAnalysis ra = analysisContext.requires(RelationAnalysis.class);
         this.ra = ra;
         if (optimization.ordinal() >= OPTIMIZATION.STATIC.ordinal()) {
-            this.staticEdges = translateStaticEdges(ra);
+            findStaticRelations(ra);
         } else {
             trackedRelations.addAll(allRelations);
-            this.staticEdges = Collections.emptyMap();
         }
-        pattern = new ViolationPattern(trackedRelations, staticEdges.keySet());
-        this.propExecutionGraph = new PropagatorExecutionGraph(eventDomain, allRelations, executionGraph.getCutRelations());
+        pattern = new ViolationPattern(trackedRelations, staticRelations);
+        this.propExecutionGraph = new PropagatorExecutionGraph(eventDomain, trackedRelations, staticRelations, executionGraph.getCutRelations(), ra);
         this.reasoner = new CoreReasoner(analysisContext, propExecutionGraph);
-        joiner = new Joiner(propExecutionGraph, staticEdges);
+        //joiner = new Joiner(propExecutionGraph, staticEdges);
 
         // TEST
-        patternNew = generateAtomicityViolationPattern();
+        patternNew = generateAtomicityViolationPattern(refinementModel);
 
         // TODO: populate static graphs - perhaps listen for exec as well? => is now handled by onKnownValue
         // TODO: optional - precompute joins on them
         RelationAnalysis relAna = analysisContext.get(RelationAnalysis.class);
     }
 
-    private ViolationPatternNew generateAtomicityViolationPattern() {
+    private ViolationPatternNew generateAtomicityViolationPattern(RefinementModel refinementModel) {
         final ViolationPatternNew pattern = new ViolationPatternNew();
         final ViolationPatternNew.Node n0 = pattern.addNode();
         final ViolationPatternNew.Node n1 = pattern.addNode();
         final ViolationPatternNew.Node n2 = pattern.addNode();
         final ViolationPatternNew.Node n3 = pattern.addNode();
 
-        final Relation rmw = refinementModel.getOriginalModel().getRelation("rmw");
-        final Relation rf = refinementModel.getOriginalModel().getRelation("rf");
-        final Relation co = refinementModel.getOriginalModel().getRelation("co");
-        final Relation ext = refinementModel.getOriginalModel().getRelation("ext");
+        final Relation rmw = refinementModel.getBaseModel().getRelation("rmw");
+        final Relation rf = refinementModel.getBaseModel().getRelation("rf");
+        final Relation co = refinementModel.getBaseModel().getRelation("co");
+        final Relation ext = refinementModel.getBaseModel().getRelation("ext");
 
-        for (Relation rel : List.of(rf, co)) {
+        for (Relation rel : List.of(rf, co, rmw, ext)) {
             final var graph = propExecutionGraph.getRelationGraph(rel);
             pattern.addRelationGraph(rel, graph);
-        }
-
-        for  (Relation rel : List.of(rmw, ext)) {
-            final var graph = new StaticRelationGraphWrapper(rel, ra);
-            pattern.addRelationGraph(rel, graph);
-            graph.initializeToDomain(domain);
         }
 
         pattern.addEdge(rf, n0, n1, false);
@@ -158,19 +143,15 @@ public class AtomicityPropagator extends AbstractUserPropagator implements Extra
         return pattern;
     }
 
-    private Map<Relation, EdgeSet> translateStaticEdges(RelationAnalysis ra) {
-        Map<Relation, EdgeSet> staticEdges = new HashMap<>();
+    private void findStaticRelations(RelationAnalysis ra) {
         for (Relation rel : allRelations) {
             RelationAnalysis.Knowledge knowledge = ra.getKnowledge(rel);
             if (!knowledge.getMaySet().isEmpty() && knowledge.getMaySet().size() == knowledge.getMustSet().size()) {
-                EdgeSet edgeSet = EdgeSet.from(domain, knowledge.getMustSet());
-                staticEdges.put(rel, edgeSet);
                 staticRelations.add(rel);
             } else {
                 trackedRelations.add(rel);
             }
         }
-        return staticEdges;
     }
 
     @Override
@@ -192,7 +173,7 @@ public class AtomicityPropagator extends AbstractUserPropagator implements Extra
                         numRF++;
                     }
                     numRegistered++;*/
-                    decoder.registerEdge(refinementModel.translateToBase(rel), x, y);
+                    decoder.registerEdge(rel, x, y);
                 }
             }
         }
@@ -230,14 +211,13 @@ public class AtomicityPropagator extends AbstractUserPropagator implements Extra
     private Collection<Pair<Relation, Edge>> addToRelationGraphs(Decoder.Info info) {
         List<Pair<Relation, Edge>> newEdges = new ArrayList<>(info.edges().size());
         for (EdgeInfo edgeInfo : info.edges()) {
-            Relation originalRelation = refinementModel.translateToOriginal(edgeInfo.relation());
-            final SimpleGraph graph = (SimpleGraph)propExecutionGraph.getRelationGraph(originalRelation);
+            final SimpleGraph graph = (SimpleGraph)propExecutionGraph.getRelationGraph(edgeInfo.relation());
             if (graph != null) {
                 int id1 = domain.getId(edgeInfo.source());
                 int id2 = domain.getId(edgeInfo.target());
                 Edge edge = new Edge(id1, id2, backtrackPoints.size(), 0);
                 graph.add(edge);
-                newEdges.add(new Pair<>(originalRelation, edge));
+                newEdges.add(new Pair<>(edgeInfo.relation(), edge));
             }
         }
         return newEdges;
@@ -247,50 +227,45 @@ public class AtomicityPropagator extends AbstractUserPropagator implements Extra
         for (Pair<Relation, Edge> pair : edges) {
             if (trackedRelations.contains(pair.first)) {
                 long curTime = System.currentTimeMillis();
-                // OLD
-                //List<int[]> substitutions = joiner.join(pattern, pair.second, pair.first);
-                //  ==== NEW ====
                 final Edge edge = pair.second;
                 final Relation relation = pair.first;
                 final var joinCandidates = patternNew.findEdgesByRelation(relation);
                 final List<ViolationPatternNew.Match> matches = new ArrayList<>();
                 for (var candidate : joinCandidates) {
                     matches.addAll(patternNew.findMatches(candidate, edge.getFirst(), edge.getSecond()));
+                    attempts++;
                 }
-                List<int[]> substitutions = new ArrayList<>(matches.size());
-                for (var match : matches) {
-                    substitutions.add(match.toArray());
-                }
-                // ----
-                attempts++;
                 joinTime += System.currentTimeMillis() - curTime;
-                if (!substitutions.isEmpty()) {
-                    /*// TODO: check for match starting from edge co(3, 2) (there have not been any so far)
-                    // debug
+
+                Collection<Conjunction<CAATLiteral>> cubes = new ArrayList<>();
+                for (ViolationPatternNew.Match match : matches) {
+                    /*// debug
                         System.out.println("P: " + pair.first.getNameOrTerm() + pair.second + " found:");
                         for (var subs : substitutions) {
                             System.out.println("    " + Arrays.toString(subs));
                         }
                     // ^^^^^^*/
                     curTime = System.currentTimeMillis();
-                    DNF<CAATLiteral> baseReasons = pattern.applySubstitutions(substitutions, propExecutionGraph);
-                    if (functionality.ordinal() >= FUNCTIONALITY.CONFLICT.ordinal()) {
-                        Set<Conjunction<CoreLiteral>> coreReasons = reasoner.toCoreReasons(baseReasons, false);
-                        for (Conjunction<CoreLiteral> coreReason : coreReasons) {
-                            BooleanFormula[] conflict = refiner.encodeVariables(coreReason, encodingContext);
-                            if (isFirst) {
-                                getBackend().propagateConflict(conflict);
-                                //System.out.println(coreReason);
-                                //System.out.println(Arrays.toString(conflict));
-                                isFirst = false;
-                                patternCount++;
-                            } else {
-                                retentionConflicts.add(conflict);
-                            }
+                    Conjunction<CAATLiteral> baseReason = patternNew.substituteWithMatch(match);
+                    cubes.add(baseReason);
+                }
+                if (functionality.ordinal() >= FUNCTIONALITY.CONFLICT.ordinal()) {
+                    DNF<CAATLiteral> patternConflicts = new DNF<>(cubes);
+                    Set<Conjunction<CoreLiteral>> coreReasons = reasoner.toCoreReasons(patternConflicts, false);
+                    for (Conjunction<CoreLiteral> coreReason : coreReasons) {
+                        BooleanFormula[] conflict = refiner.encodeVariables(coreReason, encodingContext);
+                        if (isFirst) {
+                            getBackend().propagateConflict(conflict);
+                            //System.out.println(coreReason);
+                            //System.out.println(Arrays.toString(conflict));
+                            isFirst = false;
+                            patternCount++;
+                        } else {
+                            retentionConflicts.add(conflict);
                         }
                     }
-                    patternTime += System.currentTimeMillis() - curTime;
                 }
+                patternTime += System.currentTimeMillis() - curTime;
             }
         }
         //progressRetention();

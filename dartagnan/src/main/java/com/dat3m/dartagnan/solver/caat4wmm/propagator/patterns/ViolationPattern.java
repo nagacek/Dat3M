@@ -33,7 +33,7 @@ public class ViolationPattern {
         }
     }
 
-    record PatternEdge(Relation relation, PatternNode source, PatternNode target, boolean isStatic) {
+    public record PatternEdge(Relation relation, PatternNode source, PatternNode target, boolean isStatic) {
         PatternEdge(Relation relation, PatternNode source, PatternNode target) {
             this(relation, source, target, false);
         }

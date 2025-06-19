@@ -69,7 +69,10 @@ public class Refiner {
         } else if (literal instanceof AddressLiteral loc) {
             enc = encoder.sameAddress((MemoryCoreEvent) loc.getFirst(), (MemoryCoreEvent) loc.getSecond());
         } else if (literal instanceof RelLiteral lit) {
-            final Relation rel = refinementModel.translateToBase(lit.getRelation());
+            Relation rel = lit.getRelation();
+            if (!refinementModel.getBaseModel().getRelations().contains(lit.getRelation())) {
+                rel = refinementModel.translateToBase(lit.getRelation());
+            }
             enc = encoder.edge(rel, lit.getSource(), lit.getTarget());
         } else {
             throw new IllegalArgumentException("CoreLiteral " + literal + " is not supported");

@@ -5,7 +5,9 @@ import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.RelationGraph;
 import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.base.SimpleGraph;
 import com.dat3m.dartagnan.solver.caat4wmm.EventDomain;
 import com.dat3m.dartagnan.solver.caat4wmm.GeneralExecutionGraph;
+import com.dat3m.dartagnan.solver.caat4wmm.propagator.StaticRelationGraphWrapper;
 import com.dat3m.dartagnan.wmm.Relation;
+import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.Maps;
@@ -19,18 +21,27 @@ public class PropagatorExecutionGraph implements GeneralExecutionGraph {
     private final BiMap<Relation, RelationGraph> relationGraphMap;
     private final Set<Relation> cutRelations;
 
-    public PropagatorExecutionGraph(EventDomain domain, Collection<Relation> relations, Set<Relation> cutRelations) {
+    public PropagatorExecutionGraph(EventDomain domain, Collection<Relation> trackedRelations, Set<Relation> staticRelations, Set<Relation> cutRelations, RelationAnalysis ra) {
         this.domain = domain;
         this.relationGraphMap = HashBiMap.create();
         this.cutRelations = cutRelations;
 
-        initializeGraphs(relations);
+        initializeTracked(trackedRelations);
+        initializeStatic(staticRelations, ra);
     }
 
-    private void initializeGraphs(Collection<Relation> relations) {
+    private void initializeTracked(Collection<Relation> relations) {
         for (Relation rel : relations) {
             SimpleGraph graph = new SimpleGraph();
             graph.setName(rel.getNameOrTerm());
+            graph.initializeToDomain(domain);
+            relationGraphMap.put(rel, graph);
+        }
+    }
+
+    private void initializeStatic(Collection<Relation> relations, RelationAnalysis ra) {
+        for (Relation rel : relations) {
+            StaticRelationGraphWrapper graph = new StaticRelationGraphWrapper(rel, ra);
             graph.initializeToDomain(domain);
             relationGraphMap.put(rel, graph);
         }

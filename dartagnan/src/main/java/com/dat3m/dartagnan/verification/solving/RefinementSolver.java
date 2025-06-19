@@ -267,7 +267,7 @@ public class RefinementSolver extends ModelChecker {
         prover.writeComment("Property encoding");
         prover.addConstraint(propertyEncoder.encodeProperties(task.getProperty()));
 
-        AtomicityPropagator atomicitySolver = new AtomicityPropagator(refinementModel, context, analysisContext, refiner, solver.getExecution(), solver.getExecutionGraph());
+        AtomicityPropagator atomicitySolver = new AtomicityPropagator(refinementModel, context, translateToBase(analysisContext, refinementModel), refiner, solver.getExecution(), solver.getExecutionGraph());
         solver.injectExtractor(atomicitySolver);
         prover.registerUserPropagator(atomicitySolver);
 
@@ -358,6 +358,15 @@ public class RefinementSolver extends ModelChecker {
         // SAT=PASS
         res = propertyType == Property.Type.SAFETY ? res : res.invert();
         logger.info("Verification finished with result " + res);
+    }
+
+    private Context translateToBase(Context analysisContext, RefinementModel refinementModel) {
+        Context newContext = Context.createCopyFrom(analysisContext);
+        RelationAnalysis ra = analysisContext.get(RelationAnalysis.class).getCopy(newContext);
+        ra.translateToBase(refinementModel);
+        newContext.invalidate(RelationAnalysis.class);
+        newContext.register(RelationAnalysis.class, ra);
+        return newContext;
     }
 
     private void analyzeInconclusiveness(VerificationTask task, Context analysisContext, ExecutionModel model) {

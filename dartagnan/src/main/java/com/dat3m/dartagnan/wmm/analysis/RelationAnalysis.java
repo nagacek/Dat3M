@@ -4,11 +4,13 @@ import com.dat3m.dartagnan.configuration.RelationAnalysisMethod;
 import com.dat3m.dartagnan.program.analysis.ExecutionAnalysis;
 import com.dat3m.dartagnan.program.analysis.ReachingDefinitionsAnalysis;
 import com.dat3m.dartagnan.program.analysis.alias.AliasAnalysis;
+import com.dat3m.dartagnan.solver.caat4wmm.RefinementModel;
 import com.dat3m.dartagnan.utils.Utils;
 import com.dat3m.dartagnan.verification.Context;
 import com.dat3m.dartagnan.verification.VerificationTask;
 import com.dat3m.dartagnan.wmm.Relation;
 import com.dat3m.dartagnan.wmm.utils.graph.EventGraph;
+import com.google.common.base.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.sosy_lab.common.configuration.Configuration;
@@ -101,6 +103,8 @@ public interface RelationAnalysis {
         return a;
     }
 
+    void translateToBase(RefinementModel refinementModel);
+
     @Options
     final class Config {
         @Option(name = RELATION_ANALYSIS,
@@ -173,6 +177,8 @@ public interface RelationAnalysis {
     long countMustSet();
 
     void populateQueue(Map<Relation, List<EventGraph>> queue, Set<Relation> relations);
+
+    RelationAnalysis getCopy(Context c);
 
     class Knowledge {
         protected final EventGraph may;
