@@ -115,7 +115,10 @@ public class NativeRelationAnalysis implements RelationAnalysis {
     public void translateToBase(RefinementModel refinementModel) {
         for (Relation originalRel : refinementModel.getOriginalModel().getRelations()) {
             MutableKnowledge k = knowledgeMap.remove(originalRel);
-            knowledgeMap.put(refinementModel.translateToBase(originalRel), k);
+            Relation baseRel = refinementModel.translateToBase(originalRel);
+            if (baseRel != null) {
+                knowledgeMap.put(baseRel, k);
+            }
         }
     }
 

@@ -1,207 +1,273 @@
 package com.dat3m.dartagnan.solver.caat4wmm.propagator.patterns;
 
-import com.dat3m.dartagnan.solver.caat.misc.EdgeDirection;
-import com.dat3m.dartagnan.solver.caat.misc.EdgeSet;
-import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.Edge;
 import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.RelationGraph;
 import com.dat3m.dartagnan.solver.caat.reasoning.CAATLiteral;
 import com.dat3m.dartagnan.solver.caat.reasoning.EdgeLiteral;
-import com.dat3m.dartagnan.solver.caat4wmm.ExecutionGraph;
-import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.RelLiteral;
-import com.dat3m.dartagnan.solver.propagator.PropagatorExecutionGraph;
 import com.dat3m.dartagnan.utils.logic.Conjunction;
-import com.dat3m.dartagnan.utils.logic.DNF;
 import com.dat3m.dartagnan.wmm.Relation;
-import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 
 import java.util.*;
-import java.util.stream.Stream;
+import java.util.stream.Collectors;
 
 public class ViolationPattern {
+    
+    final Map<Relation, RelationGraph> rel2Graph = new HashMap<>();
+    final List<Node> nodes = new ArrayList<>();
+    final List<Edge> edges = new ArrayList<>();
 
-    public class PatternNode {
-        private int nodeId;
+    // ------------------------------------------------------------------------------------------
+    // Construction
 
-        public PatternNode() {
-            this(ViolationPattern.nodeId++);
-        }
-        private PatternNode(int nodeId) {
-            this.nodeId = nodeId;
-        }
-        public String toString() {
-            return "" + nodeId;
-        }
+    public Node addNode() {
+        final Node node = new Node(nodes.size());
+        nodes.add(node);
+        return node;
     }
 
-    public record PatternEdge(Relation relation, PatternNode source, PatternNode target, boolean isStatic) {
-        PatternEdge(Relation relation, PatternNode source, PatternNode target) {
-            this(relation, source, target, false);
-        }
-
-        public PatternNode get(PatternNode from, EdgeDirection dir) {
-            return dir == EdgeDirection.INGOING ? source : target;
-        }
+    public Edge addEdge(Relation relation, Node from, Node to, boolean isStatic) {
+        final RelationGraph graph = rel2Graph.get(relation);
+        assert graph != null;
+        final Edge edge = new Edge(relation, graph, from, to, false, isStatic);
+        this.edges.add(edge);
+        return edge;
     }
 
-    private final List<PatternNode> nodes;
-    private final Map<PatternNode, Integer> nodeMap = new HashMap<>();
-    private final Map<PatternNode, Collection<PatternEdge>> outgoingEdges;
-    private final Map<PatternNode, Collection<PatternEdge>> ingoingEdges;
-    private final Map<Relation, Collection<PatternEdge>> relationEdges;
-
-    // TODO: Handling of negative edges
-    private final Set<PatternEdge> negative = new HashSet<>();
-
-    protected static int nodeId = 0;
-
-    //private Map<Relation, Collection<Collection<PatternEdge>>> patternEdges;
-
-    List<Joiner.JoinQuery> joinPlan = null;
-
-    // TODO: Support for uncovered static edges
-    // So far, only atomicity violations are supported
-    public ViolationPattern(Set<Relation> trackedRelations, Set<Relation> staticRelations) {
-        List<PatternNode> nodeList = new ArrayList<>();
-        outgoingEdges = new HashMap<>();
-        ingoingEdges = new HashMap<>();
-        relationEdges = new HashMap<>();
-        //patternEdges = new HashMap<>();
-
-        for (int i = 0; i <= 3; i++) {
-            PatternNode n = new PatternNode();
-            nodeList.add(n);
-            nodeMap.put(n, i);
+    public Edge addEdge(Relation relation, Node from, Node to, boolean isStatic, boolean isNegated) {
+        final RelationGraph graph = rel2Graph.get(relation);
+        if (graph == null) {
+            int i = 5;
         }
-
-        /*          Pattern for atomicity
-        * Tracked edges:  rf(0, 1)   co(0, 3)   co(3, 2)
-        * Static edges:   rmw(1, 2)  ext(1, 3)  ext(3, 2)
-        * */
-
-        List<PatternEdge> edges = new ArrayList<>();
-        for (Relation rel : trackedRelations) {
-            handleManualPattern(edges, rel, staticRelations, nodeList);
-        }
-
-        for (Relation rel : staticRelations) {
-            handleManualPattern(edges, rel, staticRelations, nodeList);
-        }
-
-        for (PatternEdge edge : edges) {
-            outgoingEdges.computeIfAbsent(edge.source, k -> new ArrayList<>()).add(edge);
-            ingoingEdges.computeIfAbsent(edge.target, k -> new ArrayList<>()).add(edge);
-        }
-
-        nodes = nodeList;
+        assert graph != null;
+        final Edge edge = new Edge(relation, graph, from, to, isNegated, isStatic);
+        this.edges.add(edge);
+        return edge;
     }
 
-    private void handleManualPattern(List<PatternEdge> edges, Relation rel, Set<Relation> staticRelations, List<PatternNode> nodeList) {
-        boolean isStatic = staticRelations.contains(rel);
-        PatternEdge newEdge;
-
-        if (rel.getNameOrTerm().equals("rf")) {
-            edges.add(newEdge = new PatternEdge(rel, nodeList.get(0), nodeList.get(1)));
-            relationEdges.computeIfAbsent(rel, k -> new ArrayList<>()).add(newEdge);
-        }
-
-        if (rel.getNameOrTerm().equals("co")) {
-            edges.add(newEdge = new PatternEdge(rel, nodeList.get(0), nodeList.get(3)));
-            relationEdges.computeIfAbsent(rel, k -> new ArrayList<>()).add(newEdge);
-            edges.add(newEdge = new PatternEdge(rel, nodeList.get(3), nodeList.get(2)));
-            relationEdges.computeIfAbsent(rel, k -> new ArrayList<>()).add(newEdge);
-        }
-
-        if (rel.getNameOrTerm().equals("rmw")) {
-            edges.add(newEdge = new PatternEdge(rel, nodeList.get(1), nodeList.get(2), isStatic));
-            relationEdges.computeIfAbsent(rel, k -> new ArrayList<>()).add(newEdge);
-        }
-
-        if (rel.getNameOrTerm().equals("ext")) {
-            edges.add(newEdge = new PatternEdge(rel, nodeList.get(1), nodeList.get(3), isStatic));
-            relationEdges.computeIfAbsent(rel, k -> new ArrayList<>()).add(newEdge);
-            edges.add(newEdge = new PatternEdge(rel, nodeList.get(3), nodeList.get(2), isStatic));
-            relationEdges.computeIfAbsent(rel, k -> new ArrayList<>()).add(newEdge);
-        }
+    public void addRelationGraph(Relation rel, RelationGraph graph) {
+        rel2Graph.putIfAbsent(rel, graph);
     }
 
-    public DNF<CAATLiteral> applySubstitutions(List<int[]> substitutions, PropagatorExecutionGraph executionGraph) {
-        List<Conjunction<CAATLiteral>> cubes = new ArrayList<>();
-        for (int[] substitution : substitutions) {
-            cubes.add(applySubstitution(substitution, executionGraph));
-        }
-        return new DNF<>(cubes);
-    }
+    // ------------------------------------------------------------------------------------------
+    // Matching
 
-    private Conjunction<CAATLiteral> applySubstitution(int[] substitution, PropagatorExecutionGraph executionGraph) {
-        List<CAATLiteral> substituted = new ArrayList<>();
-        for (Relation rel : relationEdges.keySet()) {
-            RelationGraph graph = executionGraph.getRelationGraph(rel);
-            for (PatternEdge edge : relationEdges.get(rel)) {
-                int sourceId = getNodeId(edge.source());
-                int targetId = getNodeId(edge.target());
-                CAATLiteral lit = new EdgeLiteral(graph, new Edge(substitution[sourceId], substitution[targetId]), !negative.contains(edge));
-                substituted.add(lit);
+    public List<Edge> findEdgesByRelation(Relation relation) {
+        List<Edge> matches = new ArrayList<>();
+        for (Edge edge : edges) {
+            if (edge.relation == relation) {
+                matches.add(edge);
             }
+        }
+        return matches;
+    }
+
+    public List<Match> findMatches(Edge edge, int from, int to) {
+        final NodeSet visited = new NodeSet();
+        visited.add(edge.from);
+        visited.add(edge.to);
+
+        final Match firstMatch = new Match(this);
+        firstMatch.setMatch(edge.from, from);
+        firstMatch.setMatch(edge.to, to);
+
+        List<Match> curMatches = new ArrayList<>();
+        curMatches.add(firstMatch);
+
+        final EdgeQueue queue = new EdgeQueue(this);
+        queue.remove(edge);
+
+        Edge nextEdgeToJoin;
+        while ((nextEdgeToJoin = queue.pop(visited)) != null) {
+            final boolean joinAtSource = visited.add(nextEdgeToJoin.to);
+            final boolean joinAtTarget = visited.add(nextEdgeToJoin.from);
+            final boolean doPrune = !(joinAtSource || joinAtTarget);
+
+            if (doPrune) {
+                prune(curMatches, nextEdgeToJoin);
+            } else {
+                final Node matchedNode = joinAtSource ? nextEdgeToJoin.from : nextEdgeToJoin.to;
+                final Node unmatchedNode = joinAtSource ? nextEdgeToJoin.to : nextEdgeToJoin.from;
+                List<Match> nextMatches = new ArrayList<>();
+                for (Match match : curMatches) {
+                    final List<Integer> joinedNodeIds = joinAlong(match, matchedNode, nextEdgeToJoin);
+                    for (Integer nodeId : joinedNodeIds) {
+                        nextMatches.add(match.with(unmatchedNode, nodeId));
+                    }
+                }
+                curMatches = nextMatches;
+            }
+
+            if (curMatches.isEmpty()) {
+                return curMatches;
+            }
+        }
+
+
+        return curMatches;
+    }
+
+    private List<Integer> joinAlong(Match partialMatch, Node node, Edge edge) {
+        final boolean outgoing = edge.from == node;
+        final Node target = outgoing ? edge.to : edge.from;
+        final int nodeMatch = partialMatch.atNode(node);
+
+        assert nodeMatch != -1;
+        assert partialMatch.atNode(target) == -1;
+
+        final RelationGraph relationGraph = edge.graph;
+        final var edges = outgoing ? relationGraph.outEdges(nodeMatch) : relationGraph.inEdges(nodeMatch);
+        final List<Integer> matches = new ArrayList<>();
+        for (var e : edges) {
+            matches.add(outgoing ? e.getSecond() : e.getFirst());
+        }
+
+        return matches;
+    }
+
+    private void prune(List<Match> matches, Edge edge) {
+        final RelationGraph relationGraph = edge.graph;
+        matches.removeIf(m -> {
+            final int source = m.atNode(edge.from);
+            final int target = m.atNode(edge.to);
+            return !relationGraph.containsById(source, target);
+        });
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Substitution
+
+    public Conjunction<CAATLiteral> substituteWithMatch(Match match) {
+        List<CAATLiteral> substituted = new ArrayList<>();
+        for (Edge edge : edges) {
+            RelationGraph graph = edge.graph;
+            Node from = edge.from;
+            Node to = edge.to;
+            CAATLiteral lit = new EdgeLiteral(graph, new com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.Edge(match.atNode(from), match.atNode(to)), !edge.isNegated);
+            substituted.add(lit);
         }
         return new Conjunction<>(substituted);
     }
 
+    // ------------------------------------------------------------------------------------------
+    // Validation
 
-    public Collection<PatternEdge> getSuccessors(PatternNode node) {
-        return outgoingEdges.getOrDefault(node, Collections.emptyList());
-    }
-
-    public Collection<PatternEdge> getPredecessors(PatternNode node) {
-        return ingoingEdges.getOrDefault(node, Collections.emptyList());
-    }
-
-    public Collection<PatternEdge> getEdges() {
-        List<PatternEdge> edges = new ArrayList<>();
-        for (var entry : relationEdges.entrySet()) {
-            edges.addAll(entry.getValue());
-        }
-        return edges;
-    }
-
-    public Collection<PatternEdge> getEdges(Relation rel) {
-        return relationEdges.get(rel);
-    }
-
-    public Collection<PatternEdge> getEdges(PatternNode node, EdgeDirection dir) {
-        if (dir == EdgeDirection.INGOING) {
-            return ingoingEdges.getOrDefault(node, Collections.emptyList());
-        } else if (dir == EdgeDirection.OUTGOING) {
-            return outgoingEdges.getOrDefault(node, Collections.emptyList());
-        } else {
-            return Collections.emptyList();
-        }
-    }
-
-    public int getNodeId(PatternNode n) {
-        return nodeMap.getOrDefault(n, -1);
-    }
-
-    /*Stream<Joiner.JoinQuery> getJoinPlan() {
-        if (joinPlan == null) {
-            nodes.sort((n1, n2) -> (ingoingEdges.get(n2).size() + outgoingEdges.get(n2).size()) -
-                    (ingoingEdges.get(n1).size() + ingoingEdges.get(n1).size()));
-
-            joinPlan = new ArrayList<>();
-            for (PatternNode node : nodes) {
-                List<Joiner.JoinRelation> joinRelations = new ArrayList<>();
-                for (PatternEdge edge : outgoingEdges.get(node)) {
-                    joinRelations.add(new Joiner.JoinRelation(edge.relation(), Joiner.Argument.FIRST));
-                }
-                for (PatternEdge edge : ingoingEdges.get(node)) {
-                    joinRelations.add(new Joiner.JoinRelation(edge.relation(), Joiner.Argument.SECOND));
-                }
-                joinPlan.add(new Joiner.JoinQuery(joinRelations, node));
+    public boolean validateStaticCoverage() {
+        Set<Node> covered = new HashSet<>();
+        covered.addAll(nodes);
+        for (Edge edge : edges) {
+            if (!edge.isStatic) {
+                covered.remove(edge.from);
+                covered.remove(edge.to);
             }
         }
+        return covered.isEmpty();
+    }
 
-        return joinPlan.stream();
-    }*/
 
-    public List<PatternNode> getNodes() { return nodes; }
 
+    // ===============================================================================================
+    // ================================ Internal classes =============================================
+    // ===============================================================================================
+
+    private static class NodeSet {
+        private int nodeSet = 0;
+
+        private static int toIndex(Node node) {
+            return 1 << node.id;
+        }
+
+        public boolean contains(Node node) {
+            return (nodeSet & toIndex(node)) != 0;
+        }
+
+        public boolean add(Node node) {
+            final int old = nodeSet;
+            nodeSet |= toIndex(node);
+            return old != nodeSet;
+        }
+    }
+
+    private static class EdgeQueue {
+        private final List<Edge> unmatchedEdges;
+
+        public EdgeQueue(ViolationPattern pattern) {
+            unmatchedEdges = new ArrayList<>(pattern.edges);
+        }
+
+        public void remove(Edge edge) {
+            unmatchedEdges.remove(edge);
+        }
+
+        public Edge pop(NodeSet visited) {
+            if (unmatchedEdges.isEmpty()) {
+                return null;
+            }
+
+            Edge candidate = null;
+            for (Edge e : unmatchedEdges) {
+                final boolean fromVisited = visited.contains(e.from);
+                final boolean toVisited = visited.contains(e.to);
+                if (fromVisited && toVisited) {
+                    candidate = e;
+                    break;
+                } else if (candidate == null && !e.isStatic && (fromVisited || toVisited)) {
+                    candidate = e;
+                }
+            }
+
+            assert candidate != null;
+            remove(candidate);
+            return candidate;
+        }
+    }
+
+    public record Node(int id) {
+        @Override
+        public String toString() { return "n#" + id; }
+
+        @Override
+        public boolean equals(Object obj) { return this == obj; }
+    }
+
+    public record Edge(Relation relation, RelationGraph graph, Node from, Node to, boolean isNegated, boolean isStatic) {
+        @Override
+        public String toString() {
+            return String.format("%s-%s->%s", from, relation.getNameOrTerm(), to);
+        }
+        @Override
+        public boolean equals(Object obj) { return this == obj; }
+    }
+
+    public static class Match {
+        private final ViolationPattern pattern;
+        private final int[] nodeId2EventId;
+
+        public int atNode(Node node) { return nodeId2EventId[node.id]; }
+        private void setMatch(Node node, int id) { nodeId2EventId[node.id] = id; }
+
+        private Match(ViolationPattern pattern, int[] mapping) {
+            this.pattern = pattern;
+            this.nodeId2EventId = mapping;
+        }
+
+        public Match(ViolationPattern pattern) {
+            this(pattern, new int[pattern.nodes.size()]);
+            Arrays.fill(nodeId2EventId, -1);
+        }
+
+        public Match with(Node node, int match) {
+            assert atNode(node) == -1;
+            int[] updatedMatching = Arrays.copyOf(this.nodeId2EventId, this.nodeId2EventId.length);
+            updatedMatching[node.id] = match;
+            return new Match(pattern, updatedMatching);
+        }
+
+        public int[] toArray() { return nodeId2EventId; }
+
+        @Override
+        public String toString() {
+            return pattern.nodes.stream().map(n -> n + "->" + atNode(n)).collect(Collectors.joining(
+                    ", ", "[ ", " ]"
+            ));
+        }
+    }
 }

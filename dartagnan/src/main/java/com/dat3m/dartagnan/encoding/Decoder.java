@@ -43,10 +43,12 @@ public class Decoder {
     }
 
     // requires the provided edge to be contained in the relation's may set
-    public void registerEdge(Relation rel, Event x, Event y) {
+    public BooleanFormula registerEdge(Relation rel, Event x, Event y) {
         final BooleanFormula edgeLiteral = ctx.edge(rel, x, y);
+        final BooleanFormula returnFormula = formula2Info.containsKey(edgeLiteral) ? null : edgeLiteral;
         final Info info = formula2Info.computeIfAbsent(edgeLiteral, key -> new Info());
         info.add(rel, x, y);
+        return returnFormula;
     }
 
     public void extractInfo() {

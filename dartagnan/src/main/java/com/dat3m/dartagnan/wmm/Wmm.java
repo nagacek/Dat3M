@@ -40,7 +40,7 @@ public class Wmm {
     // TODO: Ext is a bit hacky here
     // These relations are part of every memory model (even the "empty" one) because they are
     // necessary to specify the anarchic program semantics.
-    public final static ImmutableSet<String> ANARCHIC_CORE_RELATIONS = ImmutableSet.of(CO, RF, RMW, EXT);
+    public final static ImmutableSet<String> ANARCHIC_CORE_RELATIONS = ImmutableSet.of(CO, RF, RMW, EXT, PO);
 
     private final List<Constraint> constraints = new ArrayList<>(); // NOTE: Stores only non-defining constraints
     private final Set<Relation> relations = new HashSet<>();

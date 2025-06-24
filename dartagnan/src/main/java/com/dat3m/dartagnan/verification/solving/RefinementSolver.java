@@ -23,7 +23,8 @@ import com.dat3m.dartagnan.solver.caat4wmm.Refiner;
 import com.dat3m.dartagnan.solver.caat4wmm.WMMSolver;
 import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.CoreLiteral;
 import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.RelLiteral;
-import com.dat3m.dartagnan.solver.caat4wmm.propagator.AtomicityPropagator;
+import com.dat3m.dartagnan.solver.caat4wmm.propagator.PatternPropagator;
+import com.dat3m.dartagnan.solver.caat4wmm.propagator.patterns.Extractor;
 import com.dat3m.dartagnan.utils.equivalence.EquivalenceClass;
 import com.dat3m.dartagnan.utils.logic.Conjunction;
 import com.dat3m.dartagnan.utils.logic.DNF;
@@ -267,9 +268,14 @@ public class RefinementSolver extends ModelChecker {
         prover.writeComment("Property encoding");
         prover.addConstraint(propertyEncoder.encodeProperties(task.getProperty()));
 
-        AtomicityPropagator atomicitySolver = new AtomicityPropagator(refinementModel, context, translateToBase(analysisContext, refinementModel), refiner, solver.getExecution(), solver.getExecutionGraph());
-        solver.injectExtractor(atomicitySolver);
-        prover.registerUserPropagator(atomicitySolver);
+        Set<Relation> baseRelations = refinementModel.computeBoundaryRelations().stream().filter(rel -> !(rel.getNameOrTerm().contains("ctrl") || rel.getNameOrTerm().contains("addr") || rel.getNameOrTerm().contains("data"))).collect(Collectors.toSet());
+        PatternPropagator patternSolver = new PatternPropagator(new Decoder(context, refinementModel), context, translateToBase(analysisContext, refinementModel), refiner, solver.getExecution(), solver.getExecutionGraph(), baseRelations);
+        solver.injectExtractor(new Extractor(patternSolver, patternSolver.getPropagatorExecutionGraph(), solver.getExecutionGraph(), refinementModel, patternSolver.getStaticRelations()));
+        prover.registerUserPropagator(patternSolver);
+
+        //AtomicityPropagator atomicitySolver = new AtomicityPropagator(refinementModel, context, translateToBase(analysisContext, refinementModel), refiner, solver.getExecution(), solver.getExecutionGraph());
+        //solver.injectExtractor(atomicitySolver);
+        //prover.registerUserPropagator(atomicitySolver);
 
         final RefinementTrace propertyTrace = runRefinement(task, prover, solver, refiner);
         SMTStatus smtStatus = propertyTrace.getFinalResult();
@@ -328,7 +334,8 @@ public class RefinementSolver extends ModelChecker {
 
         // -------------------------- Report statistics summary --------------------------
 
-        System.out.println(atomicitySolver.printStats());
+        //System.out.println(atomicitySolver.printStats());
+        System.out.println(patternSolver.printStats());
 
         if (logger.isInfoEnabled()) {
             logger.info(generateSummary(combinedTrace, boundCheckTime));

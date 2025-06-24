@@ -6,7 +6,7 @@ import com.dat3m.dartagnan.smt.ModelExt;
 import com.dat3m.dartagnan.solver.caat.CAATSolver;
 import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.CoreLiteral;
 import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.CoreReasoner;
-import com.dat3m.dartagnan.solver.caat4wmm.propagator.Extractor;
+import com.dat3m.dartagnan.solver.caat4wmm.propagator.patterns.Extractor;
 import com.dat3m.dartagnan.utils.logic.Conjunction;
 import com.dat3m.dartagnan.utils.logic.DNF;
 import com.dat3m.dartagnan.verification.Context;
@@ -70,11 +70,11 @@ public class WMMSolver {
         stats.modelSize = executionGraph.getDomain().size();
 
         if (result.getStatus() == CAATSolver.Status.INCONSISTENT) {
-            // ============== Compute Core reasons ==============
-            curTime = System.currentTimeMillis();
             if (extractor != null) {
                 extractor.extract(caatResult.getBaseReasons());
             }
+            // ============== Compute Core reasons ==============
+            curTime = System.currentTimeMillis();
             Set<Conjunction<CoreLiteral>> coreReasons = reasoner.toCoreReasons(caatResult.getBaseReasons());
             //System.out.println(caatResult.getBaseReasons());
             stats.numComputedCoreReasons = coreReasons.size();
