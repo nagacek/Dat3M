@@ -1,10 +1,13 @@
 package com.dat3m.dartagnan.solver.caat4wmm.propagator.patterns;
 
+import com.dat3m.dartagnan.solver.caat.predicates.sets.SetPredicate;
 import com.dat3m.dartagnan.solver.caat.reasoning.CAATLiteral;
 import com.dat3m.dartagnan.solver.caat.reasoning.EdgeLiteral;
+import com.dat3m.dartagnan.solver.caat.reasoning.ElementLiteral;
 import com.dat3m.dartagnan.solver.caat4wmm.ExecutionGraph;
 import com.dat3m.dartagnan.solver.caat4wmm.GeneralExecutionGraph;
 import com.dat3m.dartagnan.solver.caat4wmm.RefinementModel;
+import com.dat3m.dartagnan.solver.caat4wmm.basePredicates.StaticWMMSet;
 import com.dat3m.dartagnan.solver.caat4wmm.propagator.PatternPropagator;
 import com.dat3m.dartagnan.utils.logic.Conjunction;
 import com.dat3m.dartagnan.utils.logic.DNF;
@@ -14,9 +17,10 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 public class Extractor {
-    private final boolean coveredStaticOptimization = true;
-    private final boolean allowNegation = false;
-    private final int maxNodeNumber = 3;
+    private final boolean coveredStaticOptimization = false;
+    private final boolean locationApproximation = false;
+    private final boolean allowNegation = true;
+    private final int maxNodeNumber = 5;
 
     private final PatternPropagator propagator;
     private final GeneralExecutionGraph patternExecutionGraph;
@@ -44,18 +48,11 @@ public class Extractor {
                 if (lit instanceof EdgeLiteral edgeLit) {
                     Relation rel = caatExecutionGraph.getRelationGraphMap().inverse().get(edgeLit.getPredicate());
                     Relation baseRel = refinementModel.translateToBase(rel);
-                    ViolationPattern.Node from = patternNodes.get(edgeLit.getData().getFirst());
-                    ViolationPattern.Node to = patternNodes.get(edgeLit.getData().getSecond());
 
-                    if (from == null) {
-                        patternNodes.put(edgeLit.getData().getFirst(), pattern.addNode());
-                        from = patternNodes.get(edgeLit.getData().getFirst());
-                    }
-                    if (to == null) {
-                        patternNodes.put(edgeLit.getData().getSecond(), pattern.addNode());
-                        to = patternNodes.get(edgeLit.getData().getSecond());
-                    }
+                    ViolationPattern.Node from = initAndGet(patternNodes, edgeLit.getData().getFirst(), pattern);
+                    ViolationPattern.Node to = initAndGet(patternNodes, edgeLit.getData().getSecond(), pattern);
 
+                    // additional compatibility checks
                     boolean isNegative = lit.isNegative();
                     if (!allowNegation && isNegative) {
                         rollback(violationPatterns, currentUsedRelations);
@@ -74,26 +71,71 @@ public class Extractor {
                         rollback(violationPatterns, currentUsedRelations);
                         break;
                     }
+                    // -----------------------
+
                     pattern.addRelationGraph(baseRel, patternExecutionGraph.getRelationGraph(baseRel));
                     pattern.addEdge(baseRel, from, to, isStatic, isNegative);
                 }
+
                 if (patternNodes.size() > maxNodeNumber) {
                     rollback(violationPatterns, currentUsedRelations);
                     break;
+                }
+                // under-approximates the location relation by omitting the edge from a pattern if
+                // (i) both events are writes (then they have to be coherence ordered)
+                // (ii) the events are also connected by an fr-edge (by definition, they have to refer to the same location)
+                // otherwise, the pattern is not used
+                if (locationApproximation) {
+                    if (!approximateLocationEdges(pattern)) {
+                        rollback(violationPatterns, currentUsedRelations);
+                        break;
+                    }
+                } else { // do not allow location edges in settings where the relation is not cut from the mm
+                    boolean locCut = patternExecutionGraph.getCutRelations().stream().anyMatch(rel -> rel.getNameOrTerm().contains("loc"));
+                    boolean containsLoc = pattern.rel2Graph.keySet().stream().anyMatch(rel -> rel.getNameOrTerm().contains("loc"));
+                    if (!locCut && containsLoc) {
+                        rollback(violationPatterns, currentUsedRelations);
+                        break;
+                    }
                 }
             }
             usedRelations.addAll(currentUsedRelations);
         }
         if (!violationPatterns.isEmpty()) {
             if (coveredStaticOptimization) {
-                violationPatterns = violationPatterns.stream().filter(ViolationPattern::validateStaticCoverage).collect(Collectors.toList());
+                violationPatterns = violationPatterns.stream().filter(ViolationPattern::newValidateStaticCoverage).collect(Collectors.toList());
             }
             propagator.addPatterns(violationPatterns, usedRelations);
         }
     }
 
+    private ViolationPattern.Node initAndGet(Map<Integer, ViolationPattern.Node> patternNodes, int eventId, ViolationPattern pattern) {
+        if (!patternNodes.containsKey(eventId)) {
+            patternNodes.put(eventId, pattern.addNode());
+        }
+        return patternNodes.get(eventId);
+    }
+
     private void rollback(List<ViolationPattern> violationPatterns, Set<Relation> usedRelations) {
         violationPatterns.remove(violationPatterns.size() - 1);
         usedRelations.clear();
+    }
+
+    private boolean approximateLocationEdges(ViolationPattern pattern) {
+        Relation locRel = patternExecutionGraph.getRelationGraphMap().keySet().stream().filter(rel -> rel.getNameOrTerm().contains("loc")).findAny().orElse(null);
+        if (locRel == null) {
+            return true;
+        }
+
+        List<ViolationPattern.Edge> locEdges = pattern.findEdgesByRelation(locRel);
+        if (locEdges.isEmpty()) {
+            return true;
+        }
+
+        // TODO: is that even useful?
+        for (ViolationPattern.Edge edge : locEdges) {
+
+        }
+        return true;
     }
 }

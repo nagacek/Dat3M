@@ -54,7 +54,7 @@ public class ProgramEncoder implements Encoder {
     @Option(name = INITIALIZE_REGISTERS,
             description = "Assume thread-local variables start off containing zero.",
             secure = true)
-    private boolean initializeRegisters = false;
+    private boolean initializeRegisters = true;
 
     @Option(name = IGNORE_FILTER_SPECIFICATION,
             description = "Ignore final states filter",

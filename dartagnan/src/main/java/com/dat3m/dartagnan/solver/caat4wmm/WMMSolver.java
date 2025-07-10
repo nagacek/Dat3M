@@ -71,7 +71,10 @@ public class WMMSolver {
 
         if (result.getStatus() == CAATSolver.Status.INCONSISTENT) {
             if (extractor != null) {
-                extractor.extract(caatResult.getBaseReasons());
+                curTime = System.currentTimeMillis();
+                //extractor.extract(caatResult.getBaseReasons());
+                extractor.extract(solver.getHbResult().getBaseReasons());
+                stats.patternExtractionTime = System.currentTimeMillis() - curTime;
             }
             // ============== Compute Core reasons ==============
             curTime = System.currentTimeMillis();
@@ -124,11 +127,13 @@ public class WMMSolver {
         CAATSolver.Statistics caatStats;
         long modelExtractionTime;
         long coreReasonComputationTime;
+        long patternExtractionTime;
         int modelSize;
         int numComputedCoreReasons;
         int numComputedReducedCoreReasons;
 
         public long getModelExtractionTime() { return modelExtractionTime; }
+        public long getPatternExtractionTime() { return patternExtractionTime; }
         public long getPopulationTime() { return caatStats.getPopulationTime(); }
         public long getBaseReasonComputationTime() { return caatStats.getReasonComputationTime(); }
         public long getCoreReasonComputationTime() { return coreReasonComputationTime; }

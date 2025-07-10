@@ -1,6 +1,7 @@
 package com.dat3m.dartagnan.solver.caat;
 
 
+import com.dat3m.dartagnan.solver.caat.constraints.AcyclicityConstraint;
 import com.dat3m.dartagnan.solver.caat.constraints.Constraint;
 import com.dat3m.dartagnan.solver.caat.misc.PathAlgorithm;
 import com.dat3m.dartagnan.solver.caat.reasoning.CAATLiteral;
@@ -9,7 +10,9 @@ import com.dat3m.dartagnan.utils.logic.Conjunction;
 import com.dat3m.dartagnan.utils.logic.DNF;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static com.dat3m.dartagnan.solver.caat.CAATSolver.Status.CONSISTENT;
 import static com.dat3m.dartagnan.solver.caat.CAATSolver.Status.INCONSISTENT;
@@ -23,6 +26,8 @@ public class CAATSolver {
 
     // The statistics of the last call
     private Statistics stats;
+
+    private Set<Conjunction<CAATLiteral>> hbReasons = new HashSet<>();
 
     // ======================================== Construction ==============================================
 
@@ -39,6 +44,12 @@ public class CAATSolver {
     public Reasoner getReasoner() { return reasoner; }
 
     public Statistics getStatistics() { return stats; }
+
+    public Result getHbResult() {
+        Result hbResult = new Result();
+        hbResult.baseReasons = new DNF<>(hbReasons);
+        return hbResult;
+    }
 
     // ======================================== Solving ==============================================
 
@@ -85,7 +96,13 @@ public class CAATSolver {
     private DNF<CAATLiteral> computeInconsistencyReasons(List<Constraint> violatedConstraints) {
         List<Conjunction<CAATLiteral>> reasons = new ArrayList<>();
         for (Constraint constraint : violatedConstraints) {
-            reasons.addAll(reasoner.computeViolationReasons(constraint).getCubes());
+            Set<Conjunction<CAATLiteral>> reasonCubes = reasoner.computeViolationReasons(constraint).getCubes();
+            reasons.addAll(reasonCubes);
+            // isolate hb-reasons
+            if (constraint instanceof AcyclicityConstraint acyc && (acyc.getConstrainedPredicate().getName().contains("hb") ||
+                    acyc.getConstrainedPredicate().getName().contains("ob") || acyc.getConstrainedPredicate().getName().contains("Model"))) {
+                hbReasons = reasonCubes;
+            }
         }
         stats.numComputedReasons += reasons.size();
         DNF<CAATLiteral> result = new DNF<>(reasons); // The conversion to DNF removes duplicates and dominated clauses

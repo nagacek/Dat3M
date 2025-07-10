@@ -46,20 +46,30 @@ public class Refiner {
         return bmgr.and(refinement);
     }
 
-    public BooleanFormula[] encodeVariables(Conjunction<CoreLiteral> coreReason, EncodingContext context) {
-        BooleanFormula[] reasonVariables = new BooleanFormula[coreReason.getSize()];
+    public BooleanFormula[] encode(Conjunction<CoreLiteral> coreReason, EncodingContext context) {
+        BooleanFormula[] reasonLiterals = new BooleanFormula[coreReason.getSize()];
         int i = 0;
         for (CoreLiteral lit : coreReason.getLiterals()) {
             final BooleanFormula litFormula = encode(lit, context);
-            reasonVariables[i++] = litFormula;
+            reasonLiterals[i++] = litFormula;
         }
-        return reasonVariables;
+        return reasonLiterals;
     }
 
     private BooleanFormula encode(CoreLiteral literal, EncodingContext encoder) {
         final BooleanFormulaManager bmgr = encoder.getBooleanFormulaManager();
         final BooleanFormula enc = encodeVariable(literal, encoder);
         return literal.isNegative() ? bmgr.not(enc) : enc;
+    }
+
+    public BooleanFormula[] encodeVariables(Conjunction<CoreLiteral> coreReason, EncodingContext context) {
+        BooleanFormula[] reasonLiterals = new BooleanFormula[coreReason.getSize()];
+        int i = 0;
+        for (CoreLiteral lit : coreReason.getLiterals()) {
+            final BooleanFormula litFormula = encodeVariable(lit, context);
+            reasonLiterals[i++] = litFormula;
+        }
+        return reasonLiterals;
     }
 
     private BooleanFormula encodeVariable(CoreLiteral literal, EncodingContext encoder) {

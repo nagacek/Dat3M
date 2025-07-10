@@ -1,5 +1,7 @@
 package com.dat3m.dartagnan.solver.caat4wmm.propagator.patterns;
 
+import com.dat3m.dartagnan.program.event.TagSet;
+import com.dat3m.dartagnan.program.filter.TagFilter;
 import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.RelationGraph;
 import com.dat3m.dartagnan.solver.caat.reasoning.CAATLiteral;
 import com.dat3m.dartagnan.solver.caat.reasoning.EdgeLiteral;
@@ -34,9 +36,6 @@ public class ViolationPattern {
 
     public Edge addEdge(Relation relation, Node from, Node to, boolean isStatic, boolean isNegated) {
         final RelationGraph graph = rel2Graph.get(relation);
-        if (graph == null) {
-            int i = 5;
-        }
         assert graph != null;
         final Edge edge = new Edge(relation, graph, from, to, isNegated, isStatic);
         this.edges.add(edge);
@@ -128,10 +127,71 @@ public class ViolationPattern {
         matches.removeIf(m -> {
             final int source = m.atNode(edge.from);
             final int target = m.atNode(edge.to);
-            return !relationGraph.containsById(source, target);
+            return edge.isNegated == relationGraph.containsById(source, target);
         });
     }
 
+
+    public Match matchPattern(ViolationPattern pattern2) {
+        NodeSet visited = new NodeSet();
+        EdgeQueue queue = new EdgeQueue(this);
+
+        ViolationPattern.Edge ownEdge = edges.get(0);
+        List<Edge> matchPartners = pattern2.findEdgesByRelation(ownEdge.relation);
+        queue.remove(ownEdge);
+        if (matchPartners.isEmpty()) {
+            return null;
+        }
+
+        List<Match> matches = new ArrayList<>();
+        for (ViolationPattern.Edge matchEdge : matchPartners) {
+            Match match = new Match(this);
+            match.setMatch(ownEdge.from, matchEdge.from.id());
+            match.setMatch(ownEdge.to, matchEdge.to.id());
+            matches.add(match);
+        }
+        visited.add(ownEdge.from);
+        visited.add(ownEdge.to);
+
+        while ((ownEdge = queue.pop(visited, false)) != null) {
+            matchPartners = pattern2.findEdgesByRelation(ownEdge.relation);
+            if (matchPartners.isEmpty()) {
+                return null;
+            }
+            List<Match> updatedMatches = new ArrayList<>();
+            for (ViolationPattern.Edge matchEdge : matchPartners) {
+                for (Match match : matches) {
+                    Match matchResult1 = matchNodes(match, ownEdge.from, matchEdge.from, visited);
+                    Match matchResult2 = matchNodes(match, ownEdge.to, matchEdge.to, visited);
+                    if (matchResult1 == null || matchResult2 == null) {
+                        continue;
+                    }
+                    updatedMatches.add(Match.merge(matchResult1, matchResult2));
+                }
+            }
+            matches = updatedMatches;
+            if (matches.isEmpty()) {
+                return null;
+            }
+        }
+        return matches.get(0);
+    }
+
+    private Match matchNodes(Match match, Node ownNode, Node matchNode, NodeSet visited) {
+        if (match.atNode(ownNode) != -1) {
+            if (match.atNode(ownNode) != matchNode.id()) {
+                return null;
+            }
+        } else {
+            if (!ownNode.containsTags(matchNode)) {
+                return null;
+            }
+            Match newMatch = match.with(ownNode, matchNode.id());
+            visited.add(ownNode);
+            return newMatch;
+        }
+        return match;
+    }
     // ------------------------------------------------------------------------------------------
     // Substitution
 
@@ -151,18 +211,57 @@ public class ViolationPattern {
     // Validation
 
     public boolean validateStaticCoverage() {
-        Set<Node> covered = new HashSet<>();
-        covered.addAll(nodes);
+        Set<Node> uncovered = new HashSet<>();
+        uncovered.addAll(nodes);
         for (Edge edge : edges) {
             if (!edge.isStatic) {
-                covered.remove(edge.from);
-                covered.remove(edge.to);
+                uncovered.remove(edge.from);
+                uncovered.remove(edge.to);
             }
         }
-        return covered.isEmpty();
+        return uncovered.isEmpty();
+    }
+
+    // Depth-first search to check whether the pattern is a connected graph without static edges
+    public boolean newValidateStaticCoverage() {
+        List<Node> marked = new ArrayList<>();
+        List<Node> uncovered = new ArrayList<>(nodes);
+        List<Edge> toRemove = new ArrayList<>();
+        List<Edge> unused = new ArrayList<>(edges);
+
+        Node current;
+        marked.add(uncovered.get(0));
+        while (!unused.isEmpty() && !marked.isEmpty()) {
+            current = marked.get(marked.size() - 1);
+            uncovered.remove(current);
+            for (Edge edge : unused) {
+                if (edge.isStatic || edge.isNegated) {
+                    toRemove.add(edge);
+                    continue;
+                }
+                if (edge.from == current) {
+                    marked.add(edge.to);
+                    toRemove.add(edge);
+                    break;
+                }
+            }
+            if (marked.get(marked.size() - 1) == current) {
+                marked.remove(current);
+            }
+            unused.removeAll(toRemove);
+        }
+        return uncovered.isEmpty();
     }
 
 
+    public String toString(){
+        StringBuilder sb = new StringBuilder();
+        for (Edge edge : edges) {
+            sb.append(edge.toString());
+            sb.append("  ");
+        }
+        return sb.toString();
+    }
 
     // ===============================================================================================
     // ================================ Internal classes =============================================
@@ -197,7 +296,11 @@ public class ViolationPattern {
             unmatchedEdges.remove(edge);
         }
 
-        public Edge pop(NodeSet visited) {
+        public Edge pop(NodeSet nodes) {
+            return pop(nodes, true);
+        }
+
+        public Edge pop(NodeSet visited, boolean handleSpecialCases) {
             if (unmatchedEdges.isEmpty()) {
                 return null;
             }
@@ -209,7 +312,9 @@ public class ViolationPattern {
                 if (fromVisited && toVisited) {
                     candidate = e;
                     break;
-                } else if (candidate == null && !e.isStatic && (fromVisited || toVisited)) {
+                } else if (candidate == null && !e.isStatic && !e.isNegated && (fromVisited || toVisited)) {
+                    candidate = e;
+                } else if (candidate == null && !handleSpecialCases && (fromVisited || toVisited)) {
                     candidate = e;
                 }
             }
@@ -220,12 +325,78 @@ public class ViolationPattern {
         }
     }
 
-    public record Node(int id) {
+    public class Node {
+        private static final Map<String, Set<String>> inclusionMap = createInclusionMap();
+        int id;
+        private final TagSet tags = new TagSet(inclusionMap);
+
+        public Node(int id) {
+            this.id = id;
+        }
+
+        public void integrateTag(String tag) {
+            tags.integrate(tag);
+        }
+
+        public void integrateTags(TagSet otherTags) {
+            otherTags.forEach(this.tags::integrate);
+        }
+
+        public void addTag(String tag) {
+            tags.add(tag);
+        }
+
+        public void addTags(Set<String> tag) {
+            tags.addAll(tag);
+        }
+
+        public boolean containsTag(String tag) {
+            return tags.contains(tag);
+        }
+
+        public boolean containsTags(Set<String> tag) {
+            return tags.containsAll(tag);
+        }
+
+        public boolean containsTags(Node otherNode) {
+            return tags.containsAll(otherNode.tags);
+        }
+
+        public int id() {
+            return id;
+        }
+
+        public Node copy() {
+            Node newNode = new Node(id);
+            newNode.addTags(tags);
+            return newNode;
+        }
+
         @Override
-        public String toString() { return "n#" + id; }
+        public String toString() {
+            StringBuilder str = new StringBuilder();
+            str.append("n#").append(id);
+            if (!tags.isEmpty()) {
+                str.append("(");
+            }
+            for (String tag : tags) {
+                str.append(tag).append(" ");
+            }
+            if (!tags.isEmpty()) {
+                str.deleteCharAt(str.length() - 1).append(")");
+            }
+            return str.toString();
+        }
 
         @Override
         public boolean equals(Object obj) { return this == obj; }
+
+        private static Map<String, Set<String>> createInclusionMap() {
+            Map<String, Set<String>> map = new HashMap<>();
+            map.put("W", Set.of("M"));
+            map.put("R", Set.of("M"));
+            return map;
+        }
     }
 
     public record Edge(Relation relation, RelationGraph graph, Node from, Node to, boolean isNegated, boolean isStatic) {
@@ -243,6 +414,7 @@ public class ViolationPattern {
 
         public int atNode(Node node) { return nodeId2EventId[node.id]; }
         private void setMatch(Node node, int id) { nodeId2EventId[node.id] = id; }
+        private void setMatch(int nodeId, int id) { nodeId2EventId[nodeId] = id; }
 
         private Match(ViolationPattern pattern, int[] mapping) {
             this.pattern = pattern;
@@ -259,6 +431,34 @@ public class ViolationPattern {
             int[] updatedMatching = Arrays.copyOf(this.nodeId2EventId, this.nodeId2EventId.length);
             updatedMatching[node.id] = match;
             return new Match(pattern, updatedMatching);
+        }
+
+        private Match with(int nodeId, int match) {
+            assert nodeId2EventId[nodeId] == -1;
+            int[] updatedMatching = Arrays.copyOf(this.nodeId2EventId, this.nodeId2EventId.length);
+            updatedMatching[nodeId] = match;
+            return new Match(pattern, updatedMatching);
+        }
+
+        // expects matches to be non-conflicting:
+        // no diverging node matches and same length
+        public static Match merge(Match firstMatch, Match secondMatch) {
+            assert firstMatch.nodeId2EventId.length == secondMatch.nodeId2EventId.length;
+            Match resultingMatch = new Match(firstMatch.pattern, Arrays.copyOf(firstMatch.nodeId2EventId, firstMatch.nodeId2EventId.length));
+            for (int i = 0; i < firstMatch.nodeId2EventId.length; i++) {
+                int ownValue = resultingMatch.nodeId2EventId[i];
+                int otherValue = secondMatch.nodeId2EventId[i];
+                int maxValue = Math.max(ownValue, otherValue);
+                if (maxValue != -1) {
+                    if (ownValue == otherValue) {
+                        continue;
+                    }
+                    assert ownValue == -1 || otherValue == -1;
+                    resultingMatch.setMatch(i, -1);
+                    resultingMatch = resultingMatch.with(i, maxValue);
+                }
+            }
+            return resultingMatch;
         }
 
         public int[] toArray() { return nodeId2EventId; }

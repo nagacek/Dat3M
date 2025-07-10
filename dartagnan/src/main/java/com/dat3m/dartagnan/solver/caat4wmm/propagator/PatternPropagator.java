@@ -17,6 +17,7 @@ import com.dat3m.dartagnan.solver.propagator.PropagatorExecutionGraph;
 import com.dat3m.dartagnan.utils.Pair;
 import com.dat3m.dartagnan.utils.logic.Conjunction;
 import com.dat3m.dartagnan.utils.logic.DNF;
+import com.dat3m.dartagnan.utils.logic.Literal;
 import com.dat3m.dartagnan.verification.Context;
 import com.dat3m.dartagnan.verification.model.ExecutionModel;
 import com.dat3m.dartagnan.wmm.Relation;
@@ -28,6 +29,7 @@ import org.sosy_lab.java_smt.api.PropagatorBackend;
 import org.sosy_lab.java_smt.basicimpl.AbstractUserPropagator;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static com.google.common.collect.Sets.difference;
 
@@ -43,7 +45,7 @@ public class PatternPropagator extends AbstractUserPropagator {
         NONE,
         STATIC
     }
-    private final OPTIMIZATION optimization = OPTIMIZATION.STATIC;
+    private final OPTIMIZATION optimization = OPTIMIZATION.NONE;
 
     private final EncodingContext encodingContext;
     private final PropagatorExecutionGraph propExecutionGraph;
@@ -55,6 +57,7 @@ public class PatternPropagator extends AbstractUserPropagator {
     private final GenericDomain<Event> domain;
     private final Map<BooleanFormula, Boolean> partialModel = new HashMap<>();
     private final Deque<BooleanFormula> knownValues = new ArrayDeque<>();
+    private final Set<BooleanFormula> knownNegValuesSet = new HashSet<>();
     private final Deque<Integer> backtrackPoints = new ArrayDeque<>();
     private final List<BooleanFormula[]> retentionConflicts = new ArrayList<>();
 
@@ -79,7 +82,7 @@ public class PatternPropagator extends AbstractUserPropagator {
 
     private final boolean debug = false;
 
-    public PatternPropagator(Decoder decoder, EncodingContext encCtx, Context analysisContext, Refiner refiner, ExecutionModel model, ExecutionGraph executionGraph, Set<Relation> relations) {
+    public PatternPropagator(Decoder decoder, EncodingContext encCtx, Context analysisContext, Refiner refiner, ExecutionModel model, Set<Relation> cutRelations, Set<Relation> relations) {
         this.encodingContext = encCtx;
         this.decoder = decoder;
         this.refiner = refiner;
@@ -95,7 +98,7 @@ public class PatternPropagator extends AbstractUserPropagator {
         if (optimization.ordinal() >= OPTIMIZATION.STATIC.ordinal()) {
             findStaticRelations(ra);
         }
-        this.propExecutionGraph = new PropagatorExecutionGraph(eventDomain, Sets.difference(allRelations, staticRelations), staticRelations, executionGraph.getCutRelations(), ra);
+        this.propExecutionGraph = new PropagatorExecutionGraph(eventDomain, Sets.difference(allRelations, staticRelations), staticRelations, cutRelations, ra);
         this.reasoner = new CoreReasoner(analysisContext, propExecutionGraph);
 
         // TODO: populate static graphs - perhaps listen for exec as well? => is now handled by onKnownValue
@@ -145,6 +148,8 @@ public class PatternPropagator extends AbstractUserPropagator {
                     matchAndPropagateConflicts(newEdges, violationPatterns);
                 }
             }
+        } else {
+            knownNegValuesSet.add(expr);
         }
     }
 
@@ -192,20 +197,42 @@ public class PatternPropagator extends AbstractUserPropagator {
                     DNF<CAATLiteral> patternConflicts = new DNF<>(cubes);
                     Set<Conjunction<CoreLiteral>> coreReasons = reasoner.toCoreReasons(patternConflicts, false);
                     for (Conjunction<CoreLiteral> coreReason : coreReasons) {
-                        BooleanFormula[] conflict = refiner.encodeVariables(coreReason, encodingContext);
+                        List<CoreLiteral> negatives = coreReason.getLiterals().stream().filter(Literal::isNegative).toList();
                         if (isFirst) {
-                            getBackend().propagateConflict(conflict);
+                            if (!negatives.isEmpty()) {
+                                handleNegativeConflict(coreReason, negatives);
+                            } else {
+                                propagateConflict(coreReason);
+                            }
                             isFirst = false;
-                            patternCount++;
-                        } else {
+                        } /*else {
                             retentionConflicts.add(conflict);
-                        }
+                        }*/
                     }
                 }
                 patternTime += System.currentTimeMillis() - curTime;
             }
         }
         //progressRetention();
+    }
+
+    private void handleNegativeConflict(Conjunction<CoreLiteral> coreReason, List<CoreLiteral> negatives) {
+        Collection<BooleanFormula> negativeFormulas = Arrays.asList(refiner.encodeVariables(new Conjunction<>(negatives), encodingContext));
+        if (knownNegValuesSet.containsAll(negativeFormulas)) {
+            propagateConflict(coreReason);
+        } else {
+            // TODO: theory propagation with remaining negative literals
+        }
+    }
+
+    private void propagateConflict(Conjunction<CoreLiteral> coreReason) {
+        BooleanFormula[] conflict = refiner.encodeVariables(coreReason, encodingContext);
+        //System.out.println("Conf: " + Arrays.toString(conflict));
+        for (BooleanFormula f : conflict) {
+            //getBackend().registerExpression(f);
+        }
+        getBackend().propagateConflict(conflict);
+        patternCount++;
     }
 
     private void progressRetention() {
@@ -232,7 +259,9 @@ public class PatternPropagator extends AbstractUserPropagator {
 
         while (knownValues.size() > backtrackKnownValues) {
             BooleanFormula expr = knownValues.pop();
-            partialModel.remove(expr);
+            if (partialModel.remove(expr) == false) {
+                knownNegValuesSet.remove(expr);
+            }
         }
 
         isFirst = true;
@@ -255,7 +284,20 @@ public class PatternPropagator extends AbstractUserPropagator {
     // Extraction
 
     public void addPatterns(Collection<ViolationPattern> patterns, Set<Relation> usedRelations) {
-        violationPatterns.addAll(patterns);
+        System.out.println("+++++++++++++++++++++++++++++");
+        for (ViolationPattern newPattern : patterns) {
+            boolean hasMatch = false;
+            for (ViolationPattern curPattern : violationPatterns) {
+                if (curPattern.matchPattern(newPattern) != null) {
+                    hasMatch = true;
+                    break;
+                }
+            }
+            if (!hasMatch) {
+                violationPatterns.add(newPattern);
+                System.out.println(newPattern.toString());
+            }
+        }
         List<ViolationPattern> newViolationPatterns = violationPatterns.stream().toList();
         if (newViolationPatterns.size() > 20) {
             newViolationPatterns = newViolationPatterns.subList(newViolationPatterns.size() - 11, newViolationPatterns.size() - 1);

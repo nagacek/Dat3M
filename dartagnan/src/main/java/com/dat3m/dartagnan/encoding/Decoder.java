@@ -25,6 +25,7 @@ public class Decoder {
     }
 
     private final Map<BooleanFormula, Info> formula2Info = new HashMap<>(1000, 0.5f);
+    private final Set<Relation> cutRelations = new HashSet<>();
     EncodingContext ctx;
     RefinementModel refinementModel;
 

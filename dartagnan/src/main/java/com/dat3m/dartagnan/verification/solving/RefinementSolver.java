@@ -269,7 +269,8 @@ public class RefinementSolver extends ModelChecker {
         prover.addConstraint(propertyEncoder.encodeProperties(task.getProperty()));
 
         Set<Relation> baseRelations = refinementModel.computeBoundaryRelations().stream().filter(rel -> !(rel.getNameOrTerm().contains("ctrl") || rel.getNameOrTerm().contains("addr") || rel.getNameOrTerm().contains("data"))).collect(Collectors.toSet());
-        PatternPropagator patternSolver = new PatternPropagator(new Decoder(context, refinementModel), context, translateToBase(analysisContext, refinementModel), refiner, solver.getExecution(), solver.getExecutionGraph(), baseRelations);
+        PatternPropagator patternSolver = new PatternPropagator(new Decoder(context, refinementModel), context, translateToBase(analysisContext, refinementModel), refiner,
+                solver.getExecution(), translateToBase(solver.getExecutionGraph().getCutRelations(), refinementModel), baseRelations);
         solver.injectExtractor(new Extractor(patternSolver, patternSolver.getPropagatorExecutionGraph(), solver.getExecutionGraph(), refinementModel, patternSolver.getStaticRelations()));
         prover.registerUserPropagator(patternSolver);
 
@@ -337,9 +338,9 @@ public class RefinementSolver extends ModelChecker {
         //System.out.println(atomicitySolver.printStats());
         System.out.println(patternSolver.printStats());
 
-        if (logger.isInfoEnabled()) {
+        //if (logger.isInfoEnabled()) {
             logger.info(generateSummary(combinedTrace, boundCheckTime));
-        }
+        //}
 
         if (logger.isDebugEnabled()) {
             StringBuilder smtStatistics = new StringBuilder("\n ===== SMT Statistics (after final iteration) ===== \n");
@@ -374,6 +375,14 @@ public class RefinementSolver extends ModelChecker {
         newContext.invalidate(RelationAnalysis.class);
         newContext.register(RelationAnalysis.class, ra);
         return newContext;
+    }
+
+    private Set<Relation> translateToBase(Set<Relation> relations, RefinementModel refinementModel) {
+        Set<Relation> baseRelations = new HashSet<>();
+        for (Relation relation : relations) {
+            baseRelations.add(refinementModel.translateToBase(relation));
+        }
+        return baseRelations;
     }
 
     private void analyzeInconclusiveness(VerificationTask task, Context analysisContext, ExecutionModel model) {
@@ -566,6 +575,8 @@ public class RefinementSolver extends ModelChecker {
                         || subDef instanceof CartesianProduct) {
                     constraintsToCut.add(subDef);
                 }
+            } else if (c instanceof RangeIdentity || c instanceof SameLocation) {
+                constraintsToCut.add(c);
             } else if (c instanceof Definition def && def.getDefinedRelation().hasName()) {
                 // (iii) Special relations
                 final String name = def.getDefinedRelation().getName().get();
@@ -799,6 +810,7 @@ public class RefinementSolver extends ModelChecker {
         final long totalRefiningTime = trace.getRefiningTime();
 
         long totalModelExtractTime = 0;
+        long totalPatternExtractionTime = 0;
         long totalPopulationTime = 0;
         long totalConsistencyCheckTime = 0;
         long totalReasonComputationTime = 0;
@@ -810,6 +822,7 @@ public class RefinementSolver extends ModelChecker {
 
         for (WMMSolver.Statistics stats : statList) {
             totalModelExtractTime += stats.getModelExtractionTime();
+            totalPatternExtractionTime += stats.getPatternExtractionTime();
             totalPopulationTime += stats.getPopulationTime();
             totalConsistencyCheckTime += stats.getConsistencyCheckTime();
             totalReasonComputationTime += stats.getBaseReasonComputationTime() + stats.getCoreReasonComputationTime();
@@ -841,6 +854,7 @@ public class RefinementSolver extends ModelChecker {
                     .append("   -- Max model size (#events): ").append(maxModelSize).append("\n");
         }
 
+        System.out.println("Pattern extraction time: " + toTimeString(totalPatternExtractionTime));
         return message;
     }
 
