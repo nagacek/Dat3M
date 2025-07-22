@@ -98,9 +98,12 @@ public class CAATSolver {
         for (Constraint constraint : violatedConstraints) {
             Set<Conjunction<CAATLiteral>> reasonCubes = reasoner.computeViolationReasons(constraint).getCubes();
             reasons.addAll(reasonCubes);
+
+             //System.out.println(constraint.getConstrainedPredicate().getName() + ": " + reasonCubes);
             // isolate hb-reasons
-            if (constraint instanceof AcyclicityConstraint acyc && (acyc.getConstrainedPredicate().getName().contains("hb") ||
-                    acyc.getConstrainedPredicate().getName().contains("ob") || acyc.getConstrainedPredicate().getName().contains("Model"))) {
+            if ((constraint.getConstrainedPredicate().getName().contains("hb") ||
+                    constraint.getConstrainedPredicate().getName().contains("ob") || constraint.getConstrainedPredicate().getName().contains("hbax"))) {
+
                 hbReasons = reasonCubes;
             }
         }

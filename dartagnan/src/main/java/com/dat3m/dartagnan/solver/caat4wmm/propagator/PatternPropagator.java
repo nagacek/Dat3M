@@ -45,7 +45,7 @@ public class PatternPropagator extends AbstractUserPropagator {
         NONE,
         STATIC
     }
-    private final OPTIMIZATION optimization = OPTIMIZATION.NONE;
+    private final OPTIMIZATION optimization = OPTIMIZATION.STATIC;
 
     private final EncodingContext encodingContext;
     private final PropagatorExecutionGraph propExecutionGraph;
@@ -60,6 +60,7 @@ public class PatternPropagator extends AbstractUserPropagator {
     private final Set<BooleanFormula> knownNegValuesSet = new HashSet<>();
     private final Deque<Integer> backtrackPoints = new ArrayDeque<>();
     private final List<BooleanFormula[]> retentionConflicts = new ArrayList<>();
+    Collection<Pair<Relation, Edge>> newEdges = new ArrayList<>();
 
     private final Set<Relation> staticRelations = new HashSet<>();
     private final Set<Relation> trackedRelations = new HashSet<>();
@@ -82,7 +83,7 @@ public class PatternPropagator extends AbstractUserPropagator {
 
     private final boolean debug = false;
 
-    public PatternPropagator(Decoder decoder, EncodingContext encCtx, Context analysisContext, Refiner refiner, ExecutionModel model, Set<Relation> cutRelations, Set<Relation> relations) {
+    public PatternPropagator(Decoder decoder, EncodingContext encCtx, Context analysisContext, Refiner refiner, ExecutionModel model, Set<Relation> cutRelations, Set<Relation> relations, Set<Relation> setInducedRelations) {
         this.encodingContext = encCtx;
         this.decoder = decoder;
         this.refiner = refiner;
@@ -98,7 +99,7 @@ public class PatternPropagator extends AbstractUserPropagator {
         if (optimization.ordinal() >= OPTIMIZATION.STATIC.ordinal()) {
             findStaticRelations(ra);
         }
-        this.propExecutionGraph = new PropagatorExecutionGraph(eventDomain, Sets.difference(allRelations, staticRelations), staticRelations, cutRelations, ra);
+        this.propExecutionGraph = new PropagatorExecutionGraph(eventDomain, Sets.difference(allRelations, staticRelations), staticRelations, cutRelations, ra, setInducedRelations);
         this.reasoner = new CoreReasoner(analysisContext, propExecutionGraph);
 
         // TODO: populate static graphs - perhaps listen for exec as well? => is now handled by onKnownValue
@@ -127,7 +128,31 @@ public class PatternPropagator extends AbstractUserPropagator {
         getBackend().notifyOnKnownValue();
 
         registerRelations(Sets.difference(allRelations, staticRelations));
+        decoder.extractExecutionInfo(encodingContext);
+        for (BooleanFormula expr : decoder.getDecodableFormulas()) {
+            getBackend().registerExpression(expr);
+        }
     }
+
+    private void registerRelations(Collection<Relation> toRegister) {
+        Collection<BooleanFormula> formulasToRegister = new ArrayList<>();
+        for (Relation rel : toRegister) {
+            if (staticRelations.contains(rel)) {
+                continue;
+            }
+            trackedRelations.add(rel);
+            EventGraph maySet = ra.getKnowledge(rel).getMaySet();
+            for (Event x : maySet.getDomain()) {
+                for (Event y : maySet.getRange(x)) {
+                    BooleanFormula encoding = decoder.registerEdge(rel, x, y);
+                    if (encoding != null) {
+                        formulasToRegister.add(encoding);
+                    }
+                }
+            }
+        }
+    }
+
 
     // ----------------------------------------------------------------------
     // Solving
@@ -142,8 +167,7 @@ public class PatternPropagator extends AbstractUserPropagator {
         if (value) {
             Decoder.Info info = decoder.decode(expr);
             if (functionality.ordinal() >= FUNCTIONALITY.TRACKING.ordinal()) {
-                Collection<Pair<Relation, Edge>> newEdges = addToRelationGraphs(info);
-
+                newEdges.addAll(addToRelationGraphs(info));
                 if (functionality.ordinal() >= FUNCTIONALITY.JOIN.ordinal()) {
                     matchAndPropagateConflicts(newEdges, violationPatterns);
                 }
@@ -165,15 +189,21 @@ public class PatternPropagator extends AbstractUserPropagator {
                 newEdges.add(new Pair<>(edgeInfo.relation(), edge));
             }
         }
+
+        for (Event e : info.events()) {
+            propExecutionGraph.addElement(domain.getId(e));
+        }
+
         return newEdges;
     }
 
     private void matchAndPropagateConflicts(Collection<Pair<Relation, Edge>> edges, Collection<ViolationPattern> matchPatterns) {
         long curTime;
-        for (ViolationPattern pattern : matchPatterns) {
-            for (Pair<Relation, Edge> pair : edges) {
+
+        for (Pair<Relation, Edge> pair : edges) {
+            for (ViolationPattern pattern : matchPatterns) {
                 Collection<Conjunction<CAATLiteral>> cubes = new ArrayList<>();
-                if (trackedRelations.contains(pair.first)) {
+                //if (trackedRelations.contains(pair.first) && (pair.first.getNameOrTerm().contains("rf") || pair.first.getNameOrTerm().contains("co") )) {
                     curTime = System.currentTimeMillis();
                     final Edge edge = pair.second;
                     final Relation relation = pair.first;
@@ -191,7 +221,7 @@ public class PatternPropagator extends AbstractUserPropagator {
                         cubes.add(baseReason); // Todo: think about whether one cube suffices
                         patternTime += System.currentTimeMillis() - curTime;
                     }
-                }
+                //}
                 curTime = System.currentTimeMillis();
                 if (functionality.ordinal() >= FUNCTIONALITY.CONFLICT.ordinal()) {
                     DNF<CAATLiteral> patternConflicts = new DNF<>(cubes);
@@ -213,6 +243,7 @@ public class PatternPropagator extends AbstractUserPropagator {
                 patternTime += System.currentTimeMillis() - curTime;
             }
         }
+        edges.clear();
         //progressRetention();
     }
 
@@ -227,10 +258,18 @@ public class PatternPropagator extends AbstractUserPropagator {
 
     private void propagateConflict(Conjunction<CoreLiteral> coreReason) {
         BooleanFormula[] conflict = refiner.encodeVariables(coreReason, encodingContext);
-        //System.out.println("Conf: " + Arrays.toString(conflict));
-        for (BooleanFormula f : conflict) {
-            //getBackend().registerExpression(f);
-        }
+        //System.out.println("Conf: " + Arrays.toString(conflict) + " (core reason: " + coreReason + ")");
+        /*for (BooleanFormula f : conflict) {
+            getBackend().registerExpression(f);
+        }*/
+        /* possible todo: if static coverage is not activated but tag optimization is, there are conflicts containing
+                          formulas whose values have not been set yet */
+        /*for (int i = 0; i < conflict.length; i++) {
+            if (!knownValues.contains(conflict[i])) {
+                System.out.println("Unknown conflict variable: " + conflict[i]);
+                return;
+            }
+        }*/
         getBackend().propagateConflict(conflict);
         patternCount++;
     }
@@ -259,14 +298,15 @@ public class PatternPropagator extends AbstractUserPropagator {
 
         while (knownValues.size() > backtrackKnownValues) {
             BooleanFormula expr = knownValues.pop();
-            if (partialModel.remove(expr) == false) {
-                knownNegValuesSet.remove(expr);
-            }
+            partialModel.remove(expr);
+            knownNegValuesSet.remove(expr);
         }
 
         isFirst = true;
 
         propExecutionGraph.backtrackTo(backtrackPoints.size());
+
+        newEdges.clear();
     }
 
     @Override
@@ -274,17 +314,19 @@ public class PatternPropagator extends AbstractUserPropagator {
         if (!isFirst) {
             //System.out.println("Useless conflict");
         }
+        matchAndPropagateConflicts(newEdges, violationPatterns);
         if (functionality.ordinal() < FUNCTIONALITY.TRACKING.ordinal()) {
             return;
         }
         backtrackPoints.push(knownValues.size());
+        propExecutionGraph.onPush();
     }
 
     // ----------------------------------------------------------------------
     // Extraction
 
     public void addPatterns(Collection<ViolationPattern> patterns, Set<Relation> usedRelations) {
-        System.out.println("+++++++++++++++++++++++++++++");
+        //System.out.println("+++++++++++++++++++++++++++++");
         for (ViolationPattern newPattern : patterns) {
             boolean hasMatch = false;
             for (ViolationPattern curPattern : violationPatterns) {
@@ -295,7 +337,8 @@ public class PatternPropagator extends AbstractUserPropagator {
             }
             if (!hasMatch) {
                 violationPatterns.add(newPattern);
-                System.out.println(newPattern.toString());
+
+                //System.out.println(newPattern.toString());
             }
         }
         List<ViolationPattern> newViolationPatterns = violationPatterns.stream().toList();
@@ -306,33 +349,10 @@ public class PatternPropagator extends AbstractUserPropagator {
         violationPatterns.addAll(newViolationPatterns);
         violationPatterns.remove(null);
         Set<Relation> newRelations = Sets.difference(usedRelations, trackedRelations);
-        //registerRelations(newRelations); // it does not work to register expressions on-the-fly
+        registerRelations(newRelations); // it does not work to register expressions on-the-fly?
     }
 
-
-    private void registerRelations(Collection<Relation> toRegister) {
-        Collection<BooleanFormula> formulasToRegister = new ArrayList<>();
-        for (Relation rel : toRegister) {
-            if (staticRelations.contains(rel)) {
-                continue;
-            }
-            trackedRelations.add(rel);
-            EventGraph maySet = ra.getKnowledge(rel).getMaySet();
-            for (Event x : maySet.getDomain()) {
-                for (Event y : maySet.getRange(x)) {
-                    BooleanFormula encoding = decoder.registerEdge(rel, x, y);
-                    if (encoding != null) {
-                        formulasToRegister.add(encoding);
-                    }
-                }
-            }
-        }
-        for (BooleanFormula expr : formulasToRegister) {
-            getBackend().registerExpression(expr);
-        }
-    }
-
-    public GeneralExecutionGraph getPropagatorExecutionGraph() {
+    public PropagatorExecutionGraph getPropagatorExecutionGraph() {
         return propExecutionGraph;
     }
 

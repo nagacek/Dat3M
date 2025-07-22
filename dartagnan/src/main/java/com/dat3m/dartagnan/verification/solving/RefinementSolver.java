@@ -47,6 +47,7 @@ import com.dat3m.dartagnan.wmm.definition.*;
 import com.dat3m.dartagnan.wmm.utils.Cut;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.sosy_lab.common.configuration.Configuration;
@@ -115,6 +116,7 @@ public class RefinementSolver extends ModelChecker {
             description="This option causes Refinement to generate many .dot and .png files that describe EACH iteration." +
                     " It is very expensive and should only be used for debugging purposes.")
     private boolean generateGraphvizDebugFiles = false;
+    private Map<Object, Set<EventData>> addr2Events;
 
     // ================================================================================================================
     // Data classes
@@ -268,9 +270,30 @@ public class RefinementSolver extends ModelChecker {
         prover.writeComment("Property encoding");
         prover.addConstraint(propertyEncoder.encodeProperties(task.getProperty()));
 
-        Set<Relation> baseRelations = refinementModel.computeBoundaryRelations().stream().filter(rel -> !(rel.getNameOrTerm().contains("ctrl") || rel.getNameOrTerm().contains("addr") || rel.getNameOrTerm().contains("data"))).collect(Collectors.toSet());
+        Set<Relation> cutDependencies = solver.getExecutionGraph().getCutRelations();
+        Set<Relation> dependencies = Sets.newHashSet();
+        for (Constraint c : refinementModel.getOriginalModel().getConstraints()) {
+            if (!(c.getConstrainedRelations().stream().anyMatch(r -> r.getNameOrTerm().contains("hb")) ||
+                    c.getConstrainedRelations().stream().anyMatch(r -> r.getNameOrTerm().contains("ob")) ||
+                    c.getConstrainedRelations().stream().anyMatch(r -> r.getNameOrTerm().contains("hbax")))) {
+                continue;
+            }
+            Set<Relation> seenDependencies = Sets.newHashSet();
+            Deque<Relation> upperDependencies = new ArrayDeque<>(c.getConstrainedRelations());
+            while (!upperDependencies.isEmpty()) {
+                Relation r = upperDependencies.pop();
+                seenDependencies.add(r);
+                if (r.getDependencies().isEmpty() || cutDependencies.contains(r)) {
+                    dependencies.add(refinementModel.translateToBase(r));
+                } else {
+                    upperDependencies.addAll(r.getDependencies().stream().filter(rel -> !seenDependencies.contains(rel)).toList());
+                }
+            }
+        }
+        Set<Relation> baseRelations = refinementModel.computeBoundaryRelations().stream().filter(dependencies::contains).collect(Collectors.toSet());
+        Set<Relation> setInducedRelations = refinementModel.getBaseModel().getRelations().stream().filter(rel -> (rel.getDefinition().getClass() == CartesianProduct.class || rel.getDefinition().getClass() == SetIdentity.class)).collect(Collectors.toSet());
         PatternPropagator patternSolver = new PatternPropagator(new Decoder(context, refinementModel), context, translateToBase(analysisContext, refinementModel), refiner,
-                solver.getExecution(), translateToBase(solver.getExecutionGraph().getCutRelations(), refinementModel), baseRelations);
+                solver.getExecution(), translateToBase(cutDependencies, refinementModel), baseRelations, setInducedRelations);
         solver.injectExtractor(new Extractor(patternSolver, patternSolver.getPropagatorExecutionGraph(), solver.getExecutionGraph(), refinementModel, patternSolver.getStaticRelations()));
         prover.registerUserPropagator(patternSolver);
 

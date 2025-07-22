@@ -115,7 +115,7 @@ public interface RelationAnalysis {
         @Option(name = ENABLE_EXTENDED_RELATION_ANALYSIS,
                 description = "Marks relationships as trivially false, if they alone would violate a consistency property of the target memory model.",
                 secure = true)
-        private boolean enableExtended = true;
+        private boolean enableExtended = true; // TODO: extended relation analysis
 
         private Config(Configuration config) throws InvalidConfigurationException {
             config.inject(this);

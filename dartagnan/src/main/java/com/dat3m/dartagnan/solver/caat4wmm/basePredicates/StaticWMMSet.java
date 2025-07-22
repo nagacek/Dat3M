@@ -23,6 +23,10 @@ public class StaticWMMSet extends AbstractWMMPredicate implements SetPredicate {
         this.filter = filter;
     }
 
+    public Filter getFilter() {
+        return filter;
+    }
+
     @Override
     public <TRet, TData, TContext> TRet accept(PredicateVisitor<TRet, TData, TContext> visitor, TData tData, TContext context) {
         return visitor.visitBaseSet(this, tData, context);

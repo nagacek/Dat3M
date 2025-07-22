@@ -1,5 +1,6 @@
 package com.dat3m.dartagnan.solver.caat4wmm.propagator.patterns;
 
+import com.dat3m.dartagnan.program.filter.Filter;
 import com.dat3m.dartagnan.solver.caat.predicates.sets.SetPredicate;
 import com.dat3m.dartagnan.solver.caat.reasoning.CAATLiteral;
 import com.dat3m.dartagnan.solver.caat.reasoning.EdgeLiteral;
@@ -9,6 +10,7 @@ import com.dat3m.dartagnan.solver.caat4wmm.GeneralExecutionGraph;
 import com.dat3m.dartagnan.solver.caat4wmm.RefinementModel;
 import com.dat3m.dartagnan.solver.caat4wmm.basePredicates.StaticWMMSet;
 import com.dat3m.dartagnan.solver.caat4wmm.propagator.PatternPropagator;
+import com.dat3m.dartagnan.solver.propagator.PropagatorExecutionGraph;
 import com.dat3m.dartagnan.utils.logic.Conjunction;
 import com.dat3m.dartagnan.utils.logic.DNF;
 import com.dat3m.dartagnan.wmm.Relation;
@@ -17,18 +19,19 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 public class Extractor {
-    private final boolean coveredStaticOptimization = false;
+    private final boolean tagOptimization = true;
+    private final boolean coveredStaticOptimization = true;
     private final boolean locationApproximation = false;
     private final boolean allowNegation = true;
-    private final int maxNodeNumber = 5;
+    private final int maxNodeNumber = 20;
 
     private final PatternPropagator propagator;
-    private final GeneralExecutionGraph patternExecutionGraph;
+    private final PropagatorExecutionGraph patternExecutionGraph;
     private final GeneralExecutionGraph caatExecutionGraph;
     private final Set<Relation> staticRelations;
     private final RefinementModel refinementModel;
 
-    public Extractor(PatternPropagator propagator, GeneralExecutionGraph patternExecutionGraph, GeneralExecutionGraph caatExecutionGraph, RefinementModel refinementModel, Set<Relation> staticRelations) {
+    public Extractor(PatternPropagator propagator, PropagatorExecutionGraph patternExecutionGraph, GeneralExecutionGraph caatExecutionGraph, RefinementModel refinementModel, Set<Relation> staticRelations) {
         this.propagator = propagator;
         this.patternExecutionGraph = patternExecutionGraph;
         this.caatExecutionGraph = caatExecutionGraph;
@@ -75,17 +78,29 @@ public class Extractor {
 
                     pattern.addRelationGraph(baseRel, patternExecutionGraph.getRelationGraph(baseRel));
                     pattern.addEdge(baseRel, from, to, isStatic, isNegative);
+                } else if (tagOptimization && lit instanceof ElementLiteral elementLit) {
+                    if (elementLit.getPredicate() instanceof StaticWMMSet staticSetPred) {
+                        ViolationPattern.Node node = initAndGet(patternNodes, elementLit.getData().getId(), pattern);
+                        Filter filter = staticSetPred.getFilter();
+                        SetPredicate set = patternExecutionGraph.getOrCreateSetPredicate(filter);
+                        node.integrateSet(set);
+                    } else {
+                        final String errorMsg = String.format("Literals of type %s are not supported.", elementLit.getPredicate().getClass().getSimpleName());
+                        throw new UnsupportedOperationException(errorMsg);
+                    }
                 }
 
                 if (patternNodes.size() > maxNodeNumber) {
                     rollback(violationPatterns, currentUsedRelations);
                     break;
                 }
+
+
                 // under-approximates the location relation by omitting the edge from a pattern if
                 // (i) both events are writes (then they have to be coherence ordered)
                 // (ii) the events are also connected by an fr-edge (by definition, they have to refer to the same location)
                 // otherwise, the pattern is not used
-                if (locationApproximation) {
+                if (locationApproximation) { // not useful as patterns only contain loc if no other information is available
                     if (!approximateLocationEdges(pattern)) {
                         rollback(violationPatterns, currentUsedRelations);
                         break;
@@ -99,11 +114,19 @@ public class Extractor {
                     }
                 }
             }
+            for (int i = 0; i < violationPatterns.size() - 1; i++) {
+                if (violationPatterns.get(violationPatterns.size() - 1).matchPattern(violationPatterns.get(i)) != null) {
+                    rollback(violationPatterns, currentUsedRelations);
+                }
+            }
             usedRelations.addAll(currentUsedRelations);
         }
         if (!violationPatterns.isEmpty()) {
-            if (coveredStaticOptimization) {
+            if (coveredStaticOptimization && !tagOptimization) {
                 violationPatterns = violationPatterns.stream().filter(ViolationPattern::newValidateStaticCoverage).collect(Collectors.toList());
+            }
+            if (tagOptimization) {
+                violationPatterns.forEach(p -> p.findShortcutEdges(patternExecutionGraph.getExecutedSet()));
             }
             propagator.addPatterns(violationPatterns, usedRelations);
         }

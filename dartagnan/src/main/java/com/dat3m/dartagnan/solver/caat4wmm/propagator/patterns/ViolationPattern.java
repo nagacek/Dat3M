@@ -1,8 +1,10 @@
 package com.dat3m.dartagnan.solver.caat4wmm.propagator.patterns;
 
 import com.dat3m.dartagnan.program.event.TagSet;
+import com.dat3m.dartagnan.program.filter.Filter;
 import com.dat3m.dartagnan.program.filter.TagFilter;
 import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.RelationGraph;
+import com.dat3m.dartagnan.solver.caat.predicates.sets.SetPredicate;
 import com.dat3m.dartagnan.solver.caat.reasoning.CAATLiteral;
 import com.dat3m.dartagnan.solver.caat.reasoning.EdgeLiteral;
 import com.dat3m.dartagnan.utils.logic.Conjunction;
@@ -29,7 +31,7 @@ public class ViolationPattern {
     public Edge addEdge(Relation relation, Node from, Node to, boolean isStatic) {
         final RelationGraph graph = rel2Graph.get(relation);
         assert graph != null;
-        final Edge edge = new Edge(relation, graph, from, to, false, isStatic);
+        final Edge edge = new Edge(relation, graph, from, to, false, isStatic, false);
         this.edges.add(edge);
         return edge;
     }
@@ -37,7 +39,7 @@ public class ViolationPattern {
     public Edge addEdge(Relation relation, Node from, Node to, boolean isStatic, boolean isNegated) {
         final RelationGraph graph = rel2Graph.get(relation);
         assert graph != null;
-        final Edge edge = new Edge(relation, graph, from, to, isNegated, isStatic);
+        final Edge edge = new Edge(relation, graph, from, to, isNegated, isStatic, false);
         this.edges.add(edge);
         return edge;
     }
@@ -60,9 +62,16 @@ public class ViolationPattern {
     }
 
     public List<Match> findMatches(Edge edge, int from, int to) {
+        if (edge.isNegated) {
+            return List.of();
+        }
         final NodeSet visited = new NodeSet();
         visited.add(edge.from);
         visited.add(edge.to);
+
+        if (!(checkTags(edge.from, from) && checkTags(edge.to, to))) {
+            return List.of();
+        }
 
         final Match firstMatch = new Match(this);
         firstMatch.setMatch(edge.from, from);
@@ -116,7 +125,11 @@ public class ViolationPattern {
         final var edges = outgoing ? relationGraph.outEdges(nodeMatch) : relationGraph.inEdges(nodeMatch);
         final List<Integer> matches = new ArrayList<>();
         for (var e : edges) {
-            matches.add(outgoing ? e.getSecond() : e.getFirst());
+            int targetId = outgoing ? e.getSecond() : e.getFirst();
+
+            if (checkTags(target, targetId)) {
+                matches.add(targetId);
+            }
         }
 
         return matches;
@@ -129,6 +142,17 @@ public class ViolationPattern {
             final int target = m.atNode(edge.to);
             return edge.isNegated == relationGraph.containsById(source, target);
         });
+    }
+
+    private boolean checkTags(Node node, int id) {
+        boolean rightTags = true;
+        for (SetPredicate set : node.sets) {
+            if (!set.containsById(id)) {
+                rightTags = false;
+                break;
+            }
+        }
+        return rightTags;
     }
 
 
@@ -183,7 +207,7 @@ public class ViolationPattern {
                 return null;
             }
         } else {
-            if (!ownNode.containsTags(matchNode)) {
+            if (!ownNode.containsSets(matchNode)) {
                 return null;
             }
             Match newMatch = match.with(ownNode, matchNode.id());
@@ -263,6 +287,53 @@ public class ViolationPattern {
         return sb.toString();
     }
 
+    // Checks whether static edges are shortcuts of longer paths with active edges.
+    // If so, there is no need to make a join over the whole may-set.
+    // Otherwise, the may-set will be restricted by the events currently active on a join
+    public void findShortcutEdges(SetPredicate executedSet) {
+        Map<Node, Set<Edge>> activeOutgoing = new HashMap<>();
+        Set<Edge> staticEdges = new HashSet<>();
+        for (Edge edge : edges) {
+            if (edge.isStatic) {
+                staticEdges.add(edge);
+            } else {
+                activeOutgoing.computeIfAbsent(edge.from, k -> new HashSet<>()).add(edge);
+            }
+        }
+        for (Edge staticEdge : staticEdges) {
+            Edge newEdge = findPathOver(staticEdge, activeOutgoing);
+            if (newEdge != null) {
+                edges.remove(staticEdge);
+                edges.add(newEdge);
+            } else {
+                staticEdge.from.addSet(executedSet);
+                staticEdge.to.addSet(executedSet);
+            }
+        }
+    }
+
+    private Edge findPathOver(Edge edge, Map<Node, Set<Edge>> outgoing) {
+        ArrayDeque<Node> queue = new ArrayDeque<>(outgoing.size());
+        Set<Node> visited = new HashSet<>();
+        queue.add(edge.from);
+        visited.add(edge.from);
+        while (!queue.isEmpty()) {
+            Node current = queue.pop();
+            Set<Edge> edges = outgoing.getOrDefault(current, Set.of());
+            for (Edge otherEdge : edges) {
+                Node intermediateTarget = otherEdge.to;
+                if (edge.to.equals(intermediateTarget)) {
+                    return new Edge(edge.relation, edge.graph, edge.from, edge.to, edge.isNegated, edge.isStatic, true);
+                }
+                if (!visited.contains(intermediateTarget)) {
+                    queue.add(intermediateTarget);
+                    visited.add(intermediateTarget);
+                }
+            }
+        }
+        return null;
+    }
+
     // ===============================================================================================
     // ================================ Internal classes =============================================
     // ===============================================================================================
@@ -314,6 +385,8 @@ public class ViolationPattern {
                     break;
                 } else if (candidate == null && !e.isStatic && !e.isNegated && (fromVisited || toVisited)) {
                     candidate = e;
+                } else if (candidate == null && !e.isShortcut && !e.isNegated && (fromVisited || toVisited)) {
+                    candidate = e;
                 } else if (candidate == null && !handleSpecialCases && (fromVisited || toVisited)) {
                     candidate = e;
                 }
@@ -328,38 +401,56 @@ public class ViolationPattern {
     public class Node {
         private static final Map<String, Set<String>> inclusionMap = createInclusionMap();
         int id;
-        private final TagSet tags = new TagSet(inclusionMap);
+        private final List<SetPredicate> sets = new ArrayList<>();
 
         public Node(int id) {
             this.id = id;
         }
 
-        public void integrateTag(String tag) {
-            tags.integrate(tag);
+        public void integrateSet(SetPredicate set) {
+            if (set == null) {
+                return;
+            }
+            Set<String> included = inclusionMap.get(set.toString());
+            sets.add(set);
+            if (included == null) {
+                return;
+            }
+            Set<SetPredicate> removeSets = new HashSet<>();
+            for (SetPredicate curSet : sets) {
+                if (included.contains(curSet.toString())) {
+                    removeSets.add(curSet);
+                }
+            }
+            sets.removeAll(removeSets);
         }
 
-        public void integrateTags(TagSet otherTags) {
-            otherTags.forEach(this.tags::integrate);
+        public void integrateSets(Collection<SetPredicate> otherSets) {
+            otherSets.forEach(this::integrateSet);
         }
 
-        public void addTag(String tag) {
-            tags.add(tag);
+        public void addSet(SetPredicate set) {
+            if (!sets.contains(set)) {
+                sets.add(set);
+            }
         }
 
-        public void addTags(Set<String> tag) {
-            tags.addAll(tag);
+        public void addSets(Collection<SetPredicate> sets) {
+            for (SetPredicate set : sets) {
+                addSet(set);
+            }
         }
 
-        public boolean containsTag(String tag) {
-            return tags.contains(tag);
+        public boolean containsSet(SetPredicate set) {
+            return sets.contains(set);
         }
 
-        public boolean containsTags(Set<String> tag) {
-            return tags.containsAll(tag);
+        public boolean containsSets(Set<SetPredicate> sets) {
+            return this.sets.containsAll(sets);
         }
 
-        public boolean containsTags(Node otherNode) {
-            return tags.containsAll(otherNode.tags);
+        public boolean containsSets(Node otherNode) {
+            return sets.containsAll(otherNode.sets);
         }
 
         public int id() {
@@ -368,7 +459,7 @@ public class ViolationPattern {
 
         public Node copy() {
             Node newNode = new Node(id);
-            newNode.addTags(tags);
+            newNode.addSets(sets);
             return newNode;
         }
 
@@ -376,13 +467,13 @@ public class ViolationPattern {
         public String toString() {
             StringBuilder str = new StringBuilder();
             str.append("n#").append(id);
-            if (!tags.isEmpty()) {
+            if (!sets.isEmpty()) {
                 str.append("(");
             }
-            for (String tag : tags) {
-                str.append(tag).append(" ");
+            for (SetPredicate set : sets) {
+                str.append(set).append(" ");
             }
-            if (!tags.isEmpty()) {
+            if (!sets.isEmpty()) {
                 str.deleteCharAt(str.length() - 1).append(")");
             }
             return str.toString();
@@ -399,10 +490,10 @@ public class ViolationPattern {
         }
     }
 
-    public record Edge(Relation relation, RelationGraph graph, Node from, Node to, boolean isNegated, boolean isStatic) {
+    public record Edge(Relation relation, RelationGraph graph, Node from, Node to, boolean isNegated, boolean isStatic, boolean isShortcut) {
         @Override
         public String toString() {
-            return String.format("%s-%s->%s", from, relation.getNameOrTerm(), to);
+            return String.format("%s-%s%s->%s", from, isNegated ? "¬" : "", relation.getNameOrTerm(), to);
         }
         @Override
         public boolean equals(Object obj) { return this == obj; }

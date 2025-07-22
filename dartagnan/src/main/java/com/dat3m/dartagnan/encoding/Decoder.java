@@ -22,6 +22,14 @@ public class Decoder {
         public void add(Relation rel, Event x, Event y) {
             edges.add(new EdgeInfo(rel, x, y));
         }
+
+        public void add(Event e) {
+            events.add(e);
+        }
+
+        public void addAll(Collection<Event> newEvents) {
+            events.addAll(newEvents);
+        }
     }
 
     private final Map<BooleanFormula, Info> formula2Info = new HashMap<>(1000, 0.5f);
@@ -46,10 +54,10 @@ public class Decoder {
     // requires the provided edge to be contained in the relation's may set
     public BooleanFormula registerEdge(Relation rel, Event x, Event y) {
         final BooleanFormula edgeLiteral = ctx.edge(rel, x, y);
-        final BooleanFormula returnFormula = formula2Info.containsKey(edgeLiteral) ? null : edgeLiteral;
+        //final BooleanFormula returnFormula = formula2Info.containsKey(edgeLiteral) ? null : edgeLiteral;
         final Info info = formula2Info.computeIfAbsent(edgeLiteral, key -> new Info());
         info.add(rel, x, y);
-        return returnFormula;
+        return edgeLiteral;
     }
 
     public void extractInfo() {
@@ -57,7 +65,7 @@ public class Decoder {
         extractExecutionInfo(ctx);
     }
 
-    private void extractRelationInfo() {
+    public void extractRelationInfo() {
         final Set<Relation> boundary = refinementModel.computeBoundaryRelations();
         final RelationAnalysis ra = ctx.getAnalysisContext().requires(RelationAnalysis.class);
         for (Relation rel : boundary) {
@@ -73,7 +81,7 @@ public class Decoder {
         }
     }
 
-    private void extractExecutionInfo(EncodingContext ctx) {
+    public void extractExecutionInfo(EncodingContext ctx) {
         final Program program = ctx.getTask().getProgram();
         final Map<BooleanFormula, List<Event>> lit2EventMap = new HashMap<>();
 
@@ -81,7 +89,20 @@ public class Decoder {
             lit2EventMap.computeIfAbsent(ctx.execution(e), key -> new ArrayList<>()).add(e);
         }
 
-        lit2EventMap.forEach((lit, events) -> formula2Info.put(lit, new Info(events, new ArrayList<>())));
+        lit2EventMap.forEach((lit, events) -> formula2Info.computeIfAbsent(lit, k -> new Info()).addAll(events));
+    }
+
+    public String printStats() {
+        int eventNum = 0;
+        int edgeNum = 0;
+        for (Map.Entry<BooleanFormula, Info> info : formula2Info.entrySet()) {
+            eventNum += info.getValue().events.size();
+            edgeNum += info.getValue().edges.size();
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append("Event count: ").append(eventNum).append("\n");
+        sb.append("Edge count: ").append(edgeNum).append("\n");
+        return sb.toString();
     }
 
 }

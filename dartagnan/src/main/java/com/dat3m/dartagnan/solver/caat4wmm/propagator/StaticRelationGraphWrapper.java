@@ -22,7 +22,8 @@ public class StaticRelationGraphWrapper implements RelationGraph {
     private final RelationAnalysis ra;
     private Domain<?> domain;
 
-    final Map<Integer, Set<Integer>> edges = new HashMap<>();
+    final Map<Integer, Set<Integer>> outEdges = new HashMap<>();
+    final Map<Integer, Set<Integer>> inEdges = new HashMap<>();
 
     public StaticRelationGraphWrapper(Relation rel, RelationAnalysis ra) {
         this.relation = rel;
@@ -53,16 +54,19 @@ public class StaticRelationGraphWrapper implements RelationGraph {
     public void initializeToDomain(Domain<?> domain) {
         this.domain = domain;
 
-        edges.clear();
+        inEdges.clear();
+        outEdges.clear();
         EventGraph g = ra.getKnowledge(relation).getMustSet();
         for (Event e : g.getDomain()) {
             EventData eData = new EventData(e);
             int idSource = domain.getId(eData);
-            final Set<Integer> targets = edges.computeIfAbsent(idSource, k -> new HashSet<>());
+            final Set<Integer> outTargets = outEdges.computeIfAbsent(idSource, k -> new HashSet<>());
             for (Event e2 : g.getOutMap().get(e)) {
                 EventData e2Data = new EventData(e2);
                 int idTarget = domain.getId(e2Data);
-                targets.add(idTarget);
+                outTargets.add(idTarget);
+                final Set<Integer> inTargets = inEdges.computeIfAbsent(idTarget, k -> new HashSet<>());
+                inTargets.add(idSource);
             }
         }
 
@@ -105,11 +109,13 @@ public class StaticRelationGraphWrapper implements RelationGraph {
 
     @Override
     public Stream<Edge> edgeStream(int e, EdgeDirection dir) {
-        throw new UnsupportedOperationException();
+        Map<Integer, Set<Integer>> edges = dir == EdgeDirection.OUTGOING ? outEdges : inEdges;
+        Set<Integer> targetIds = edges.getOrDefault(e, Set.of());
+        return targetIds.stream().map(id -> dir == EdgeDirection.OUTGOING ? new Edge(e, id) : new Edge(id, e));
     }
 
     @Override
     public boolean containsById(int id1, int id2) {
-        return edges.getOrDefault(id1, Set.of()).contains(id2);
+        return outEdges.getOrDefault(id1, Set.of()).contains(id2);
     }
 }

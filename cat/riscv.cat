@@ -63,8 +63,9 @@ let ppo =
 (* Sc per location *)
 acyclic co|rf|fr|po-loc as Coherence
 
+let hb = co|rfe|fr|ppo
 (* Main model axiom *)
-acyclic co|rfe|fr|ppo as Model
+acyclic hb as Model
 
 (* Atomicity axiom *)
 empty rmw & (fre;coe) as Atomic
