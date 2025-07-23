@@ -56,7 +56,7 @@ public class Refiner {
         return reasonLiterals;
     }
 
-    private BooleanFormula encode(CoreLiteral literal, EncodingContext encoder) {
+    public BooleanFormula encode(CoreLiteral literal, EncodingContext encoder) {
         final BooleanFormulaManager bmgr = encoder.getBooleanFormulaManager();
         final BooleanFormula enc = encodeVariable(literal, encoder);
         return literal.isNegative() ? bmgr.not(enc) : enc;
@@ -72,7 +72,7 @@ public class Refiner {
         return reasonLiterals;
     }
 
-    private BooleanFormula encodeVariable(CoreLiteral literal, EncodingContext encoder) {
+    public BooleanFormula encodeVariable(CoreLiteral literal, EncodingContext encoder) {
         final BooleanFormula enc;
         if (literal instanceof ExecLiteral lit) {
             enc = encoder.execution(lit.getEvent());
@@ -80,7 +80,7 @@ public class Refiner {
             enc = encoder.sameAddress((MemoryCoreEvent) loc.getFirst(), (MemoryCoreEvent) loc.getSecond());
         } else if (literal instanceof RelLiteral lit) {
             Relation rel = lit.getRelation();
-            if (!refinementModel.getBaseModel().getRelations().contains(lit.getRelation())) {
+            if (!refinementModel.getBaseModel().getRelationsNoCopy().contains(lit.getRelation())) {
                 rel = refinementModel.translateToBase(lit.getRelation());
             }
             enc = encoder.edge(rel, lit.getSource(), lit.getTarget());

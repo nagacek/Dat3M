@@ -66,6 +66,10 @@ public class Wmm {
         return Set.copyOf(relations);
     }
 
+    public Set<Relation> getRelationsNoCopy() {
+        return relations;
+    }
+
     public boolean containsRelation(String name) {
         return relations.stream().anyMatch(r -> r.hasName(name));
     }

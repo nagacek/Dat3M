@@ -9,9 +9,12 @@ import com.dat3m.dartagnan.solver.caat.domain.GenericDomain;
 import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.Edge;
 import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.base.SimpleGraph;
 import com.dat3m.dartagnan.solver.caat.reasoning.CAATLiteral;
+import com.dat3m.dartagnan.solver.caat.reasoning.EdgeLiteral;
 import com.dat3m.dartagnan.solver.caat4wmm.*;
 import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.CoreLiteral;
 import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.CoreReasoner;
+import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.RelLiteral;
+import com.dat3m.dartagnan.solver.caat4wmm.propagator.patterns.Consequence;
 import com.dat3m.dartagnan.solver.caat4wmm.propagator.patterns.ViolationPattern;
 import com.dat3m.dartagnan.solver.propagator.PropagatorExecutionGraph;
 import com.dat3m.dartagnan.utils.Pair;
@@ -25,6 +28,7 @@ import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import com.dat3m.dartagnan.wmm.utils.graph.EventGraph;
 import com.google.common.collect.Sets;
 import org.sosy_lab.java_smt.api.BooleanFormula;
+import org.sosy_lab.java_smt.api.BooleanFormulaManager;
 import org.sosy_lab.java_smt.api.PropagatorBackend;
 import org.sosy_lab.java_smt.basicimpl.AbstractUserPropagator;
 
@@ -68,6 +72,7 @@ public class PatternPropagator extends AbstractUserPropagator {
 
     // Todo: find abstraction levels for ruling out patterns to match against
     private final Set<ViolationPattern> violationPatterns = new HashSet<>();
+    private final HashMap<CoreLiteral, BooleanFormula> literalRepository = new HashMap<>();
 
     // ----- stats -----
     private int patternCount = 0;
@@ -203,24 +208,33 @@ public class PatternPropagator extends AbstractUserPropagator {
         for (Pair<Relation, Edge> pair : edges) {
             for (ViolationPattern pattern : matchPatterns) {
                 Collection<Conjunction<CAATLiteral>> cubes = new ArrayList<>();
+                Collection<Consequence> consequences = new ArrayList<>();
                 //if (trackedRelations.contains(pair.first) && (pair.first.getNameOrTerm().contains("rf") || pair.first.getNameOrTerm().contains("co") )) {
-                    curTime = System.currentTimeMillis();
-                    final Edge edge = pair.second;
-                    final Relation relation = pair.first;
-                    final var joinCandidates = pattern.findEdgesByRelation(relation);
-                    final List<ViolationPattern.Match> matches = new ArrayList<>();
-                    for (var candidate : joinCandidates) {
-                        matches.addAll(pattern.findMatches(candidate, edge.getFirst(), edge.getSecond()));
-                        attempts++;
-                    }
-                    joinTime += System.currentTimeMillis() - curTime;
+                curTime = System.currentTimeMillis();
+                final Edge edge = pair.second;
+                final Relation relation = pair.first;
+                final var joinCandidates = pattern.findEdgesByRelation(relation);
+                final List<ViolationPattern.Match> matches = new ArrayList<>();
+                for (var candidate : joinCandidates) {
+                    matches.addAll(pattern.findMatches(candidate, edge.getFirst(), edge.getSecond()));
+                    attempts++;
+                }
+                joinTime += System.currentTimeMillis() - curTime;
 
-                    for (ViolationPattern.Match match : matches) {
-                        curTime = System.currentTimeMillis();
-                        Conjunction<CAATLiteral> baseReason = pattern.substituteWithMatch(match);
-                        cubes.add(baseReason); // Todo: think about whether one cube suffices
-                        patternTime += System.currentTimeMillis() - curTime;
+                for (ViolationPattern.Match match : matches) {
+                    curTime = System.currentTimeMillis();
+                    Consequence conseq = pattern.substituteWithMatch(match);
+                    if (conseq.isConflict()) {
+                        cubes.add(new Conjunction<>(conseq.getAssignments())); // Todo: think about whether one cube suffices
+                    } else {
+                        consequences.add(conseq);
                     }
+                    patternTime += System.currentTimeMillis() - curTime;
+                }
+
+                if (cubes.isEmpty() && !consequences.isEmpty()) {
+                    theoryPropagate(consequences);
+                }
                 //}
                 curTime = System.currentTimeMillis();
                 if (functionality.ordinal() >= FUNCTIONALITY.CONFLICT.ordinal()) {
@@ -284,6 +298,60 @@ public class PatternPropagator extends AbstractUserPropagator {
         }
     }
 
+    private void theoryPropagate(Consequence consequence) {
+        BooleanFormulaManager bmgr = encodingContext.getBooleanFormulaManager();
+
+        for (CAATLiteral consequenceLit : consequence.getConsequences()) {
+            BooleanFormula litFormula = literalRepository.computeIfAbsent(toRelLiteral(consequenceLit, true), lit -> refiner.encode(lit, encodingContext));
+            if (knownNegValuesSet.contains(litFormula) || bmgr.isFalse(litFormula)) {
+                return;
+            }
+        }
+        DNF<CAATLiteral> assignmentDnf = new DNF<>(new Conjunction<>(consequence.getAssignments()));
+        Set<Conjunction<CoreLiteral>> coreAssignments = reasoner.toCoreReasons(assignmentDnf, false);
+        assert coreAssignments.size() == 1;
+        BooleanFormula[] assignments = refiner.encodeVariables(coreAssignments.stream().findAny().get(), encodingContext);
+        List<BooleanFormula> consequenceLiterals = consequence.getConsequences().stream()
+                .map(lit -> {
+                    CoreLiteral coreLit = toRelLiteral(lit, true);
+                    BooleanFormula literal = literalRepository.computeIfAbsent(coreLit, c -> refiner.encode(c, encodingContext));
+                    if (lit.isNegative()) {
+                        literal = bmgr.not(literal);
+                    }
+                    return literal;
+                }).toList();
+
+
+        BooleanFormula consequenceFormula = bmgr.not(bmgr.and(consequenceLiterals));
+        if (!bmgr.isFalse(consequenceFormula)) {
+            getBackend().propagateConsequence(assignments, consequenceFormula);
+            //System.out.println("Propagated consequence: " + Arrays.toString(assignments) + " => " + consequenceFormula);
+        }
+    }
+
+    private void theoryPropagate(Collection<Consequence> consequences) {
+        for (Consequence consequence : consequences) {
+            theoryPropagate(consequence);
+        }
+    }
+
+    private RelLiteral toRelLiteral(CAATLiteral lit) { return toRelLiteral(lit, false); }
+
+    private RelLiteral toRelLiteral(CAATLiteral lit, boolean onlyPositive) {
+        assert lit instanceof EdgeLiteral;
+        EdgeLiteral edgeLiteral = (EdgeLiteral) lit;
+        Edge edge = edgeLiteral.getData();
+        Event e1 = domain.getObjectById(edge.getFirst());
+        Event e2 = domain.getObjectById(edge.getSecond());
+
+        Relation rel = propExecutionGraph.getRelationGraphMap().inverse().get(edgeLiteral.getPredicate());
+
+        if (onlyPositive) {
+            return new RelLiteral(rel, e1, e2, true);
+        }
+        return new RelLiteral(rel, e1, e2, lit.isPositive());
+    }
+
     @Override
     public void onPop(int numLevels) {
         if (functionality.ordinal() < FUNCTIONALITY.TRACKING.ordinal()) {
@@ -314,7 +382,7 @@ public class PatternPropagator extends AbstractUserPropagator {
         if (!isFirst) {
             //System.out.println("Useless conflict");
         }
-        matchAndPropagateConflicts(newEdges, violationPatterns);
+        //matchAndPropagateConflicts(newEdges, violationPatterns);
         if (functionality.ordinal() < FUNCTIONALITY.TRACKING.ordinal()) {
             return;
         }

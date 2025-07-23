@@ -7,8 +7,11 @@ import com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.RelationGraph;
 import com.dat3m.dartagnan.solver.caat.predicates.sets.SetPredicate;
 import com.dat3m.dartagnan.solver.caat.reasoning.CAATLiteral;
 import com.dat3m.dartagnan.solver.caat.reasoning.EdgeLiteral;
+import com.dat3m.dartagnan.utils.Pair;
 import com.dat3m.dartagnan.utils.logic.Conjunction;
+import com.dat3m.dartagnan.wmm.Constraint;
 import com.dat3m.dartagnan.wmm.Relation;
+import com.google.common.collect.ImmutableSet;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -135,12 +138,17 @@ public class ViolationPattern {
         return matches;
     }
 
+    // the tags at the point of prune have already been checked when the nodes were matched
     private void prune(List<Match> matches, Edge edge) {
         final RelationGraph relationGraph = edge.graph;
         matches.removeIf(m -> {
             final int source = m.atNode(edge.from);
             final int target = m.atNode(edge.to);
-            return edge.isNegated == relationGraph.containsById(source, target);
+            boolean isContained = relationGraph.containsById(source, target);
+            if (!edge.isNegated && !edge.isStatic && !isContained && m.addPropagationEdge(edge)) {
+                return false;
+            }
+            return edge.isNegated == isContained;
         });
     }
 
@@ -219,16 +227,20 @@ public class ViolationPattern {
     // ------------------------------------------------------------------------------------------
     // Substitution
 
-    public Conjunction<CAATLiteral> substituteWithMatch(Match match) {
-        List<CAATLiteral> substituted = new ArrayList<>();
+    public Consequence substituteWithMatch(Match match) {
+        Consequence consequence = new Consequence();
         for (Edge edge : edges) {
             RelationGraph graph = edge.graph;
             Node from = edge.from;
             Node to = edge.to;
             CAATLiteral lit = new EdgeLiteral(graph, new com.dat3m.dartagnan.solver.caat.predicates.relationGraphs.Edge(match.atNode(from), match.atNode(to)), !edge.isNegated);
-            substituted.add(lit);
+            if (match.isPropagationEdge(edge)) {
+                consequence.addConsequence(lit);
+            } else {
+                consequence.addAssignment(lit);
+            }
         }
-        return new Conjunction<>(substituted);
+        return consequence;
     }
 
     // ------------------------------------------------------------------------------------------
@@ -500,6 +512,8 @@ public class ViolationPattern {
     }
 
     public static class Match {
+        private static final int PROP_LENGTH = 1;
+        private final Set<Edge> propagationEdges = new HashSet<>();
         private final ViolationPattern pattern;
         private final int[] nodeId2EventId;
 
@@ -507,13 +521,14 @@ public class ViolationPattern {
         private void setMatch(Node node, int id) { nodeId2EventId[node.id] = id; }
         private void setMatch(int nodeId, int id) { nodeId2EventId[nodeId] = id; }
 
-        private Match(ViolationPattern pattern, int[] mapping) {
+        private Match(ViolationPattern pattern, int[] mapping, Set<Edge> propagationEdges) {
             this.pattern = pattern;
             this.nodeId2EventId = mapping;
+            this.propagationEdges.addAll(propagationEdges);
         }
 
         public Match(ViolationPattern pattern) {
-            this(pattern, new int[pattern.nodes.size()]);
+            this(pattern, new int[pattern.nodes.size()], Set.of());
             Arrays.fill(nodeId2EventId, -1);
         }
 
@@ -521,21 +536,36 @@ public class ViolationPattern {
             assert atNode(node) == -1;
             int[] updatedMatching = Arrays.copyOf(this.nodeId2EventId, this.nodeId2EventId.length);
             updatedMatching[node.id] = match;
-            return new Match(pattern, updatedMatching);
+            return new Match(pattern, updatedMatching, propagationEdges);
         }
 
         private Match with(int nodeId, int match) {
             assert nodeId2EventId[nodeId] == -1;
             int[] updatedMatching = Arrays.copyOf(this.nodeId2EventId, this.nodeId2EventId.length);
             updatedMatching[nodeId] = match;
-            return new Match(pattern, updatedMatching);
+            return new Match(pattern, updatedMatching, propagationEdges);
+        }
+
+        public boolean isPropagationEdge(Edge edge) {
+            return propagationEdges.contains(edge);
+        }
+
+        public boolean addPropagationEdge(Edge edge) {
+            if (isPropagationEdge(edge)) {
+                return true;
+            }
+            if (propagationEdges.size() < PROP_LENGTH) {
+                propagationEdges.add(edge);
+                return true;
+            }
+            return false;
         }
 
         // expects matches to be non-conflicting:
         // no diverging node matches and same length
         public static Match merge(Match firstMatch, Match secondMatch) {
             assert firstMatch.nodeId2EventId.length == secondMatch.nodeId2EventId.length;
-            Match resultingMatch = new Match(firstMatch.pattern, Arrays.copyOf(firstMatch.nodeId2EventId, firstMatch.nodeId2EventId.length));
+            Match resultingMatch = new Match(firstMatch.pattern, Arrays.copyOf(firstMatch.nodeId2EventId, firstMatch.nodeId2EventId.length), Set.of());
             for (int i = 0; i < firstMatch.nodeId2EventId.length; i++) {
                 int ownValue = resultingMatch.nodeId2EventId[i];
                 int otherValue = secondMatch.nodeId2EventId[i];
