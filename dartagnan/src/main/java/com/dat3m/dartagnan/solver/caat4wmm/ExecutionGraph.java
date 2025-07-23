@@ -30,6 +30,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static com.dat3m.dartagnan.wmm.RelationNameRepository.CO;
+import static com.dat3m.dartagnan.wmm.RelationNameRepository.RF;
+
 public class ExecutionGraph implements GeneralExecutionGraph {
 
     // ================== Fields =====================
@@ -59,7 +62,7 @@ public class ExecutionGraph implements GeneralExecutionGraph {
         filterSetMap = HashBiMap.create();
         constraintMap = HashBiMap.create();
         cutRelations = refinementModel.computeBoundaryRelations().stream()
-                .filter(r -> r.getName().map(n -> !Wmm.ANARCHIC_CORE_RELATIONS.contains(n)).orElse(true))
+                .filter(r -> r.getName().map(n -> !(n.equals(CO) || n.equals(RF))).orElse(true))
                 .map(refinementModel::translateToOriginal)
                 .collect(Collectors.toSet());
 
@@ -256,8 +259,6 @@ public class ExecutionGraph implements GeneralExecutionGraph {
             SetPredicate lhs = getOrCreateSetFromFilter(cartRel.getFirstFilter());
             SetPredicate rhs = getOrCreateSetFromFilter(cartRel.getSecondFilter());
             graph = new CartesianGraph(lhs, rhs);
-        } else if (relClass == ReadModifyWrites.class) {
-            graph = new RMWGraph();
         } else if (relClass == External.class) {
             graph = new ExternalGraph();
         } else if (relClass == Internal.class) {
