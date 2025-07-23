@@ -30,6 +30,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static com.dat3m.dartagnan.wmm.RelationNameRepository.CO;
+import static com.dat3m.dartagnan.wmm.RelationNameRepository.RF;
+
 public class ExecutionGraph implements GeneralExecutionGraph {
 
     // ================== Fields =====================

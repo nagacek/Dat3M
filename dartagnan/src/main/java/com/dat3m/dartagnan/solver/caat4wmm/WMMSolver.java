@@ -11,7 +11,6 @@ import com.dat3m.dartagnan.utils.logic.Conjunction;
 import com.dat3m.dartagnan.utils.logic.DNF;
 import com.dat3m.dartagnan.verification.Context;
 import com.dat3m.dartagnan.verification.model.ExecutionModel;
-import com.dat3m.dartagnan.wmm.analysis.RelationAnalysis;
 import org.sosy_lab.common.configuration.Configuration;
 import org.sosy_lab.common.configuration.InvalidConfigurationException;
 
@@ -29,8 +28,7 @@ public class WMMSolver {
     private Extractor extractor;
 
     private WMMSolver(RefinementModel refinementModel, Context analysisContext, ExecutionModel m) {
-        final RelationAnalysis ra = analysisContext.requires(RelationAnalysis.class);
-        this.executionGraph = new ExecutionGraph(refinementModel, ra);
+        this.executionGraph = new ExecutionGraph(refinementModel);
         this.executionModel = m;
         this.reasoner = new CoreReasoner(analysisContext, executionGraph);
         this.solver = CAATSolver.create();
