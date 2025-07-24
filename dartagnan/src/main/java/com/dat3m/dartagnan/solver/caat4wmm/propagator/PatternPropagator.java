@@ -212,6 +212,9 @@ public class PatternPropagator extends AbstractUserPropagator {
                     for (var candidate : joinCandidates) {
                         matches.addAll(pattern.findMatches(candidate, edge.getFirst(), edge.getSecond()));
                         attempts++;
+                        if (!matches.isEmpty()) {
+                            break;
+                        }
                     }
                     joinTime += System.currentTimeMillis() - curTime;
 
@@ -230,14 +233,19 @@ public class PatternPropagator extends AbstractUserPropagator {
                         List<CoreLiteral> negatives = coreReason.getLiterals().stream().filter(Literal::isNegative).toList();
                         if (isFirst) {
                             if (!negatives.isEmpty()) {
-                                handleNegativeConflict(coreReason, negatives);
+                                isFirst = handleNegativeConflict(coreReason, negatives);
                             } else {
                                 propagateConflict(coreReason);
+                                isFirst = false;
                             }
-                            isFirst = false;
                         } /*else {
                             retentionConflicts.add(conflict);
                         }*/
+                        if (!isFirst) {
+                            patternTime += System.currentTimeMillis() - curTime;
+                            edges.clear();
+                            return;
+                        }
                     }
                 }
                 patternTime += System.currentTimeMillis() - curTime;
@@ -247,12 +255,14 @@ public class PatternPropagator extends AbstractUserPropagator {
         //progressRetention();
     }
 
-    private void handleNegativeConflict(Conjunction<CoreLiteral> coreReason, List<CoreLiteral> negatives) {
+    private boolean handleNegativeConflict(Conjunction<CoreLiteral> coreReason, List<CoreLiteral> negatives) {
         Collection<BooleanFormula> negativeFormulas = Arrays.asList(refiner.encodeVariables(new Conjunction<>(negatives), encodingContext));
         if (knownNegValuesSet.containsAll(negativeFormulas)) {
             propagateConflict(coreReason);
+            return true;
         } else {
             // TODO: theory propagation with remaining negative literals
+            return false;
         }
     }
 
@@ -314,7 +324,7 @@ public class PatternPropagator extends AbstractUserPropagator {
         if (!isFirst) {
             //System.out.println("Useless conflict");
         }
-        matchAndPropagateConflicts(newEdges, violationPatterns);
+        //matchAndPropagateConflicts(newEdges, violationPatterns);
         if (functionality.ordinal() < FUNCTIONALITY.TRACKING.ordinal()) {
             return;
         }
