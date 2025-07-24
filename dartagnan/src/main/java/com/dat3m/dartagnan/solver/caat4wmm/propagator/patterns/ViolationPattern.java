@@ -561,6 +561,10 @@ public class ViolationPattern {
             return false;
         }
 
+        public boolean hasPropagationEdges() {
+            return !propagationEdges.isEmpty();
+        }
+
         // expects matches to be non-conflicting:
         // no diverging node matches and same length
         public static Match merge(Match firstMatch, Match secondMatch) {

@@ -216,9 +216,10 @@ public class PatternPropagator extends AbstractUserPropagator {
                     final var joinCandidates = pattern.findEdgesByRelation(relation);
                     final List<ViolationPattern.Match> matches = new ArrayList<>();
                     for (var candidate : joinCandidates) {
-                        matches.addAll(pattern.findMatches(candidate, edge.getFirst(), edge.getSecond()));
+                        List<ViolationPattern.Match> newMatches = pattern.findMatches(candidate, edge.getFirst(), edge.getSecond());
+                        matches.addAll(newMatches);
                         attempts++;
-                        if (!matches.isEmpty()) {
+                        if (newMatches.stream().anyMatch(ViolationPattern.Match::hasPropagationEdges)) {
                             break;
                         }
                     }
@@ -275,7 +276,7 @@ public class PatternPropagator extends AbstractUserPropagator {
             propagateConflict(coreReason);
             return true;
         } else {
-            // TODO: theory propagation with remaining negative literals
+
             return false;
         }
     }
