@@ -276,7 +276,7 @@ public class PatternPropagator extends AbstractUserPropagator {
             propagateConflict(coreReason);
             return true;
         } else {
-
+            propagateMissingNegatives(coreReason, negatives);
             return false;
         }
     }
@@ -307,6 +307,22 @@ public class PatternPropagator extends AbstractUserPropagator {
             patternCount++;
             patternTime += System.currentTimeMillis() - curTime;
         }
+    }
+
+    private void propagateMissingNegatives(Conjunction<CoreLiteral> coreReason, List<CoreLiteral> negatives) {
+        BooleanFormulaManager bmgr = encodingContext.getBooleanFormulaManager();
+        List<BooleanFormula> assignments = new ArrayList<>(coreReason.getSize());
+        BooleanFormula missingNegatives = bmgr.makeTrue();
+
+        for (CoreLiteral coreLit : coreReason.getLiterals()) {
+            BooleanFormula varFormula = refiner.encodeVariable(coreLit, encodingContext);
+            if (negatives.contains(coreLit)) {
+                missingNegatives = bmgr.or(missingNegatives, varFormula);
+            } else {
+                assignments.add(varFormula);
+            }
+        }
+        getBackend().propagateConsequence(assignments.toArray(new BooleanFormula[0]), missingNegatives);
     }
 
     private void theoryPropagate(Consequence consequence) {
