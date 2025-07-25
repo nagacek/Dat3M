@@ -309,6 +309,7 @@ public class PatternPropagator extends AbstractUserPropagator {
         }
     }
 
+    // possibily still buggy? there is usually just a single negative edge in a pattern
     private void propagateMissingNegatives(Conjunction<CoreLiteral> coreReason, List<CoreLiteral> negatives) {
         BooleanFormulaManager bmgr = encodingContext.getBooleanFormulaManager();
         List<BooleanFormula> assignments = new ArrayList<>(coreReason.getSize());
@@ -337,7 +338,19 @@ public class PatternPropagator extends AbstractUserPropagator {
         DNF<CAATLiteral> assignmentDnf = new DNF<>(new Conjunction<>(consequence.getAssignments()));
         Set<Conjunction<CoreLiteral>> coreAssignments = reasoner.toCoreReasons(assignmentDnf, false);
         assert coreAssignments.size() == 1;
-        BooleanFormula[] assignments = refiner.encodeVariables(coreAssignments.stream().findAny().get(), encodingContext);
+
+        List<CoreLiteral> positiveAssignments = new ArrayList<>();
+        List<CoreLiteral> negativeAssignments = new ArrayList<>();
+        for (CoreLiteral coreLit : coreAssignments.stream().findAny().get().getLiterals()) {
+            if (coreLit.isNegative()) {
+                negativeAssignments.add(coreLit);
+            } else {
+                positiveAssignments.add(coreLit);
+            }
+        }
+
+        BooleanFormula[] negativeVars = refiner.encodeVariables(new Conjunction<>(negativeAssignments), encodingContext);
+        BooleanFormula[] positiveVars = refiner.encodeVariables(new Conjunction<>(positiveAssignments), encodingContext);
         List<BooleanFormula> consequenceLiterals = consequence.getConsequences().stream()
                 .map(lit -> {
                     CoreLiteral coreLit = toRelLiteral(lit, true);
@@ -349,9 +362,10 @@ public class PatternPropagator extends AbstractUserPropagator {
                 }).toList();
 
 
-        BooleanFormula consequenceFormula = bmgr.not(bmgr.and(consequenceLiterals));
+        BooleanFormula consequenceFormula = bmgr.or(bmgr.or(negativeVars), bmgr.not(bmgr.and(consequenceLiterals)));
         if (!bmgr.isFalse(consequenceFormula)) {
-            getBackend().propagateConsequence(assignments, consequenceFormula);
+            getBackend().propagateConsequence(positiveVars, consequenceFormula);
+            //getBackend().propagateConsequence(new BooleanFormula[0], bmgr.implication(bmgr.and(assignments), consequenceFormula));
             //System.out.println("Propagated consequence: " + Arrays.toString(assignments) + " => " + consequenceFormula);
         }
     }
@@ -433,7 +447,7 @@ public class PatternPropagator extends AbstractUserPropagator {
             if (!hasMatch) {
                 violationPatterns.add(newPattern);
 
-                //System.out.println(newPattern.toString());
+                //System.out.println(newPattern.toString()); // <- Debug print
             }
         }
         List<ViolationPattern> newViolationPatterns = violationPatterns.stream().toList();
