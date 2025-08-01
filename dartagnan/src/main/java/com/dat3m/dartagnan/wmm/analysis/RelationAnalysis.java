@@ -103,8 +103,6 @@ public interface RelationAnalysis {
         return a;
     }
 
-    void translateToBase(RefinementModel refinementModel);
-
     @Options
     final class Config {
         @Option(name = RELATION_ANALYSIS,

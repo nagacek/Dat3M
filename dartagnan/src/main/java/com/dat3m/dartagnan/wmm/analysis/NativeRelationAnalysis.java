@@ -114,17 +114,6 @@ public class NativeRelationAnalysis implements RelationAnalysis {
     }
 
     @Override
-    public void translateToBase(RefinementModel refinementModel) {
-        for (Relation originalRel : refinementModel.getOriginalModel().getRelations()) {
-            MutableKnowledge k = knowledgeMap.remove(originalRel);
-            Relation baseRel = refinementModel.translateToBase(originalRel);
-            if (baseRel != null) {
-                knowledgeMap.put(baseRel, k);
-            }
-        }
-    }
-
-    @Override
     public void populateQueue(Map<Relation, List<EventGraph>> queue, Set<Relation> relations) {
         Propagator p = new Propagator();
         Initializer init = getInitializer();

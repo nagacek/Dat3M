@@ -15,6 +15,8 @@ import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.CoreLiteral;
 import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.CoreReasoner;
 import com.dat3m.dartagnan.solver.caat4wmm.coreReasoning.RelLiteral;
 import com.dat3m.dartagnan.solver.caat4wmm.propagator.patterns.Consequence;
+import com.dat3m.dartagnan.solver.caat4wmm.propagator.patterns.Regulator;
+import com.dat3m.dartagnan.solver.caat4wmm.propagator.patterns.SortedAccumulator;
 import com.dat3m.dartagnan.solver.caat4wmm.propagator.patterns.ViolationPattern;
 import com.dat3m.dartagnan.solver.propagator.PropagatorExecutionGraph;
 import com.dat3m.dartagnan.utils.Pair;
@@ -71,7 +73,7 @@ public class PatternPropagator extends AbstractUserPropagator {
     private final Set<Relation> allRelations = new HashSet<>();
 
     // Todo: find abstraction levels for ruling out patterns to match against
-    private final Set<ViolationPattern> violationPatterns = new HashSet<>();
+    private final SortedAccumulator<ViolationPattern> violationPatterns = new SortedAccumulator<>(new Regulator.RegulatorComparator<>(), 10, 1.02d, 0.99d);
     private final HashMap<CoreLiteral, BooleanFormula> literalRepository = new HashMap<>();
 
     // ----- stats -----
@@ -174,7 +176,7 @@ public class PatternPropagator extends AbstractUserPropagator {
             if (functionality.ordinal() >= FUNCTIONALITY.TRACKING.ordinal()) {
                 newEdges.addAll(addToRelationGraphs(info));
                 if (functionality.ordinal() >= FUNCTIONALITY.JOIN.ordinal()) {
-                    matchAndPropagateConflicts(newEdges, violationPatterns);
+                    matchAndPropagateConflicts(newEdges);
                 }
             }
         } else {
@@ -202,11 +204,10 @@ public class PatternPropagator extends AbstractUserPropagator {
         return newEdges;
     }
 
-    private void matchAndPropagateConflicts(Collection<Pair<Relation, Edge>> edges, Collection<ViolationPattern> matchPatterns) {
+    private void matchAndPropagateConflicts(Collection<Pair<Relation, Edge>> edges) {
         long curTime;
-
-        for (Pair<Relation, Edge> pair : edges) {
-            for (ViolationPattern pattern : matchPatterns) {
+        for (ViolationPattern pattern : violationPatterns.asList()) {
+            for (Pair<Relation, Edge> pair : edges) {
                 Collection<Conjunction<CAATLiteral>> cubes = new ArrayList<>();
                 Collection<Consequence> consequences = new ArrayList<>();
                 //if (trackedRelations.contains(pair.first) && (pair.first.getNameOrTerm().contains("rf") || pair.first.getNameOrTerm().contains("co") )) {
@@ -259,6 +260,9 @@ public class PatternPropagator extends AbstractUserPropagator {
                         if (!isFirst) {
                             patternTime += System.currentTimeMillis() - curTime;
                             edges.clear();
+
+                            violationPatterns.reward(pattern);
+                            violationPatterns.punishExcept(pattern);
                             return;
                         }
                     }
@@ -266,6 +270,7 @@ public class PatternPropagator extends AbstractUserPropagator {
                 patternTime += System.currentTimeMillis() - curTime;
             }
         }
+        violationPatterns.punishAll();
         edges.clear();
         //progressRetention();
     }
@@ -434,11 +439,15 @@ public class PatternPropagator extends AbstractUserPropagator {
     // ----------------------------------------------------------------------
     // Extraction
 
+    public boolean hasPatternCapacityFor(ViolationPattern pattern) {
+        return violationPatterns.hasCapacityFor(pattern);
+    }
+
     public void addPatterns(Collection<ViolationPattern> patterns, Set<Relation> usedRelations) {
         //System.out.println("+++++++++++++++++++++++++++++");
         for (ViolationPattern newPattern : patterns) {
             boolean hasMatch = false;
-            for (ViolationPattern curPattern : violationPatterns) {
+            for (ViolationPattern curPattern : violationPatterns.asList()) {
                 if (curPattern.matchPattern(newPattern) != null) {
                     hasMatch = true;
                     break;
@@ -450,15 +459,8 @@ public class PatternPropagator extends AbstractUserPropagator {
                 //System.out.println(newPattern.toString()); // <- Debug print
             }
         }
-        List<ViolationPattern> newViolationPatterns = violationPatterns.stream().toList();
-        if (newViolationPatterns.size() > 20) {
-            newViolationPatterns = newViolationPatterns.subList(newViolationPatterns.size() - 11, newViolationPatterns.size() - 1);
-        }
-        violationPatterns.clear();
-        violationPatterns.addAll(newViolationPatterns);
-        violationPatterns.remove(null);
-        Set<Relation> newRelations = Sets.difference(usedRelations, trackedRelations);
-        registerRelations(newRelations); // it does not work to register expressions on-the-fly?
+        //Set<Relation> newRelations = Sets.difference(usedRelations, trackedRelations);
+        //registerRelations(newRelations); // it does not work to register expressions on-the-fly?
     }
 
     public PropagatorExecutionGraph getPropagatorExecutionGraph() {
@@ -475,7 +477,7 @@ public class PatternPropagator extends AbstractUserPropagator {
     public String printStats() {
         StringBuilder str = new StringBuilder();
         str.append("#Applied patterns: ").append(patternCount).append("\n");
-        str.append("#Attempts of matching: " + attempts).append("\n");
+        str.append("#Attempts of matching: ").append(attempts).append("\n");
         str.append("Pattern matching time (ms): ").append(joinTime).append("\n");
         str.append("Substitution application time (ms): ").append(patternTime);
 

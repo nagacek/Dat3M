@@ -292,8 +292,8 @@ public class RefinementSolver extends ModelChecker {
         }
         Set<Relation> baseRelations = refinementModel.computeBoundaryRelations().stream().filter(dependencies::contains).collect(Collectors.toSet());
         Set<Relation> setInducedRelations = refinementModel.getBaseModel().getRelations().stream().filter(rel -> (rel.getDefinition().getClass() == CartesianProduct.class || rel.getDefinition().getClass() == SetIdentity.class)).collect(Collectors.toSet());
-        PatternPropagator patternSolver = new PatternPropagator(new Decoder(context, refinementModel), context, translateToBase(analysisContext, refinementModel), refiner,
-                solver.getExecution(), translateToBase(cutDependencies, refinementModel), baseRelations, setInducedRelations);
+        PatternPropagator patternSolver = new PatternPropagator(new Decoder(context, refinementModel), context, baselineContext, refiner,
+                  solver.getExecution(), translateToBase(cutDependencies, refinementModel), baseRelations, setInducedRelations);
         solver.injectExtractor(new Extractor(patternSolver, patternSolver.getPropagatorExecutionGraph(), solver.getExecutionGraph(), refinementModel, patternSolver.getStaticRelations()));
         prover.registerUserPropagator(patternSolver);
 
@@ -389,15 +389,6 @@ public class RefinementSolver extends ModelChecker {
         // SAT=PASS
         res = propertyType == Property.Type.SAFETY ? res : res.invert();
         logger.info("Verification finished with result " + res);
-    }
-
-    private Context translateToBase(Context analysisContext, RefinementModel refinementModel) {
-        Context newContext = Context.createCopyFrom(analysisContext);
-        RelationAnalysis ra = analysisContext.get(RelationAnalysis.class).getCopy(newContext);
-        ra.translateToBase(refinementModel);
-        newContext.invalidate(RelationAnalysis.class);
-        newContext.register(RelationAnalysis.class, ra);
-        return newContext;
     }
 
     private Set<Relation> translateToBase(Set<Relation> relations, RefinementModel refinementModel) {

@@ -100,9 +100,6 @@ public class LazyRelationAnalysis extends NativeRelationAnalysis {
         return null;
     }
 
-    @Override
-    public void translateToBase(RefinementModel refinementModel) { }
-
     private class LazyInitializer implements Definition.Visitor<RelationAnalysis.Knowledge> {
         private final Program program;
         private final ExecutionAnalysis exec;

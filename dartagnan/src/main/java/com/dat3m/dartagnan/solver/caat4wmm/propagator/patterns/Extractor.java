@@ -40,6 +40,9 @@ public class Extractor {
     }
 
     public void extract(DNF<CAATLiteral> inconsistencyReasons) {
+        if (!propagator.hasPatternCapacityFor(new ViolationPattern())) {
+            return;
+        }
         List<ViolationPattern> violationPatterns = new ArrayList<>();
         Set<Relation> usedRelations = new HashSet<>();
         for (Conjunction<CAATLiteral> cube : inconsistencyReasons.getCubes()) {

@@ -16,14 +16,28 @@ import com.google.common.collect.ImmutableSet;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class ViolationPattern {
+public class ViolationPattern implements Regulator {
+    private double relevancy = 1;
     
-    final Map<Relation, RelationGraph> rel2Graph = new HashMap<>();
-    final List<Node> nodes = new ArrayList<>();
-    final List<Edge> edges = new ArrayList<>();
+    final Map<Relation, RelationGraph> rel2Graph;
+    final List<Node> nodes;
+    final List<Edge> edges;
 
     // ------------------------------------------------------------------------------------------
     // Construction
+
+    public ViolationPattern() {
+        rel2Graph = new HashMap<>();
+        nodes = new ArrayList<>();
+        edges = new ArrayList<>();
+    }
+
+    private ViolationPattern(ViolationPattern pattern, double relevancy) {
+        rel2Graph = pattern.rel2Graph;
+        nodes = pattern.nodes;
+        edges = pattern.edges;
+        this.relevancy = relevancy;
+    }
 
     public Node addNode() {
         final Node node = new Node(nodes.size());
@@ -345,6 +359,29 @@ public class ViolationPattern {
         }
         return null;
     }
+    // ------------------------------------------------------------------------------------------
+    // Decay
+
+    @Override
+    public double getScore() {
+        return relevancy;
+    }
+
+    @Override
+    public void reward(double reward) {
+        relevancy *= reward;
+    }
+
+    @Override
+    public void punish(double punishment) {
+        relevancy *= punishment;
+    }
+
+    @Override
+    public ViolationPattern adaptToScale(double scale) {
+        return new ViolationPattern(this, relevancy * 1/scale);
+    }
+
 
     // ===============================================================================================
     // ================================ Internal classes =============================================
