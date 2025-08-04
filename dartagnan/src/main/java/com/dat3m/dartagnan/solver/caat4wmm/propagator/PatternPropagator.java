@@ -220,7 +220,7 @@ public class PatternPropagator extends AbstractUserPropagator {
                         List<ViolationPattern.Match> newMatches = pattern.findMatches(candidate, edge.getFirst(), edge.getSecond());
                         matches.addAll(newMatches);
                         attempts++;
-                        if (newMatches.stream().anyMatch(ViolationPattern.Match::hasPropagationEdges)) {
+                        if (newMatches.stream().noneMatch(ViolationPattern.Match::hasPropagationEdges)) {
                             break;
                         }
                     }
@@ -314,7 +314,7 @@ public class PatternPropagator extends AbstractUserPropagator {
         }
     }
 
-    // possibily still buggy? there is usually just a single negative edge in a pattern
+    // possibly still buggy? there is usually just a single negative edge in a pattern
     private void propagateMissingNegatives(Conjunction<CoreLiteral> coreReason, List<CoreLiteral> negatives) {
         BooleanFormulaManager bmgr = encodingContext.getBooleanFormulaManager();
         List<BooleanFormula> assignments = new ArrayList<>(coreReason.getSize());
