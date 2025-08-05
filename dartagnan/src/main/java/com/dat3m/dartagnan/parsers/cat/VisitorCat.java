@@ -9,6 +9,10 @@ import com.dat3m.dartagnan.parsers.CatLexer;
 import com.dat3m.dartagnan.parsers.CatParser;
 import com.dat3m.dartagnan.parsers.CatParser.*;
 import com.dat3m.dartagnan.program.filter.Filter;
+import com.dat3m.dartagnan.program.filter.TagFilter;
+import com.dat3m.dartagnan.solver.caat4wmm.propagator.patterns.ParserPattern;
+import com.dat3m.dartagnan.solver.caat4wmm.propagator.patterns.ViolationPattern;
+import com.dat3m.dartagnan.witness.graphml.Node;
 import com.dat3m.dartagnan.wmm.Definition;
 import com.dat3m.dartagnan.wmm.Relation;
 import com.dat3m.dartagnan.wmm.RelationNameRepository;
@@ -369,6 +373,75 @@ class VisitorCat extends CatBaseVisitor<Object> {
         Filter s2 = parseAsFilter(c.e2);
         return addDefinition(new CartesianProduct(r0, s1, s2));
     }
+
+    // ============================ Patterns ============================
+
+    @Override
+    public Void visitPattern(PatternContext c) {
+        List<EdgeContext> edgeContexts = c.edge();
+        List<ParserPattern.Edge> edges = edgeContexts.stream().map(edgeContext -> {
+            Object o = edgeContext.accept(this);
+            if (o instanceof ParserPattern.Edge e) {
+                return e;
+            } else {
+                throw new ParsingException("Expected edge, got " + o.getClass().getSimpleName() + " " + o + " from expression " + edgeContext.getText());
+            }
+        }).toList();
+        wmm.addPattern(new ParserPattern(edges));
+        return null;
+    }
+
+    @Override
+    public ParserPattern.Edge visitPosEdge(PosEdgeContext c) {
+        return handleEdge(c.e, c.n1, c.n2, false);
+    }
+
+    @Override
+    public ParserPattern.Edge visitNegEdge(NegEdgeContext c) {
+        return handleEdge(c.e, c.n1, c.n2, true);
+    }
+
+    private ParserPattern.Edge handleEdge(ExpressionContext e, NodeContext n1, NodeContext n2, boolean isNegative) {
+        Relation r = parseAsRelation(e);
+        Object o1 = n1.accept(this);
+        Object o2 = n2.accept(this);
+
+
+        if (o1 instanceof ParserPattern.Node node1 && o2 instanceof ParserPattern.Node node2) {
+            return new ParserPattern.Edge(r, node1, node2, false);
+        } else {
+            throw new ParsingException("Expected node twice, got " + o1.getClass().getSimpleName() + " " + o1 + " and "
+                    + o2.getClass().getSimpleName() + " " + o2 + " from expressions " + n1.getText() + " and " + n2.getText());
+        }
+    }
+
+    @Override
+    public ParserPattern.Node visitNode(NodeContext c) {
+        List<SetContext> sets = c.set();
+        List<Filter> filters = sets.stream().map(set -> {
+            Object o = set.accept(this);
+            if (o instanceof Filter f) {
+                return f;
+            } else {
+                throw new ParsingException("Expected filter, got " + o.getClass().getSimpleName() + " " + o + " from expression " + set.getText());
+            }
+        }).toList();
+        int id = Integer.parseInt(c.id.getText());
+        return new ParserPattern.Node(id, filters);
+    }
+
+    @Override
+    public Filter visitExprSet(ExprSetContext c) {
+        return parseAsFilter(c.e);
+    }
+
+    @Override
+    public Filter visitExecSet(ExecSetContext c) {
+        Filter filter =  Filter.byTag("exec");
+        filter.setName("exec");
+        return filter;
+    }
+
 
     // ============================ Utility ============================
 

@@ -15,6 +15,7 @@ import com.dat3m.dartagnan.utils.logic.Conjunction;
 import com.dat3m.dartagnan.utils.logic.DNF;
 import com.dat3m.dartagnan.wmm.Relation;
 
+import javax.swing.text.html.parser.Parser;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -47,43 +48,27 @@ public class Extractor {
         Set<Relation> usedRelations = new HashSet<>();
         for (Conjunction<CAATLiteral> cube : inconsistencyReasons.getCubes()) {
             ViolationPattern pattern = new ViolationPattern();
-            violationPatterns.add(pattern);
             Map<Integer, ViolationPattern.Node> patternNodes = new HashMap<>();
             Set<Relation> currentUsedRelations = new HashSet<>();
+
+            violationPatterns.add(pattern);
             for (CAATLiteral lit : cube.getLiterals()) {
                 if (lit instanceof EdgeLiteral edgeLit) {
                     Relation rel = caatExecutionGraph.getRelationGraphMap().inverse().get(edgeLit.getPredicate());
                     Relation baseRel = refinementModel.translateToBase(rel);
+                    boolean isNegative = lit.isNegative();
 
                     ViolationPattern.Node from = initAndGet(patternNodes, edgeLit.getData().getFirst(), pattern);
                     ViolationPattern.Node to = initAndGet(patternNodes, edgeLit.getData().getSecond(), pattern);
 
-                    // additional compatibility checks
-                    boolean isNegative = lit.isNegative();
-                    if (!allowNegation && isNegative) {
+                    if (!createAndAddEdge(baseRel, from, to, isNegative, currentUsedRelations, violationPatterns)) {
                         rollback(violationPatterns, currentUsedRelations);
                         break;
                     }
-                    boolean isStatic = false;
-                    if (coveredStaticOptimization) {
-                        isStatic = staticRelations.contains(baseRel);
-                    }
-                    if (!isStatic) {
-                        currentUsedRelations.add(baseRel);
-                    }
-
-                    // TODO ????
-                    if (patternExecutionGraph.getRelationGraph(baseRel) == null) {
-                        rollback(violationPatterns, currentUsedRelations);
-                        break;
-                    }
-                    // -----------------------
-
-                    pattern.addRelationGraph(baseRel, patternExecutionGraph.getRelationGraph(baseRel));
-                    pattern.addEdge(baseRel, from, to, isStatic, isNegative);
                 } else if (tagOptimization && lit instanceof ElementLiteral elementLit) {
                     if (elementLit.getPredicate() instanceof StaticWMMSet staticSetPred) {
                         ViolationPattern.Node node = initAndGet(patternNodes, elementLit.getData().getId(), pattern);
+
                         Filter filter = staticSetPred.getFilter();
                         SetPredicate set = patternExecutionGraph.getOrCreateSetPredicate(filter);
                         node.integrateSet(set);
@@ -92,38 +77,126 @@ public class Extractor {
                         throw new UnsupportedOperationException(errorMsg);
                     }
                 }
+            }
+            if (!checkPatternConformity(patternNodes, violationPatterns, currentUsedRelations)) {
+                rollback(violationPatterns, currentUsedRelations);
+                continue;
+            }
+            removeDuplicate(violationPatterns, currentUsedRelations);
+            usedRelations.addAll(currentUsedRelations);
+        }
+        if (handleStaticEdges(violationPatterns)) {
+            propagator.addPatterns(violationPatterns, usedRelations);
+        }
+    }
 
-                if (patternNodes.size() > maxNodeNumber) {
+    public void extract(Collection<ParserPattern> patterns) {
+        List<ViolationPattern> violationPatterns = new ArrayList<>();
+        Set<Relation> usedRelations = new HashSet<>();
+        for (ParserPattern parserPattern : patterns) {
+            ViolationPattern pattern = new ViolationPattern();
+            Map<Integer, ViolationPattern.Node> patternNodes = new HashMap<>();
+            Set<Relation> currentUsedRelations = new HashSet<>();
+
+            violationPatterns.add(pattern);
+            for (ParserPattern.Edge parserEdge : parserPattern.edges()) {
+                Relation baseRel = refinementModel.translateToBase(parserEdge.r());
+                boolean isNegative = parserEdge.isNegative();
+
+                ViolationPattern.Node from = initAndGet(patternNodes, parserEdge.n1().id(), pattern);
+                ViolationPattern.Node to = initAndGet(patternNodes, parserEdge.n2().id(), pattern);
+
+                if (!createAndAddEdge(baseRel, from, to, isNegative, currentUsedRelations, violationPatterns)) {
                     rollback(violationPatterns, currentUsedRelations);
                     break;
                 }
 
-
-                // under-approximates the location relation by omitting the edge from a pattern if
-                // (i) both events are writes (then they have to be coherence ordered)
-                // (ii) the events are also connected by an fr-edge (by definition, they have to refer to the same location)
-                // otherwise, the pattern is not used
-                if (locationApproximation) { // not useful as patterns only contain loc if no other information is available
-                    if (!approximateLocationEdges(pattern)) {
-                        rollback(violationPatterns, currentUsedRelations);
-                        break;
-                    }
-                } else { // do not allow location edges in settings where the relation is not cut from the mm
-                    boolean locCut = patternExecutionGraph.getCutRelations().stream().anyMatch(rel -> rel.getNameOrTerm().contains("loc"));
-                    boolean containsLoc = pattern.rel2Graph.keySet().stream().anyMatch(rel -> rel.getNameOrTerm().contains("loc"));
-                    if (!locCut && containsLoc) {
-                        rollback(violationPatterns, currentUsedRelations);
-                        break;
-                    }
-                }
+                integrateSets(from, parserEdge.n1().filters());
+                integrateSets(to, parserEdge.n2().filters());
             }
-            for (int i = 0; i < violationPatterns.size() - 1; i++) {
-                if (violationPatterns.get(violationPatterns.size() - 1).matchPattern(violationPatterns.get(i)) != null) {
-                    rollback(violationPatterns, currentUsedRelations);
-                }
+            if (!checkPatternConformity(patternNodes, violationPatterns, currentUsedRelations)) {
+                rollback(violationPatterns, currentUsedRelations);
+                continue;
             }
+            removeDuplicate(violationPatterns, currentUsedRelations);
             usedRelations.addAll(currentUsedRelations);
         }
+        if (handleStaticEdges(violationPatterns)) {
+            propagator.addPatterns(violationPatterns, usedRelations);
+        }
+    }
+
+    private void integrateSets(ViolationPattern.Node node, Collection<Filter> filters) {
+        for (Filter filter : filters) {
+            SetPredicate set;
+            if (filter.getName() != null && filter.getName().equals("exec")) {
+                set = patternExecutionGraph.getExecutedSet();
+            } else {
+                set = patternExecutionGraph.getOrCreateSetPredicate(filter);
+            }
+            node.integrateSet(set);
+        }
+    }
+
+    private boolean createAndAddEdge(Relation rel, ViolationPattern.Node from, ViolationPattern.Node to, boolean isNegative, Set<Relation> usedRelations, List<ViolationPattern> violationPatterns) {
+        // additional compatibility checks
+        if (!allowNegation && isNegative) {
+            return false;
+        }
+        boolean isStatic = false;
+        if (coveredStaticOptimization) {
+            isStatic = staticRelations.contains(rel);
+        }
+        if (!isStatic) {
+            usedRelations.add(rel);
+        }
+
+        // TODO ????
+        if (patternExecutionGraph.getRelationGraph(rel) == null) {
+            return false;
+        }
+        // -----------------------
+
+        ViolationPattern pattern = violationPatterns.get(violationPatterns.size() - 1);
+        pattern.addRelationGraph(rel, patternExecutionGraph.getRelationGraph(rel));
+        pattern.addEdge(rel, from, to, isStatic, isNegative);
+        return true;
+    }
+
+    private boolean checkPatternConformity(Map<Integer, ViolationPattern.Node> patternNodes, List<ViolationPattern> violationPatterns, Set<Relation> usedRelations) {
+        if (patternNodes.size() > maxNodeNumber) {
+            rollback(violationPatterns, usedRelations);
+            return false;
+        }
+
+        ViolationPattern pattern = violationPatterns.get(violationPatterns.size() - 1);
+        // under-approximates the location relation by omitting the edge from a pattern if
+        // (i) both events are writes (then they have to be coherence ordered)
+        // (ii) the events are also connected by an fr-edge (by definition, they have to refer to the same location)
+        // otherwise, the pattern is not used
+        if (locationApproximation) { // not useful as patterns only contain loc if no other information is available
+            if (!approximateLocationEdges(pattern)) {
+                return false;
+            }
+        } else { // do not allow location edges in settings where the relation is not cut from the mm
+            boolean locCut = patternExecutionGraph.getCutRelations().stream().anyMatch(rel -> rel.getNameOrTerm().contains("loc"));
+            boolean containsLoc = pattern.rel2Graph.keySet().stream().anyMatch(rel -> rel.getNameOrTerm().contains("loc"));
+            if (!locCut && containsLoc) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void removeDuplicate(List<ViolationPattern> violationPatterns, Set<Relation> usedRelations) {
+        for (int i = 0; i < violationPatterns.size() - 1; i++) {
+            if (violationPatterns.get(violationPatterns.size() - 1).matchPattern(violationPatterns.get(i)) != null) {
+                rollback(violationPatterns, usedRelations);
+            }
+        }
+    }
+
+    private boolean handleStaticEdges(List<ViolationPattern> violationPatterns) {
         if (!violationPatterns.isEmpty()) {
             if (coveredStaticOptimization && !tagOptimization) {
                 violationPatterns = violationPatterns.stream().filter(ViolationPattern::newValidateStaticCoverage).collect(Collectors.toList());
@@ -131,8 +204,8 @@ public class Extractor {
             if (tagOptimization) {
                 violationPatterns.forEach(p -> p.findShortcutEdges(patternExecutionGraph.getExecutedSet()));
             }
-            propagator.addPatterns(violationPatterns, usedRelations);
         }
+        return !violationPatterns.isEmpty();
     }
 
     private ViolationPattern.Node initAndGet(Map<Integer, ViolationPattern.Node> patternNodes, int eventId, ViolationPattern pattern) {
