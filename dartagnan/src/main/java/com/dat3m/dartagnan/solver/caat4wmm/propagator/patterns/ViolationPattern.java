@@ -318,16 +318,18 @@ public class ViolationPattern implements Regulator {
     // Otherwise, the may-set will be restricted by the events currently active on a join
     public void findShortcutEdges(SetPredicate executedSet) {
         Map<Node, Set<Edge>> activeOutgoing = new HashMap<>();
+        Map<Node, Set<Edge>> activeIngoing = new HashMap<>();
         Set<Edge> staticEdges = new HashSet<>();
         for (Edge edge : edges) {
             if (edge.isStatic) {
                 staticEdges.add(edge);
             } else {
                 activeOutgoing.computeIfAbsent(edge.from, k -> new HashSet<>()).add(edge);
+                activeIngoing.computeIfAbsent(edge.to, k -> new HashSet<>()).add(edge);
             }
         }
         for (Edge staticEdge : staticEdges) {
-            Edge newEdge = findPathOver(staticEdge, activeOutgoing);
+            Edge newEdge = findPathOver(staticEdge, activeOutgoing, activeIngoing);
             if (newEdge != null) {
                 edges.remove(staticEdge);
                 edges.add(newEdge);
@@ -338,26 +340,41 @@ public class ViolationPattern implements Regulator {
         }
     }
 
-    private Edge findPathOver(Edge edge, Map<Node, Set<Edge>> outgoing) {
-        ArrayDeque<Node> queue = new ArrayDeque<>(outgoing.size());
+    private Edge findPathOver(Edge edge, Map<Node, Set<Edge>> outgoing, Map<Node, Set<Edge>> ingoing) {
+        ArrayDeque<Node> queue = new ArrayDeque<>(Math.max(outgoing.size(), ingoing.size()));
         Set<Node> visited = new HashSet<>();
         queue.add(edge.from);
         visited.add(edge.from);
         while (!queue.isEmpty()) {
             Node current = queue.pop();
-            Set<Edge> edges = outgoing.getOrDefault(current, Set.of());
-            for (Edge otherEdge : edges) {
+            Set<Edge> outEdges = outgoing.getOrDefault(current, Set.of());
+
+            for (Edge otherEdge : outEdges) {
                 Node intermediateTarget = otherEdge.to;
-                if (edge.to.equals(intermediateTarget)) {
+                if (handleIntermediateTarget(queue, visited, edge, intermediateTarget)) {
                     return new Edge(edge.relation, edge.graph, edge.from, edge.to, edge.isNegated, edge.isStatic, true);
                 }
-                if (!visited.contains(intermediateTarget)) {
-                    queue.add(intermediateTarget);
-                    visited.add(intermediateTarget);
+            }
+            Set<Edge> inEdges = ingoing.getOrDefault(current, Set.of());
+            for (Edge otherEdge : inEdges) {
+                Node intermediateTarget = otherEdge.from;
+                if (handleIntermediateTarget(queue, visited, edge, intermediateTarget)) {
+                    return new Edge(edge.relation, edge.graph, edge.from, edge.to, edge.isNegated, edge.isStatic, true);
                 }
             }
         }
         return null;
+    }
+
+    private boolean handleIntermediateTarget(ArrayDeque<Node> queue, Set<Node> visited, Edge edge, Node intermediateTarget) {
+        if (edge.to.equals(intermediateTarget)) {
+            return true;
+        }
+        if (!visited.contains(intermediateTarget)) {
+            queue.add(intermediateTarget);
+            visited.add(intermediateTarget);
+        }
+        return false;
     }
     // ------------------------------------------------------------------------------------------
     // Decay
