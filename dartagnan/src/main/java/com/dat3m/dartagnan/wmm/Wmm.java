@@ -2,6 +2,7 @@ package com.dat3m.dartagnan.wmm;
 
 import com.dat3m.dartagnan.program.event.Tag;
 import com.dat3m.dartagnan.program.filter.Filter;
+import com.dat3m.dartagnan.solver.caat4wmm.propagator.patterns.ParserPattern;
 import com.dat3m.dartagnan.wmm.axiom.Axiom;
 import com.dat3m.dartagnan.wmm.definition.*;
 import com.google.common.collect.ImmutableSet;
@@ -44,6 +45,7 @@ public class Wmm {
     private final List<Constraint> constraints = new ArrayList<>(); // NOTE: Stores only non-defining constraints
     private final Set<Relation> relations = new HashSet<>();
     private final Map<String, Filter> filters = new HashMap<>();
+    private final List<ParserPattern> patterns = new ArrayList<>();
 
     private final Config config = new Config();
 
@@ -158,6 +160,14 @@ public class Wmm {
 
     public Filter getFilter(String name) {
         return filters.computeIfAbsent(name, Filter::byTag);
+    }
+
+    public void addPattern(ParserPattern pattern) {
+        patterns.add(pattern);
+    }
+
+    public Collection<ParserPattern> getPatterns() {
+        return patterns;
     }
 
     @Override

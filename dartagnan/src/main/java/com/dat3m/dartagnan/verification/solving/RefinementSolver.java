@@ -294,7 +294,9 @@ public class RefinementSolver extends ModelChecker {
         Set<Relation> setInducedRelations = refinementModel.getBaseModel().getRelations().stream().filter(rel -> (rel.getDefinition().getClass() == CartesianProduct.class || rel.getDefinition().getClass() == SetIdentity.class)).collect(Collectors.toSet());
         PatternPropagator patternSolver = new PatternPropagator(new Decoder(context, refinementModel), context, baselineContext, refiner,
                   solver.getExecution(), translateToBase(cutDependencies, refinementModel), baseRelations, setInducedRelations);
-        solver.injectExtractor(new Extractor(patternSolver, patternSolver.getPropagatorExecutionGraph(), solver.getExecutionGraph(), refinementModel, patternSolver.getStaticRelations()));
+        Extractor extractor = new Extractor(patternSolver, patternSolver.getPropagatorExecutionGraph(), solver.getExecutionGraph(), refinementModel, patternSolver.getStaticRelations());
+        solver.injectExtractor(extractor);
+        extractor.extract(memoryModel.getPatterns());
         prover.registerUserPropagator(patternSolver);
 
         //AtomicityPropagator atomicitySolver = new AtomicityPropagator(refinementModel, context, translateToBase(analysisContext, refinementModel), refiner, solver.getExecution(), solver.getExecutionGraph());

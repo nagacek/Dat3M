@@ -5,7 +5,7 @@ import com.dat3m.dartagnan.wmm.axiom.*;
 }
 
 mcm
-    :   (NAME)* (QUOTED_STRING)? (definition | include | show)+ EOF
+    :   (NAME)* (QUOTED_STRING)? (definition | include | show | pattern)+ EOF
     ;
 
 definition
@@ -57,6 +57,24 @@ expression
     |   call = NAME LPAR args = argumentList RPAR                       # exprCall
     ;
 
+pattern
+    : PATTERN edge (COMMA edge)*
+    ;
+
+edge
+    :   n1 = node LARR NEG e = expression RARR n2 = node        # negEdge
+    |   n1 = node LARR e = expression RARR n2 = node            # posEdge
+    ;
+
+node
+    :   id = NUMBER (LPAR set (COMMA set)* RPAR)?
+    ;
+
+set
+    : e = expression        # exprSet
+    | EXEC                  # execSet
+    ;
+
 include
     :   INCLUDE path = QUOTED_STRING
     ;
@@ -80,6 +98,7 @@ AS      :   'as';
 TOID    :   'toid';
 SHOW    :   'show';
 INCLUDE :   'include';
+PATTERN :   'pattern';
 
 ACYCLIC     :   'acyclic';
 IRREFLEXIVE :   'irreflexive';
@@ -96,23 +115,28 @@ BAR     :   '|';
 SEMI    :   ';';
 BSLASH  :   '\\';
 POW     :   ('^');
+NEG     :   '¬';
 
 LPAR    :   '(';
 RPAR    :   ')';
 LBRAC   :   '[';
 RBRAC   :   ']';
 COMMA   :   ',';
+LARR    :   '-';
+RARR    :   '->';
 
 DOMAIN      :   'domain';
 RANGE       :   'range';
 NEW         :   'new';
+EXEC        :   'exec';
 
 FLAG       :   'flag';
 UNDEFINED  :   'undefined_unless';
 
 QUOTED_STRING : '"' .*? '"';
 
-NAME    : [A-Za-z0-9\-_.]+;
+NUMBER      :   [0-9]+;
+NAME        :   [A-Za-z0-9\-_.]+ | NUMBER;
 
 LINE_COMMENT
     :   '//' ~[\n]*
