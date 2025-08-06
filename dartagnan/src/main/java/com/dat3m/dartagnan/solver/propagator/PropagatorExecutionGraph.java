@@ -64,7 +64,9 @@ public class PropagatorExecutionGraph implements GeneralExecutionGraph {
 
     public SetPredicate getOrCreateSetPredicate(Filter filter) {
         if (!setMap.containsKey(filter)) {
-            setMap.put(filter, new StaticWMMSetWrapper(filter, domain));
+            SetPredicate newSet = new StaticWMMSetWrapper(filter, domain);
+            newSet.setName(filter.toString());
+            setMap.put(filter, newSet);
         }
         return setMap.get(filter);
     }

@@ -111,6 +111,7 @@ public class SortedAccumulator<T extends Regulator>{
         T toScale = (T)toInsert.adaptToScale(scale);
         if (hasCapacityFor(toScale)){
            addInOrder(toScale);
+           restrictToCapacity();
            return true;
         }
         restrictToCapacity();
@@ -130,6 +131,18 @@ public class SortedAccumulator<T extends Regulator>{
         if (list.size() > capacity) {
             list.subList(capacity, list.size()).clear();
         }
+    }
+
+    public String print(T entry) {
+        return entry.toString() + ": " + entry.getScore() * scale;
+    }
+
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        for (T entry : list) {
+            sb.append(entry.toString()).append(": ").append(entry.getScore() * scale).append("\n");
+        }
+        return sb.toString();
     }
 
 }

@@ -69,3 +69,6 @@ acyclic hb as Model
 
 (* Atomicity axiom *)
 empty rmw & (fre;coe) as Atomic
+
+pattern 0(W, exec) - rf -> 1(R, exec), 2(Fence.rw.w, exec) - po -> 0(W, exec), 5 - rf -> 6(M, exec), 3(M, exec) - po -> 2(Fence.rw.w, exec), 4(Fence.r.rw, exec) - po -> 6(M, exec), 5 - co -> 3(M, exec), 1(R, exec) - po -> 4(Fence.r.rw, exec), 0(W, exec) - ext -> 1(R, exec)
+pattern 2 - rf -> 0(M, exec), 4(M, exec) - addr -> 0(M, exec), 1(M, exec) - po -> 5(Fence.rw.w, exec), 5(Fence.rw.w, exec) - po -> 3(W, exec), 2 - co -> 1(M, exec), 3(W, exec) - rf -> 4(M, exec), 3(W, exec) - ext -> 4(M, exec)

@@ -308,7 +308,7 @@ public class ViolationPattern implements Regulator {
         StringBuilder sb = new StringBuilder();
         for (Edge edge : edges) {
             sb.append(edge.toString());
-            sb.append("  ");
+            sb.append(", ");
         }
         return sb.toString();
     }
@@ -478,7 +478,7 @@ public class ViolationPattern implements Regulator {
                 return;
             }
             Set<String> included = inclusionMap.get(set.toString());
-            sets.add(set);
+            addSet(set);
             if (included == null) {
                 return;
             }
@@ -532,15 +532,15 @@ public class ViolationPattern implements Regulator {
         @Override
         public String toString() {
             StringBuilder str = new StringBuilder();
-            str.append("n#").append(id);
+            str.append(id);
             if (!sets.isEmpty()) {
                 str.append("(");
             }
             for (SetPredicate set : sets) {
-                str.append(set).append(" ");
+                str.append(set).append(", ");
             }
             if (!sets.isEmpty()) {
-                str.deleteCharAt(str.length() - 1).append(")");
+                str.deleteCharAt(str.length() - 2).append(")");
             }
             return str.toString();
         }
@@ -559,7 +559,7 @@ public class ViolationPattern implements Regulator {
     public record Edge(Relation relation, RelationGraph graph, Node from, Node to, boolean isNegated, boolean isStatic, boolean isShortcut) {
         @Override
         public String toString() {
-            return String.format("%s-%s%s->%s", from, isNegated ? "¬" : "", relation.getNameOrTerm(), to);
+            return String.format("%s - %s%s -> %s", from, isNegated ? "¬ " : "", relation.getNameOrTerm(), to);
         }
         @Override
         public boolean equals(Object obj) { return this == obj; }

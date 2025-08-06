@@ -52,7 +52,7 @@ expression
     |   LBRAC RANGE LPAR e = expression RPAR RBRAC                      # exprRangeIdentity
     |   (TOID LPAR e = expression RPAR | LBRAC e = expression RBRAC)    # exprIdentity
     |   LPAR e = expression RPAR                                        # expr
-    |   n = NAME                                                        # exprBasic
+    |   n = (NAME | NUMBER)                                             # exprBasic
     |   call = NEW LPAR RPAR                                            # exprNew
     |   call = NAME LPAR args = argumentList RPAR                       # exprCall
     ;
@@ -136,7 +136,7 @@ UNDEFINED  :   'undefined_unless';
 QUOTED_STRING : '"' .*? '"';
 
 NUMBER      :   [0-9]+;
-NAME        :   [A-Za-z0-9\-_.]+ | NUMBER;
+NAME        :   [A-Za-z0-9\-_.]+;
 
 LINE_COMMENT
     :   '//' ~[\n]*
