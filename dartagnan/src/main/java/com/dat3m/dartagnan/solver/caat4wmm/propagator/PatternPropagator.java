@@ -236,9 +236,19 @@ public class PatternPropagator extends AbstractUserPropagator {
                         if (isFirst) {
                             if (!negatives.isEmpty()) {
                                 isFirst = handleNegativeConflict(coreReason, negatives);
+                                if (isFirst) {
+                                    violationPatterns.reward(pattern);
+                                    violationPatterns.punishExcept(pattern);
+                                    //System.out.println(violationPatterns.print(pattern));
+                                }
+                                return;
                             } else {
                                 propagateConflict(coreReason);
                                 isFirst = false;
+                                violationPatterns.reward(pattern);
+                                violationPatterns.punishExcept(pattern);
+                                //System.out.println(violationPatterns.print(pattern));
+                                return;
                             }
                         } /*else {
                             retentionConflicts.add(conflict);
@@ -246,10 +256,6 @@ public class PatternPropagator extends AbstractUserPropagator {
                         if (!isFirst) {
                             patternTime += System.currentTimeMillis() - curTime;
                             edges.clear();
-
-                            violationPatterns.reward(pattern);
-                            violationPatterns.punishExcept(pattern);
-                            return;
                         }
                     }
                 }
@@ -356,7 +362,9 @@ public class PatternPropagator extends AbstractUserPropagator {
                 }
             }
             if (!hasMatch) {
-                violationPatterns.add(newPattern);
+                if(violationPatterns.add(newPattern)) {
+                    //System.out.println("Current violation patterns: \n" + violationPatterns.toString());
+                }
                 //System.out.println(newPattern.toString());
             }
         }
