@@ -408,7 +408,7 @@ class VisitorCat extends CatBaseVisitor<Object> {
 
 
         if (o1 instanceof ParserPattern.Node node1 && o2 instanceof ParserPattern.Node node2) {
-            return new ParserPattern.Edge(r, node1, node2, false);
+            return new ParserPattern.Edge(r, node1, node2, isNegative);
         } else {
             throw new ParsingException("Expected node twice, got " + o1.getClass().getSimpleName() + " " + o1 + " and "
                     + o2.getClass().getSimpleName() + " " + o2 + " from expressions " + n1.getText() + " and " + n2.getText());
