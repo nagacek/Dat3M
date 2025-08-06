@@ -16,7 +16,7 @@ let detour = po-loc & (coe;rfe)
 (* Initial value *)
 let ii0 = dp | rfi | rdw
 let ic0 = 0
-let ci0 = ctrlisync | detour
+let ci0 = ctrlisyncrel | detour
 let cc0 = dp | po-loc | ctrl | (addr;po)
 
 (* Fixpoint from i -> c in instructions and transitivity *)
@@ -31,7 +31,7 @@ let ppo = (R*W & ic) | (R*R & ii)
 (* fences *)
 (**********)
 
-let fence = (R*M & lwsync) | (W*W & lwsync) | sync
+let fence = (R*M & lwsyncrel) | (W*W & lwsyncrel) | syncrel
 
 (* happens before *)
 let hb = ppo | fence | rfe
@@ -39,7 +39,7 @@ acyclic hb
 
 (* prop *)
 let propbase = (fence | (rfe;fence));hb*
-let prop = (W*W & propbase)| (com*;propbase*;sync;hb*)
+let prop = (W*W & propbase)| (com*;propbase*;syncrel;hb*)
 
 acyclic co | prop
 let hbax = fre;prop;hb*
@@ -47,3 +47,6 @@ irreflexive hbax
 
 (* Atomic: Basic LDXR/STXR constraint to forbid intervening writes. *)
 empty rmw & (fre; coe) as atomic
+
+pattern 0 - co -> 1(_, exec), 2(isync, exec) - po -> 3(R, exec), 4(exec) - rf -> 5(R, exec), 0 - rf -> 3(R, exec), 5(R, exec) - po -> 2(isync, exec), 1(_, exec) - po -> 6(sync, exec), 5(R, exec) - ctrl -> 3(R, exec), 6(sync, exec) - po -> 4(exec), 3(R, exec) - ext -> 1(_, exec), 4(exec) - ext -> 5(R, exec)
+pattern 0 - rf -> 1(R, exec), 0 - co -> 2(_, exec), 2(_, exec) - po -> 3(sync, exec), 4(exec) - rf -> 5(R, exec), 5(R, exec) - addr -> 1(R, exec), 3(sync, exec) - po -> 4(exec), 1(R, exec) - ext -> 2(_, exec), 4(exec) - ext -> 5(R, exec)

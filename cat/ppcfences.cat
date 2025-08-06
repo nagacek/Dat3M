@@ -1,4 +1,4 @@
-let sync = po;[sync];po
-let isync = po;[isync];po
-let lwsync = po;[lwsync];po
-let ctrlisync = ctrl & isync
+let syncrel = po;[sync];po
+let isyncrel = po;[isync];po
+let lwsyncrel = po;[lwsync];po
+let ctrlisyncrel = ctrl & isyncrel

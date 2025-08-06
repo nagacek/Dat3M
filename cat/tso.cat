@@ -22,3 +22,6 @@ let po-tso = ((po & ((R*M) | (W*W))) | mfence)
 let ghb-tso = po-tso | com-tso | implied
 
 acyclic ghb-tso as tso
+
+pattern 1(W, exec) - po -> 2(W, exec), 3 - rf -> 4(M, exec), 3 - co -> 1(W, exec), 2(W, exec) - rf -> 0(R, exec), 0(R, exec) - po -> 4(M, exec), 2(W, exec) - ext -> 0(R, exec)
+pattern 0 - co -> 1, 0 - rf -> 2(M), 1 - rf -> 3(R), 1 - ext -> 3(R), 3(R) - po -> 2(M)

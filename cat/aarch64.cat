@@ -115,3 +115,8 @@ acyclic ob as external
 
 (* Atomic: Basic LDXR/STXR constraint to forbid intervening writes. *)
 empty rmw & (fre; coe) as atomic
+
+pattern 0(exec) - po -> 1(L, exec), 1(L, exec) - rf -> 3(A | Q, exec), 4 - rf -> 2(exec), 3(A | Q, exec) - po -> 2(exec), 4 - co -> 0(exec), 0(exec) - si -> 0(exec), 2(exec) - ext -> 0(exec), 1(L, exec) - ext -> 3(A | Q, exec), 3(A | Q, exec) - si -> 3(A | Q, exec)
+pattern 2 - rf -> 3(exec), 1(exec) - addr -> 3(exec), 0(L, exec) - rf -> 1(exec), 2 - co -> 4(exec), 4(exec) - po -> 0(L, exec), 4(exec) - si -> 4(exec), 3(exec) - ext -> 4(exec), 0(L, exec) - ext -> 1(exec), 1(exec) - si -> 1(exec)
+pattern 2 - rf -> 0(A | Q), 3 - co -> 2, 3 - rf -> 1, 0(A | Q) - po -> 1, 0(A | Q) - si -> 0(A | Q), 1 - ext -> 2, 2 - ext -> 0(A | Q), 2 - si -> 2
+pattern 0 - rf -> 1(A | Q), 2(R) - loc -> 0, 2(R) - ¬ [range(rf)] -> 2(R), 0 - ext -> 1(A | Q), 0 - si -> 0, 2(R) - ext -> 0, 1(A | Q) - si -> 1(A | Q), 0 - [W] -> 0, 1(A | Q) - po -> 2(R)
