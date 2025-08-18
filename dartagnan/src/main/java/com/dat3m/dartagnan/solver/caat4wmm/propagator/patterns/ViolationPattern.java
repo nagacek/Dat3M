@@ -139,15 +139,15 @@ public class ViolationPattern implements Regulator {
         assert partialMatch.atNode(target) == -1;
 
         final RelationGraph relationGraph = edge.graph;
-        final var edges = outgoing ? relationGraph.outEdges(nodeMatch) : relationGraph.inEdges(nodeMatch);
+        final var edges = outgoing ? relationGraph.outEdgeStream(nodeMatch) : relationGraph.inEdgeStream(nodeMatch);
         final List<Integer> matches = new ArrayList<>();
-        for (var e : edges) {
+        edges.forEach(e -> {
             int targetId = outgoing ? e.getSecond() : e.getFirst();
 
             if (checkTags(target, targetId)) {
                 matches.add(targetId);
             }
-        }
+        });
 
         return matches;
     }
