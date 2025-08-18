@@ -24,7 +24,7 @@ public class Extractor {
     private final boolean coveredStaticOptimization = true;
     private final boolean locationApproximation = false;
     private final boolean allowNegation = true;
-    private final int maxNodeNumber = 20;
+    private final int maxNodeNumber = 10;
 
     private final PatternPropagator propagator;
     private final PropagatorExecutionGraph patternExecutionGraph;
@@ -165,7 +165,6 @@ public class Extractor {
 
     private boolean checkPatternConformity(Map<Integer, ViolationPattern.Node> patternNodes, List<ViolationPattern> violationPatterns, Set<Relation> usedRelations) {
         if (patternNodes.size() > maxNodeNumber) {
-            rollback(violationPatterns, usedRelations);
             return false;
         }
 

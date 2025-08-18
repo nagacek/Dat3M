@@ -73,7 +73,7 @@ public class WMMSolver {
             if (extractor != null) {
                 curTime = System.currentTimeMillis();
                 //extractor.extract(caatResult.getBaseReasons());
-                extractor.extract(solver.getHbResult().getBaseReasons());
+                //extractor.extract(solver.getHbResult().getBaseReasons());
                 stats.patternExtractionTime = System.currentTimeMillis() - curTime;
             }
             // ============== Compute Core reasons ==============
