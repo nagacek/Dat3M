@@ -4,6 +4,7 @@ import com.dat3m.dartagnan.expression.processing.ExpressionInspector;
 import com.dat3m.dartagnan.program.Register;
 import com.dat3m.dartagnan.program.memory.FinalMemoryValue;
 import com.dat3m.dartagnan.program.memory.MemoryObject;
+import com.dat3m.dartagnan.program.misc.NonDetValue;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
@@ -48,5 +49,20 @@ public interface Expression {
         final MemoryObjectCollector collector = new MemoryObjectCollector();
         this.accept(collector);
         return collector.objects.build();
+    }
+
+    default ImmutableSet<NonDetValue> getNonDetValues() {
+        class NonDetValueCollector implements ExpressionInspector {
+            private final ImmutableSet.Builder<NonDetValue> nonDets = ImmutableSet.builder();
+            @Override
+            public Expression visitNonDetValue(NonDetValue nonDet) {
+                nonDets.add(nonDet);
+                return nonDet;
+            }
+        }
+
+        final NonDetValueCollector collector = new NonDetValueCollector();
+        this.accept(collector);
+        return collector.nonDets.build();
     }
 }

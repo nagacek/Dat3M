@@ -54,6 +54,13 @@ public class ProcessingManager implements ProgramProcessor {
             secure = true)
     private boolean detectMixedSizeAccesses = false;
 
+    @Option(name = SEQUENTIAL_PREFIX,
+            description = "Simulates memory accesses in a (potential) sequential prefix of the program." +
+                    "Creates init events with the simulated values for memory locations." +
+                    "Is not compatible with addresses or jump guards using non-deterministic values.",
+            secure = true)
+    private boolean sequentialPrefix = true;
+
     // =================== Debugging options ===================
     @Option(name = PRINT_PROGRAM_BEFORE_PROCESSING,
             description = "Prints the program before any processing.",
@@ -145,6 +152,7 @@ public class ProcessingManager implements ProgramProcessor {
                 MemoryAllocation.fromConfig(config),
                 detectMixedSizeAccesses ? Tearing.fromConfig(config) : null,
                 detectMixedSizeAccesses ? simplifyBoundedProgram : null,
+                sequentialPrefix ? SimulateSequentialPrefix.newInstance() : null,
                 NonterminationDetection.fromConfig(config),
                 // --- Statistics + verification ---
                 IdReassignment.newInstance(), // Normalize used Ids (remove any gaps)
