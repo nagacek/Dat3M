@@ -59,7 +59,7 @@ public class ProcessingManager implements ProgramProcessor {
                     "Creates init events with the simulated values for memory locations." +
                     "Is not compatible with addresses or jump guards using non-deterministic values.",
             secure = true)
-    private boolean sequentialPrefix = true;
+    private boolean sequentialPrefix = false;
 
     // =================== Debugging options ===================
     @Option(name = PRINT_PROGRAM_BEFORE_PROCESSING,
