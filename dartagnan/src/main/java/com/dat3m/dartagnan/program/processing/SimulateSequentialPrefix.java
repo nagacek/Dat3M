@@ -65,7 +65,7 @@ public class SimulateSequentialPrefix implements ProgramProcessor {
                 return;
             }
 
-            CondResult cond = handleJumps(cur, toRemove);
+            CondResult cond = handleJumps(cur);
             if (cond == CondResult.SKIP) {
                 continue;
             } else if (cond == CondResult.ABORT) {
@@ -121,14 +121,10 @@ public class SimulateSequentialPrefix implements ProgramProcessor {
         CONTINUE,
         ABORT
     }
-    private CondResult handleJumps(Event cur, List<Event> toRemove) {
+    private CondResult handleJumps(Event cur) {
         if (curGoto != null) {
             if (cur instanceof Label label && curGoto.equals(label)) {
                 curGoto = null;
-                toRemove.add(cur);
-            }
-            if (cur instanceof MemoryEvent || cur instanceof CondJump) {
-                toRemove.add(cur);
             }
             return CondResult.SKIP;
         }
@@ -141,7 +137,6 @@ public class SimulateSequentialPrefix implements ProgramProcessor {
             Preconditions.checkState(guard.getNonDetValues().isEmpty(), "Cannot simulate guards with unknown values.");
             if (guard.equals(expressions.makeTrue())) {
                 curGoto = jump.getLabel();
-                toRemove.add(cur);
                 return CondResult.SKIP;
             }
         }

@@ -21,6 +21,7 @@ import static com.dat3m.dartagnan.program.event.Tag.VISIBLE;
 
 // This is just Dead Store Elimination, but the use of the term "Store" can be confusing in our setting 
 public class DeadAssignmentElimination implements FunctionProcessor {
+    private boolean doRemove = true;
 
     private DeadAssignmentElimination() { }
 
@@ -30,6 +31,11 @@ public class DeadAssignmentElimination implements FunctionProcessor {
 
     public static DeadAssignmentElimination fromConfig(Configuration config) throws InvalidConfigurationException {
         return newInstance();
+    }
+
+    public DeadAssignmentElimination removeAlloc(boolean doRemove) {
+        this.doRemove = doRemove;
+        return this;
     }
 
     @Override
@@ -69,6 +75,6 @@ public class DeadAssignmentElimination implements FunctionProcessor {
     }
 
     private boolean isSideEffectFree(Event event) {
-        return !event.hasTag(VISIBLE) && (event instanceof Local || event instanceof Alloc);
+        return !event.hasTag(VISIBLE) && (event instanceof Local || (event instanceof Alloc && doRemove));
     }
 }

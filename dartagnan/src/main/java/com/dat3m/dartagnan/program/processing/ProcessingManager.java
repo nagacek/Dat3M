@@ -59,7 +59,7 @@ public class ProcessingManager implements ProgramProcessor {
                     "Creates init events with the simulated values for memory locations." +
                     "Is not compatible with addresses or jump guards using non-deterministic values.",
             secure = true)
-    private boolean sequentialPrefix = false;
+    private boolean sequentialPrefix = true;
 
     // =================== Debugging options ===================
     @Option(name = PRINT_PROGRAM_BEFORE_PROCESSING,
@@ -104,6 +104,13 @@ public class ProcessingManager implements ProgramProcessor {
         final ProgramProcessor simplifyBoundedProgram = ProgramProcessor.fromFunctionProcessor(
                 simplifyFunction, Target.THREADS, true
         );
+        final FunctionProcessor simplifyFunctionWOalloc = FunctionProcessor.chain(
+                assignmentInlining,
+                sccp,
+                performDce ? DeadAssignmentElimination.fromConfig(config).removeAlloc(false) : null,
+                removeDeadJumps
+        );
+        final ProgramProcessor simplifyBoundedProgramWOalloc = ProgramProcessor.fromFunctionProcessor(simplifyFunctionWOalloc, Target.THREADS, true);
         programProcessors.addAll(Arrays.asList(
                 printBeforeProcessing ? DebugPrint.withHeader("Before processing", Printer.Mode.ALL) : null,
                 intrinsics.markIntrinsicsPass(),
@@ -151,8 +158,8 @@ public class ProcessingManager implements ProgramProcessor {
                 RemoveUnusedMemory.newInstance(),
                 MemoryAllocation.fromConfig(config),
                 detectMixedSizeAccesses ? Tearing.fromConfig(config) : null,
-                detectMixedSizeAccesses ? simplifyBoundedProgram : null,
                 sequentialPrefix ? SimulateSequentialPrefix.newInstance() : null,
+                detectMixedSizeAccesses || sequentialPrefix ? simplifyBoundedProgramWOalloc : null,
                 NonterminationDetection.fromConfig(config),
                 // --- Statistics + verification ---
                 IdReassignment.newInstance(), // Normalize used Ids (remove any gaps)
