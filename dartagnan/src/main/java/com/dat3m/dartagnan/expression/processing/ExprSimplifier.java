@@ -12,6 +12,7 @@ import com.dat3m.dartagnan.expression.booleans.*;
 import com.dat3m.dartagnan.expression.integers.*;
 import com.dat3m.dartagnan.expression.misc.ITEExpr;
 import com.dat3m.dartagnan.expression.utils.IntegerHelper;
+import com.dat3m.dartagnan.program.memory.MemoryObject;
 import com.google.common.base.VerifyException;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
@@ -163,6 +164,27 @@ public class ExprSimplifier extends ExprTransformer {
                     throw new VerifyException(String.format("Unexpected comparison operator '%s'. Missing normalization?", op));
             };
             return expressions.makeValue(cmpResult);
+        }
+
+        // ------ Operations with addresses ------
+        // handles &mem op 0 and &mem1 op &mem2
+        // cannot handle &mem + x op 0 yet
+        if (left instanceof MemoryObject && right instanceof IntLiteral ||
+                left instanceof IntLiteral && right instanceof MemoryObject) {
+            IntLiteral intLit = left instanceof IntLiteral ? (IntLiteral) left : (IntLiteral) right;
+            if (intLit.getValue().equals(BigInteger.ZERO)) {
+                final Expression cmpResult = switch (op) {
+                    case EQ -> expressions.makeFalse();
+                    case NEQ -> expressions.makeTrue();
+                    case LT, LTE, ULT, ULTE -> intLit == left ? expressions.makeTrue() : expressions.makeFalse();
+                    default -> null;
+                };
+                if (cmpResult != null) {
+                    return cmpResult;
+                }
+            }
+        } else if (left instanceof MemoryObject m1 && right instanceof MemoryObject m2) {
+            return m1.equals(m2) ? expressions.makeTrue() : expressions.makeFalse();
         }
 
         return expressions.makeIntCmp(left, op, right);

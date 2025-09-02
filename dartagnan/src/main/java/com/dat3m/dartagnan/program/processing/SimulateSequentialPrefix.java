@@ -37,7 +37,7 @@ public class SimulateSequentialPrefix implements ProgramProcessor {
         Set<MemoryObject> dynamicallyAllocated = new HashSet<>();
         Map<Expression, Expression> addressToValue = new HashMap<>();
         Map<Register, Expression> registerToValue = new HashMap<>();
-        Set<Event> toRemove = new HashSet<>();
+        List<Event> toRemove = new ArrayList<>();
         curGoto = null;
 
         // litmus tests and spirv
@@ -65,8 +65,12 @@ public class SimulateSequentialPrefix implements ProgramProcessor {
                 return;
             }
 
-            if (handleJumps(cur)) {
+            CondResult cond = handleJumps(cur, toRemove);
+            if (cond == CondResult.SKIP) {
                 continue;
+            } else if (cond == CondResult.ABORT) {
+                incorporateResults(program, toRemove, addressToValue, dynamicallyAllocated);
+                return;
             }
 
             if (cur instanceof Alloc alloc) {
@@ -112,25 +116,39 @@ public class SimulateSequentialPrefix implements ProgramProcessor {
         incorporateResults(program, toRemove, addressToValue, dynamicallyAllocated);
     }
 
-    private boolean handleJumps(Event cur) {
+    private enum CondResult {
+        SKIP,
+        CONTINUE,
+        ABORT
+    }
+    private CondResult handleJumps(Event cur, List<Event> toRemove) {
         if (curGoto != null) {
             if (cur instanceof Label label && curGoto.equals(label)) {
                 curGoto = null;
+                toRemove.add(cur);
             }
-            return true;
+            if (cur instanceof MemoryEvent || cur instanceof CondJump) {
+                toRemove.add(cur);
+            }
+            return CondResult.SKIP;
         }
         if (cur instanceof CondJump jump) {
             Expression guard = jump.getGuard().accept(propagator);
+            if (!guard.equals(expressions.makeTrue()) && !guard.equals(expressions.makeFalse())) {
+                return CondResult.ABORT;
+            }
+            jump.setGuard(guard);
             Preconditions.checkState(guard.getNonDetValues().isEmpty(), "Cannot simulate guards with unknown values.");
             if (guard.equals(expressions.makeTrue())) {
                 curGoto = jump.getLabel();
-                return true;
+                toRemove.add(cur);
+                return CondResult.SKIP;
             }
         }
-        return false;
+        return CondResult.CONTINUE;
     }
 
-    private void incorporateResults(Program program, Set<Event> toRemove, Map<Expression, Expression> addressToValue, Set<MemoryObject> dynamicallyAllocated) {
+    private void incorporateResults(Program program, List<Event> toRemove, Map<Expression, Expression> addressToValue, Set<MemoryObject> dynamicallyAllocated) {
         List<Init> inits = program.getThreadEvents(Init.class);
         for (Init init : inits) {
             Expression initValue = addressToValue.get(init.getAddress());
@@ -155,7 +173,6 @@ public class SimulateSequentialPrefix implements ProgramProcessor {
     private Expression calcAddress(MemoryObject mem, int offset) {
         return offset == 0 ? mem : expressions.makeAdd(mem, expressions.makeValue(offset, (IntegerType) mem.getType()));
     }
-
 
     private static class SequentialPropagator extends ExprSimplifier {
 
