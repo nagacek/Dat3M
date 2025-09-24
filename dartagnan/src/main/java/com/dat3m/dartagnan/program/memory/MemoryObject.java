@@ -30,6 +30,7 @@ public class MemoryObject extends LeafExpressionBase<Type> {
 
     private String name = null;
     private boolean isThreadLocal = false;
+    private boolean isSimulated = false;
     private final Set<String> featureTags = new HashSet<>();
 
     private final Map<Integer, Expression> initialValues = new TreeMap<>();
@@ -52,9 +53,12 @@ public class MemoryObject extends LeafExpressionBase<Type> {
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
 
-    public boolean isStaticallyAllocated() { return allocationSite == null; }
+    public boolean isStaticallyAllocated() { return isSimulated || allocationSite == null; }
     public boolean isDynamicallyAllocated() { return !isStaticallyAllocated(); }
     public Alloc getAllocationSite() { return allocationSite; }
+
+    public void setIsSimulated() { this.isSimulated = true; }
+    public boolean isSimulated() { return isSimulated; }
 
     public boolean isThreadLocal() { return this.isThreadLocal; }
     public void setIsThreadLocal(boolean value) { this.isThreadLocal = value;}

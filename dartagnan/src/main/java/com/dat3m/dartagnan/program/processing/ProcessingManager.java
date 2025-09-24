@@ -134,6 +134,7 @@ public class ProcessingManager implements ProgramProcessor {
                 printAfterCompilation ? DebugPrint.withHeader("After compilation", Printer.Mode.ALL) : null,
                 ProgramProcessor.fromFunctionProcessor(MemToReg.fromConfig(config), Target.FUNCTIONS, true),
                 ProgramProcessor.fromFunctionProcessor(sccp, Target.FUNCTIONS, false),
+                sequentialPrefix ? SimulateSequentialPrefix.newInstance(intrinsics) : null,
                 dynamicSpinLoopDetection ? DynamicSpinLoopDetection.fromConfig(config) : null,
                 ProgramProcessor.fromFunctionProcessor(NaiveLoopBoundAnnotation.fromConfig(config), Target.FUNCTIONS, true),
                 LoopUnrolling.fromConfig(config), // We keep unrolling global for now
@@ -158,8 +159,7 @@ public class ProcessingManager implements ProgramProcessor {
                 RemoveUnusedMemory.newInstance(),
                 MemoryAllocation.fromConfig(config),
                 detectMixedSizeAccesses ? Tearing.fromConfig(config) : null,
-                sequentialPrefix ? SimulateSequentialPrefix.newInstance() : null,
-                detectMixedSizeAccesses || sequentialPrefix ? simplifyBoundedProgramWOalloc : null,
+                detectMixedSizeAccesses ? simplifyBoundedProgram : null,
                 NonterminationDetection.fromConfig(config),
                 // --- Statistics + verification ---
                 IdReassignment.newInstance(), // Normalize used Ids (remove any gaps)

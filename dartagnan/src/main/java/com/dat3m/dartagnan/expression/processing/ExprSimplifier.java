@@ -18,6 +18,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 
 import java.math.BigInteger;
+import java.util.Set;
 
 public class ExprSimplifier extends ExprTransformer {
 
@@ -167,10 +168,11 @@ public class ExprSimplifier extends ExprTransformer {
         }
 
         // ------ Operations with addresses ------
-        // handles &mem op 0 and &mem1 op &mem2
-        // cannot handle &mem + x op 0 yet
-        if (left instanceof MemoryObject && right instanceof IntLiteral ||
-                left instanceof IntLiteral && right instanceof MemoryObject) {
+        // handles &mem + x op 0 and &mem1 + x op &mem2 + y
+        Set<MemoryObject> leftMems = left.getMemoryObjects();
+        Set<MemoryObject> rightMems = right.getMemoryObjects();
+        if (!leftMems.isEmpty() && right instanceof IntLiteral ||
+                left instanceof IntLiteral && !rightMems.isEmpty()) {
             IntLiteral intLit = left instanceof IntLiteral ? (IntLiteral) left : (IntLiteral) right;
             if (intLit.getValue().equals(BigInteger.ZERO)) {
                 final Expression cmpResult = switch (op) {
@@ -183,8 +185,13 @@ public class ExprSimplifier extends ExprTransformer {
                     return cmpResult;
                 }
             }
-        } else if (left instanceof MemoryObject m1 && right instanceof MemoryObject m2) {
-            return m1.equals(m2) ? expressions.makeTrue() : expressions.makeFalse();
+        } else if (!leftMems.isEmpty() && !rightMems.isEmpty()) {
+            if (leftMems.containsAll(rightMems) && rightMems.containsAll(leftMems)) {
+                ExprTransformer transformer = new CompareMemorySubstitution();
+                return expressions.makeIntCmp(left.accept(transformer), op, right.accept(transformer)).accept(this);
+            } else {
+                return op == IntCmpOp.NEQ ? expressions.makeTrue() : expressions.makeFalse();
+            }
         }
 
         return expressions.makeIntCmp(left, op, right);
@@ -383,5 +390,13 @@ public class ExprSimplifier extends ExprTransformer {
     // or we are in aggressive mode.
     private boolean isPotentiallyEliminable(Expression expr) {
         return aggressive || expr.getRegs().isEmpty();
+    }
+
+    // ============================= MemoryObject substitution =============================
+    private class CompareMemorySubstitution extends ExprTransformer {
+        @Override
+        public Expression visitMemoryObject(MemoryObject memObj) {
+            return expressions.makeZero(types.getArchType());
+        }
     }
 }
